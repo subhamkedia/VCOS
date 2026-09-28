@@ -575,3 +575,77 @@ export async function companyProfile(db: Db, entityId: string, opts: { scopes?: 
 }
 
 export type CompanyProfile = Awaited<ReturnType<typeof companyProfile>>;
+
+// ---------------------------------------------------------------------------
+// Outbox: outbound actions waiting for a human
+// ---------------------------------------------------------------------------
+
+export type OutboxChannel = "affinity_note" | "gmail_draft" | "outlook_draft";
+export type OutboxStatus = "pending" | "approved" | "rejected" | "done" | "failed";
+
+export interface OutboxItem {
+  id: string;
+  channel: OutboxChannel;
+  entity_id: string | null;
+  summary: string;
+  payload: Record<string, unknown>;
+  status: OutboxStatus;
+  proposed_by: string;
+  decided_by: string | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  created_at: unknown;
+}
+
+export async function insertOutboxItem(
+  db: Db,
+  item: { channel: OutboxChannel; entityId?: string; summary: string; payload: Record<string, unknown>; proposedBy: string },
+): Promise<string> {
+  const { rows } = await db.query<{ id: string }>(
+    `insert into outbox(channel, entity_id, summary, payload, proposed_by) values ($1,$2,$3,$4,$5) returning id`,
+    [item.channel, item.entityId ?? null, item.summary, JSON.stringify(item.payload), item.proposedBy],
+  );
+  await audit(db, item.proposedBy, "outbox.queue", rows[0]!.id, { channel: item.channel, summary: item.summary });
+  return rows[0]!.id;
+}
+
+export async function listOutbox(db: Db, status?: OutboxStatus): Promise<OutboxItem[]> {
+  const { rows } = await db.query<OutboxItem>(
+    `select * from outbox ${status ? "where status = $1" : ""} order by created_at`,
+    status ? [status] : [],
+  );
+  return rows;
+}
+
+export async function getOutboxItem(db: Db, id: string): Promise<OutboxItem | null> {
+  const { rows } = await db.query<OutboxItem>("select * from outbox where id=$1", [id]);
+  return rows[0] ?? null;
+}
+
+/**
+ * Record a person's decision on a pending item. Atomic: an item can be
+ * decided once. Returns the item, or throws if it wasn't pending.
+ */
+export async function decideOutboxItem(db: Db, id: string, approve: boolean, decidedBy: string): Promise<OutboxItem> {
+  if (!decidedBy.startsWith("human:")) throw new Error("Only a person (decidedBy 'human:<name>') can decide outbox items.");
+  const { rows } = await db.query<OutboxItem>(
+    `update outbox set status=$2, decided_by=$3, decided_at=now() where id=$1 and status='pending' returning *`,
+    [id, approve ? "approved" : "rejected", decidedBy],
+  );
+  if (!rows[0]) {
+    const existing = await getOutboxItem(db, id);
+    throw new Error(existing ? `Outbox item ${id} is already ${existing.status}` : `No outbox item ${id}`);
+  }
+  await audit(db, decidedBy, approve ? "outbox.approve" : "outbox.reject", id);
+  return rows[0];
+}
+
+/** Record what happened when an approved item was carried out. */
+export async function completeOutboxItem(db: Db, id: string, outcome: { ok: true; result: Record<string, unknown> } | { ok: false; error: string }) {
+  const { rows } = await db.query<{ id: string }>(
+    `update outbox set status=$2, result=$3, error=$4 where id=$1 and status='approved' returning id`,
+    [id, outcome.ok ? "done" : "failed", outcome.ok ? JSON.stringify(outcome.result) : null, outcome.ok ? null : outcome.error],
+  );
+  if (!rows[0]) throw new Error(`Outbox item ${id} is not approved`);
+  await audit(db, "outbox", outcome.ok ? "outbox.done" : "outbox.failed", id, outcome.ok ? outcome.result : { error: outcome.error });
+}

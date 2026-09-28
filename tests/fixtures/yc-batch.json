@@ -1,0 +1,6 @@
+[
+  {"id": 1, "name": "Girderline", "slug": "girderline", "former_names": ["Beamwise"], "website": "https://www.girderline.example", "all_locations": "Pittsburgh, PA, USA", "one_liner": "Autonomous steel inspection for bridges.", "long_description": "Girderline flies drones under bridge decks.", "team_size": 6, "batch": "Winter 2026", "status": "Active", "industries": ["Industrials", "Construction"], "url": "https://www.ycombinator.com/companies/girderline"},
+  {"id": 2, "name": "Formwork AI", "slug": "formwork-ai", "former_names": [], "website": "https://formwork.example", "all_locations": "Austin, TX, USA; Remote", "one_liner": "Concrete formwork planning.", "team_size": 3, "batch": "Winter 2026", "status": "Active", "industries": ["Construction"], "url": "https://www.ycombinator.com/companies/formwork-ai"},
+  {"id": 3, "name": "Nomad Welding", "slug": "nomad-welding", "former_names": null, "website": "", "all_locations": "", "batch": "Winter 2026", "status": "Active", "industries": []},
+  {"id": 4, "slug": "no-name"}
+]

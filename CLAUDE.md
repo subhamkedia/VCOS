@@ -40,6 +40,14 @@ session. It overrides your defaults.
   Drafting agents read claims, never raw evidence.
 - **Personal messengers are read-only and opt-in per contact.** Never build a
   send path for WhatsApp or iMessage.
+- **Outbound actions go through the outbox.** Anything that writes outside
+  VC OS (a CRM note, an email draft) is queued with `modules/outbox` and runs
+  only after `human:<name>` approves it. Email channels create drafts; no
+  connector has a send function, and a test fails if one appears.
+- **Keys unlock connectors, nothing else.** Every connector works end to end
+  against fixtures without keys; `pnpm connectors` shows which are live.
+  A new connector adds its keys to `lib/config.ts`, `.env.example` and
+  `connectors/registry.ts`.
 - **Vendor data stays internal.** PitchBook, Harmonic, etc. records are
   Evidence with the vendor's scope. Don't export them.
 
@@ -88,8 +96,10 @@ db/migrations/  plain SQL, applied in order
 
 ## Current phase
 
-Phase 0 — Foundation. Gate to Phase 1: resolver matches ≥95% of 200
-hand-labeled names (`pnpm eval:resolver --set evals/resolver/real --gate 0.95`).
+Phase 0 — Foundation. Gate to Phase 1: the resolver scores ≥95% with zero
+false merges on the YC 2026 set, 200 companies across the 2026 batches
+(`pnpm eval:resolver:build-yc`, then
+`pnpm eval:resolver --set evals/resolver/yc2026 --gate 0.95`).
 Phase 1 is Diligence, and it starts the web app: the app shell plus a
 Ledger screen (company profile, sources with highlighted quotes,
 contradictions, merge review) and the Diligence module.

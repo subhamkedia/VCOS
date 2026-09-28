@@ -16,7 +16,7 @@ Phase 1.
 ```bash
 pnpm install
 pnpm demo        # offline walk-through on fictional data, no keys needed
-pnpm test        # 48 tests on in-process Postgres
+pnpm test        # 83 tests on in-process Postgres
 ```
 
 The demo ingests a company from Harmonic, an SEC Form D, a press article and
@@ -27,14 +27,25 @@ live Claude for extraction instead of scripted replies.
 
 ## Use it on real companies
 
+Every connector is built and tested; each one goes live when you add its
+keys to `.env`.
+
 ```bash
-cp .env.example .env            # add the keys you have
+cp .env.example .env            # add the keys you have (setup notes inside)
+pnpm connectors                 # which sources are ready, and what each needs
+pnpm connectors --check         # one cheap live call per configured source
 pnpm db:migrate                 # local PGlite in .data/, or Postgres via DATABASE_URL
 
-pnpm ingest harmonic acme.com --dry-run          # check the mapping first
-pnpm ingest harmonic acme.com
+pnpm ingest harmonic acme.com --dry-run          # check a vendor mapping first
+pnpm ingest harmonic acme.com                    # also: pitchbook, crunchbase, dealroom
 pnpm ingest formd "Acme Robotics" --from 2025-01-01
+pnpm ingest yc W26 --founders                    # a YC batch from the public directory
 pnpm ingest web https://acme.com/about --company "Acme Robotics" --domain acme.com
+pnpm ingest affinity "Acme Robotics"             # CRM record and its notes
+pnpm ingest affinity-list 12345 --notes          # a whole pipeline list
+pnpm ingest gmail "from:@acme.com newer_than:90d"   # or: outlook "acme"
+pnpm ingest drive-search "Acme deck"             # then: ingest drive <file id> --company ...
+pnpm ingest document ~/Downloads/acme.pdf --company "Acme Robotics" --url https://docsend.com/view/...
 pnpm ingest transcript ~/Downloads/acme-call.vtt --company "Acme Robotics" --domain acme.com --date 2026-10-02
 pnpm ingest granola <meeting-id> --company "Acme Robotics"
 
@@ -42,6 +53,8 @@ pnpm show acme.com              # everything the ledger knows, with sources and 
 pnpm show acme.com --shareable  # only what a shareable output may cite (public sources)
 pnpm resolve                    # merge proposals waiting for you
 pnpm resolve accept <id>
+pnpm outbox                     # CRM notes and email drafts waiting for your approval
+pnpm outbox approve <id>        # creates the draft or note; nothing is ever sent
 ```
 
 For production, `docker compose up -d` and set
@@ -57,7 +70,8 @@ For production, `docker compose up -d` and set
 | `ledger/contradictions.ts` | Finds claims that can't both be true. A self-reported number far from an independent source is high severity. |
 | `agents/resolver/` | Entity resolution: hard identifiers first, then Fellegi-Sunter scoring on name, domain, founders and city. Ambiguous cases become merge proposals; Claude can suggest a pick, a human accepts. |
 | `agents/extractor/` | Claim extraction with the Claude Citations API. Every claim carries the exact quote and character offsets. Lines without a valid citation are rejected. |
-| `connectors/` | Harmonic, SEC EDGAR Form D, web pages, transcripts (files or Granola MCP). All flow through one `ingest()` pipeline. |
+| `connectors/` | Harmonic, PitchBook, Crunchbase, Dealroom, SEC EDGAR Form D, the YC directory, web pages, Affinity, Gmail, Outlook, Google Drive, DocSend and local files, transcripts (files or Granola MCP). All flow through one `ingest()` pipeline; `registry.ts` lists each one's keys and scope. |
+| `modules/outbox/` | The approval queue for anything that leaves VC OS. Agents queue; a person approves; then it runs once. |
 | `evals/resolver/` | Resolver eval and the Phase 0 gate. |
 | `evals/extraction/` | Extraction eval: precision, recall, citation validity, pass^k. |
 | `CLAUDE.md` | Rules for Claude Code in this repo. Read it before changing anything. |
@@ -65,19 +79,24 @@ For production, `docker compose up -d` and set
 ## The Phase 0 gate
 
 ```bash
-pnpm eval:resolver --set evals/resolver/real --gate 0.95
+pnpm eval:resolver:build-yc                              # 200 YC 2026 companies
+pnpm eval:resolver --set evals/resolver/yc2026 --gate 0.95
 ```
 
-Pass requires ≥95% accuracy on ≥200 hand-labeled real names from your own
-pipeline, with zero false merges. The bundled synthetic set scores 100%, but
-it was written alongside the resolver, so treat it as a smoke test.
-`evals/resolver/README.md` explains how to build the real set in an
-afternoon.
+Pass requires ≥95% accuracy and zero false merges on the YC 2026 set: 200
+real companies across the 2026 batches, with real Launch HN names, former
+names and look-alike YC companies. The bundled synthetic set scores 100%,
+but it was written alongside the resolver, so treat it as a smoke test.
+`evals/resolver/README.md` explains both sets.
 
 ## Known limits in Phase 0
 
-- The Harmonic field mapping follows their documented response but hasn't
-  been run against a live key. Run `--dry-run` once before trusting it.
+- Vendor mappings (Harmonic, PitchBook, Crunchbase, Dealroom, Affinity)
+  follow each vendor's documentation and are tested against fixtures, not
+  live accounts. Run `--dry-run` once per vendor before trusting one.
+  PitchBook's docs are licence-gated, so its paths sit in `PITCHBOOK_PATHS`.
+- DocSend has no API for people viewing a shared link: download the deck
+  and ingest the file with `--url`. Scanned PDFs need OCR, which isn't built.
 - Granola tool names come from Granola's docs. `pnpm ingest granola-tools`
   lists the live ones; pass `--tool` if they differ.
 - Resolver weights are hand-set. Re-estimate them from labeled pairs once

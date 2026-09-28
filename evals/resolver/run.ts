@@ -32,6 +32,7 @@ interface Case {
   expected: string; // entity key, or "NEW"
   acceptReview?: boolean; // review pointing at the expected entity counts as correct
   mustReview?: boolean;   // only review counts: the record is genuinely ambiguous
+  kind?: string;          // mention format, for the per-kind breakdown
   note?: string;
 }
 
@@ -95,7 +96,8 @@ export async function runResolverEval(setDir: string): Promise<{ results: CaseRe
 
   const results: CaseResult[] = [];
   for (const c of cases) {
-    const candidate: Candidate = { type: "company", source: "eval", ...c };
+    const { kind: _kind, note: _note, expected: _expected, acceptReview: _a, mustReview: _m, ...mention } = c;
+    const candidate: Candidate = { type: "company", source: "eval", ...mention };
     const r = await resolve(db, candidate);
     const gotKey = r.entityId ? (keyById.get(r.entityId) ?? "?") : "NEW";
     results.push({
@@ -137,6 +139,16 @@ async function main() {
   console.log(`Unsafe merges   ${count("unsafe_auto_merge")}   (right answer, but the evidence couldn't justify it)`);
   console.log(`Missed matches  ${count("missed_match")}`);
   console.log(`Needless review ${count("needless_review")}`);
+
+  const kinds = [...new Set(results.map((r) => r.case.kind).filter((k): k is string => Boolean(k)))].sort();
+  if (kinds.length) {
+    console.log("\nBy mention kind");
+    for (const k of kinds) {
+      const rs = results.filter((r) => r.case.kind === k);
+      const ok = rs.filter((r) => r.verdict === "correct").length;
+      console.log(`  ${k.padEnd(15)} ${String(ok).padStart(4)}/${String(rs.length).padEnd(4)} ${((ok / rs.length) * 100).toFixed(1)}%`);
+    }
+  }
 
   if (gate !== null) {
     const pass = accuracy >= gate && falseMerges === 0 && results.length >= 200;

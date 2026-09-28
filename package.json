@@ -10,9 +10,12 @@
     "extract": "tsx cli/extract.ts",
     "resolve": "tsx cli/resolve.ts",
     "eval:resolver": "tsx evals/resolver/run.ts",
+    "eval:resolver:build-yc": "tsx evals/resolver/build-yc.ts",
     "eval:extraction": "tsx evals/extraction/run.ts",
     "demo": "tsx cli/demo.ts",
-    "show": "tsx cli/show.ts"
+    "show": "tsx cli/show.ts",
+    "connectors": "tsx cli/connectors.ts",
+    "outbox": "tsx cli/outbox.ts"
   },
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
@@ -21,6 +24,7 @@
     "@modelcontextprotocol/sdk": "^1.31.0",
     "dotenv": "^18.0.4",
     "pg": "^8.23.0",
+    "unpdf": "^1.8.1",
     "yaml": "^2.9.1",
     "zod": "^4.6.5"
   },

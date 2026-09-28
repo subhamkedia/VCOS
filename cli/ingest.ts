@@ -6,19 +6,50 @@ import { harmonicEnrichByDomain } from "../connectors/harmonic.js";
 import { searchFormD, fetchFormD } from "../connectors/edgar.js";
 import { fetchWebPage } from "../connectors/web.js";
 import { transcriptFromFile, granolaTranscript, listGranolaTools } from "../connectors/transcripts.js";
+import { fetchYcBatch, fetchYcFounders, ycToRecord } from "../connectors/yc.js";
+import { pitchbookByDomain } from "../connectors/pitchbook.js";
+import { crunchbaseByDomain } from "../connectors/crunchbase.js";
+import { dealroomByDomain } from "../connectors/dealroom.js";
+import { affinityListOrgs, affinityNoteRecord, affinityNotes, affinityOrgRecord, affinitySearchOrgs, type AffinityOrg } from "../connectors/affinity.js";
+import { gmailSearch } from "../connectors/gmail.js";
+import { outlookSearch } from "../connectors/outlook.js";
+import { emailToRecord } from "../connectors/email.js";
+import { driveRecord, driveSearch } from "../connectors/gdrive.js";
+import { documentFromFile } from "../connectors/documents.js";
 import { openDb, parseArgs, printCompany, run } from "./common.js";
 
 const USAGE = `
-pnpm ingest harmonic <domain>                         Enrich a company from Harmonic
-pnpm ingest formd "<company or keyword>" [--from YYYY-MM-DD] [--limit 5]
-                                                      Pull SEC Form D filings
-pnpm ingest web <url> --company "<name>" [--domain d]  Snapshot a page and extract claims
-pnpm ingest transcript <file> --company "<name>" [--domain d] [--date YYYY-MM-DD]
-                                                      Import an exported transcript (.txt .md .vtt)
-pnpm ingest granola <meeting-id> --company "<name>" [--domain d] [--date YYYY-MM-DD]
-pnpm ingest granola-tools                             List the tools Granola's MCP server exposes
+Data vendors (vendor scope, never exported)
+  pnpm ingest harmonic <domain>
+  pnpm ingest pitchbook <domain>
+  pnpm ingest crunchbase <domain>
+  pnpm ingest dealroom <domain>
+
+Public sources
+  pnpm ingest formd "<company or keyword>" [--from YYYY-MM-DD] [--limit 5]
+  pnpm ingest yc <batch: W26, X26, S26...> [--limit n] [--founders]
+  pnpm ingest web <url> --company "<name>" [--domain d]
+
+CRM
+  pnpm ingest affinity "<organization name>"          The best match and its notes
+  pnpm ingest affinity-list <list id> [--notes]       Every organization on a list (your pipeline)
+
+Email (confidential; subject company = --company, or the sender's company domain)
+  pnpm ingest gmail "<gmail query>" [--max 20] [--company "<name>"] [--domain d]
+  pnpm ingest outlook "<search>" [--max 20] [--company "<name>"] [--domain d]
+
+Documents (confidential)
+  pnpm ingest drive <file id> --company "<name>" [--domain d]
+  pnpm ingest drive-search "<text>"                   List matching files (writes nothing)
+  pnpm ingest document <file.pdf|.txt|.md> --company "<name>" [--domain d] [--url <docsend link>]
+
+Meetings (confidential)
+  pnpm ingest transcript <file> --company "<name>" [--domain d] [--date YYYY-MM-DD]
+  pnpm ingest granola <meeting-id> --company "<name>" [--domain d] [--date YYYY-MM-DD]
+  pnpm ingest granola-tools
 
 Add --dry-run to see what would be written without touching the database.
+Run \`pnpm connectors\` to see which sources have keys.
 `;
 
 function summarize(r: IngestResult) {
@@ -45,17 +76,51 @@ run(async () => {
     return;
   }
 
+  if (kind === "drive-search") {
+    if (!target) throw new Error(USAGE);
+    for (const f of await driveSearch(target)) console.log(`${f.id}  ${f.name}  [${f.mimeType}]  ${f.modifiedTime?.slice(0, 10) ?? ""}`);
+    return;
+  }
+
   const company = str("company");
-  const needsCompany = ["web", "transcript", "granola"].includes(kind);
+  const domain = str("domain");
+  const needsCompany = ["web", "transcript", "granola", "drive", "document"].includes(kind);
   if (needsCompany && !company) throw new Error(`--company is required for ${kind}.${USAGE}`);
   if (!target) throw new Error(USAGE);
+  const max = Number(str("max") ?? str("limit") ?? 20);
 
   const records: SourceRecord[] = [];
+  const affinityWithNotes = async (o: AffinityOrg, notes: boolean) => {
+    records.push(affinityOrgRecord(o));
+    if (notes) for (const n of await affinityNotes(o.id)) records.push(affinityNoteRecord(n, o));
+  };
+
   if (kind === "harmonic") records.push(await harmonicEnrichByDomain(target));
-  else if (kind === "web") records.push(await fetchWebPage(target, { company, companyDomain: str("domain") }));
-  else if (kind === "transcript") records.push(await transcriptFromFile(target, { company: company!, companyDomain: str("domain"), date: str("date") }));
-  else if (kind === "granola") records.push(await granolaTranscript(target, { company: company!, companyDomain: str("domain"), date: str("date") }));
-  else if (kind === "formd") {
+  else if (kind === "pitchbook") records.push(await pitchbookByDomain(target));
+  else if (kind === "crunchbase") records.push(await crunchbaseByDomain(target));
+  else if (kind === "dealroom") records.push(await dealroomByDomain(target));
+  else if (kind === "web") records.push(await fetchWebPage(target, { company, companyDomain: domain }));
+  else if (kind === "transcript") records.push(await transcriptFromFile(target, { company: company!, companyDomain: domain, date: str("date") }));
+  else if (kind === "granola") records.push(await granolaTranscript(target, { company: company!, companyDomain: domain, date: str("date") }));
+  else if (kind === "document") records.push(await documentFromFile(target, { company: company!, companyDomain: domain, date: str("date"), url: str("url") }));
+  else if (kind === "drive") records.push(await driveRecord(target, { company: company!, companyDomain: domain }));
+  else if (kind === "gmail" || kind === "outlook") {
+    const mails = kind === "gmail" ? await gmailSearch(target, { max }) : await outlookSearch(target, { max });
+    for (const m of mails) records.push(emailToRecord(m, { company, companyDomain: domain }));
+    if (!mails.length) return console.log("No messages matched.");
+  } else if (kind === "affinity") {
+    const [o] = await affinitySearchOrgs(target);
+    if (!o) return console.log(`No Affinity organization matches "${target}".`);
+    await affinityWithNotes(o, true);
+  } else if (kind === "affinity-list") {
+    for (const o of await affinityListOrgs(Number(target))) await affinityWithNotes(o, Boolean(flags.notes));
+  } else if (kind === "yc") {
+    const list = (await fetchYcBatch(target)).slice(0, str("limit") ? Number(str("limit")) : undefined);
+    for (const c of list) {
+      if (flags.founders) c.founders = await fetchYcFounders(c.slug).catch(() => undefined);
+      records.push(ycToRecord(c));
+    }
+  } else if (kind === "formd") {
     const hits = (await searchFormD(target, { from: str("from"), to: str("to") })).slice(0, Number(str("limit") ?? 5));
     if (!hits.length) return console.log("No Form D filings found.");
     for (const h of hits) records.push(await fetchFormD(h));

@@ -2,6 +2,8 @@
 
 One folder per module, each a set of workflows and queries over the ledger:
 
+- `outbox/` — built: the approval queue every module uses for anything that leaves VC OS
+
 - `diligence/` — Phase 1: claims by workstream, verification status, contradiction board, question list for the next call
 - `sourcing/` — Phase 2: program crawler, thesis scorer, weekly digest, coverage metric
 - `ic-memo/` — Phase 2: drafting with the citation check, red team

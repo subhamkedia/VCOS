@@ -6,7 +6,29 @@ The Phase 0 gate: **≥95% accuracy on ≥200 hand-labeled real cases, zero fals
 typos, rebrands, TLD changes, look-alike names). It proves the harness works.
 It does not prove the resolver works, because the same person wrote both.
 
-## Build the real set
+## The YC 2026 gate set
+
+The gate set is built from Y Combinator's public directory: 200 companies
+drawn across the 2026 batches (W26, X26, S26, and F26 once published), in
+proportion to batch size, with a seeded hash so the draw is reproducible.
+
+```
+pnpm eval:resolver:build-yc                      # fetch, snapshot, build
+pnpm eval:resolver --set evals/resolver/yc2026 --gate 0.95
+pnpm eval:resolver:build-yc --from-snapshot      # rebuild offline from snapshot.json
+```
+
+Needs network access to yc-oss.github.io, www.ycombinator.com and
+hn.algolia.com. `yc-gate.ts` explains how cases are made; `SUMMARY.md` in
+the output lists counts by kind. In short: 80% of the companies are the
+fund's known entities, 20% are held out and must come back NEW; known
+companies are mentioned as a website record, a Form D legal name, a founder
+intro or a one-letter typo, plus their real Launch HN titles and former
+names; real YC companies from other years with look-alike names must come
+back NEW. Labels come from YC's identity for each company, not from the
+resolver. Spot-check a sample of cases before trusting the score.
+
+## Build a set from your own pipeline
 
 Make `evals/resolver/real/` with two files. Keep it out of git if it holds
 anything confidential (`.gitignore` it).
