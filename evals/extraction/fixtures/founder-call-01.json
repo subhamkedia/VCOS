@@ -1,0 +1,26 @@
+{
+  "id": "founder-call-01",
+  "kind": "transcript",
+  "title": "Intro call, Kestrel Robotics",
+  "date": "2026-09-15",
+  "subject": "Kestrel Robotics",
+  "document": "Investor: Great to meet you. Give me the quick version.\nMaya: We build autonomous rebar-tying robots for bridge decks and parking structures. We started the company in 2023 in Pittsburgh.\nInvestor: Where are you on revenue?\nMaya: We ended August at $2.4M ARR. Gross margin on the robot-as-a-service contracts is about 58%.\nInvestor: Customers?\nMaya: Five paying customers. Kiewit signed a production contract in July for three sites. Skanska is in a paid pilot on one deck in Queens. We're talking to Turner but nothing signed.\nInvestor: Team and cash?\nMaya: We're 22 people. We have $6.1M in the bank and burn about $380K a month, so roughly 16 months of runway.\nInvestor: IP?\nMaya: Two granted patents and four pending.\nInvestor: The website says you're in 40 states.\nMaya: That's aspirational, honestly. Today we operate in six.",
+  "expected": [
+    { "predicate": "company.founded_year", "value": 2023 },
+    { "predicate": "company.hq_location", "value": "Pittsburgh" },
+    { "predicate": "revenue.arr", "value": 2400000 },
+    { "predicate": "unit_economics.gross_margin", "value": 58 },
+    { "predicate": "customers.paying.count", "value": 5 },
+    { "predicate": "pilot.status", "value": { "customer": "Kiewit", "rung": "production_contract" } },
+    { "predicate": "pilot.status", "value": { "customer": "Skanska", "rung": "paid_pilot" } },
+    { "predicate": "pilot.status", "value": { "customer": "Turner", "rung": "conversation" } },
+    { "predicate": "team.headcount", "value": 22 },
+    { "predicate": "cash.balance", "value": 6100000 },
+    { "predicate": "burn.monthly", "value": 380000 },
+    { "predicate": "runway.months", "value": 16 },
+    { "predicate": "ip.patent_count", "value": 6, "optional": true }
+  ],
+  "forbidden": [
+    { "predicate": "revenue.growth_yoy", "reason": "not stated" }
+  ]
+}

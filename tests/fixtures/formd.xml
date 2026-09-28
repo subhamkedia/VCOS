@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+  <submissionType>D</submissionType>
+  <primaryIssuer>
+    <cik>0001999001</cik>
+    <entityName>KESTREL ROBOTICS, INC.</entityName>
+    <issuerAddress><street1>100 Smithfield St</street1><city>PITTSBURGH</city><stateOrCountry>PA</stateOrCountry></issuerAddress>
+    <entityType>Corporation</entityType>
+    <yearOfInc><withinFiveYears>true</withinFiveYears><value>2023</value></yearOfInc>
+  </primaryIssuer>
+  <relatedPersonsList>
+    <relatedPersonInfo>
+      <relatedPersonName><firstName>MAYA</firstName><lastName>LINDQVIST</lastName></relatedPersonName>
+      <relatedPersonRelationshipList><relationship>Executive Officer</relationship><relationship>Director</relationship></relatedPersonRelationshipList>
+    </relatedPersonInfo>
+    <relatedPersonInfo>
+      <relatedPersonName><firstName>ALEX</firstName><lastName>MORROW</lastName></relatedPersonName>
+      <relatedPersonRelationshipList><relationship>Director</relationship></relatedPersonRelationshipList>
+    </relatedPersonInfo>
+  </relatedPersonsList>
+  <offeringData>
+    <industryGroup><industryGroupType>Other Technology</industryGroupType></industryGroup>
+    <dateOfFirstSale><value>2026-06-02</value></dateOfFirstSale>
+    <offeringSalesAmounts>
+      <totalOfferingAmount>9000000</totalOfferingAmount>
+      <totalAmountSold>8750000</totalAmountSold>
+      <totalRemaining>250000</totalRemaining>
+    </offeringSalesAmounts>
+    <investors><totalNumberAlreadyInvested>7</totalNumberAlreadyInvested></investors>
+  </offeringData>
+</edgarSubmission>

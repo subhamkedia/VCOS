@@ -1,0 +1,39 @@
+{
+  "name": "vc-os",
+  "version": "0.1.0",
+  "description": "AI-native operating system for a venture fund: one claim ledger, six modules.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:migrate": "tsx cli/migrate.ts",
+    "ingest": "tsx cli/ingest.ts",
+    "extract": "tsx cli/extract.ts",
+    "resolve": "tsx cli/resolve.ts",
+    "eval:resolver": "tsx evals/resolver/run.ts",
+    "eval:extraction": "tsx evals/extraction/run.ts",
+    "demo": "tsx cli/demo.ts",
+    "show": "tsx cli/show.ts"
+  },
+  "packageManager": "pnpm@10.28.0",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
+    "@electric-sql/pglite": "^0.5.8",
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "dotenv": "^18.0.4",
+    "pg": "^8.23.0",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  }
+}

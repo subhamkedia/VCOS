@@ -1,0 +1,47 @@
+# Investment thesis. The sourcing scorer reads this file; nothing else
+# should encode sector logic. Bump `version` on every change so scores
+# stay comparable over time.
+version: 1
+name: Physical AI for the built world
+
+stages: [pre-seed, seed, series-a]
+geographies: [US, Canada, Europe]
+check_size_usd: { min: 500000, max: 5000000 }
+
+sectors:
+  - id: physical-ai
+    label: Physical AI and robotics
+    keywords: [robotics, embodied AI, autonomy, manipulation, humanoid, mobile robot]
+  - id: construction-tech
+    label: Construction technology
+    keywords: [construction, jobsite, BIM, preconstruction, estimating, field software]
+  - id: industrial-automation
+    label: Industrial automation
+    keywords: [manufacturing, factory, PLC, machine vision, industrial IoT, predictive maintenance]
+  - id: built-environment
+    label: Built environment
+    keywords: [buildings, facilities, HVAC, energy retrofit, real estate operations]
+
+# Each dimension is scored 0-5 by the scorer with cited reasoning.
+# Weights must sum to 1.
+dimensions:
+  - id: sector_fit
+    weight: 0.20
+    guide: How squarely the company sits in one of the sectors above.
+  - id: technical_moat
+    weight: 0.25
+    guide: Hard-to-copy technology. Patents, papers, proprietary data, hardware-software integration.
+  - id: team
+    weight: 0.25
+    guide: Founders' domain depth and ability to sell to industrial buyers. Verified, not self-reported.
+  - id: industrial_gtm
+    weight: 0.15
+    guide: Evidence of paid pilots or contracts with contractors, OEMs or operators.
+  - id: capital_efficiency
+    weight: 0.15
+    guide: Capital needed to reach meaningful revenue. Hardware-heavy plans score lower unless tranching fits.
+
+# Hard filters applied before scoring (compatibility before prediction).
+exclude:
+  - consumer-only products
+  - companies with no technical founder

@@ -1,0 +1,209 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import type { Db } from "../lib/db.js";
+import { testDb } from "./helpers.js";
+import {
+  createEntity, insertEvidence, insertClaim, currentClaims, detectContradictions, openContradictions,
+  findByIdentifier, recordDecision, addIdentifier,
+} from "../ledger/repository.js";
+import { normalizeValue, parseNumber, PREDICATES } from "../ledger/predicates.js";
+
+let db: Db;
+beforeEach(async () => {
+  db = await testDb();
+});
+afterEach(async () => {
+  await db.close();
+});
+
+const transcript =
+  "Founder: We're at $4.1M ARR as of last month. We have three paying customers, two are ENR top-50 GCs.\n" +
+  "Founder: Turner is in production across 12 sites.";
+
+async function seed() {
+  const acme = await createEntity(db, {
+    type: "company",
+    name: "Acme Robotics, Inc.",
+    source: "test",
+    identifiers: [{ kind: "domain", value: "https://www.acmerobotics.com/about" }],
+  });
+  const { evidence } = await insertEvidence(db, {
+    kind: "transcript", source: "granola", content: transcript, title: "Acme intro call", accessScope: "confidential",
+  });
+  return { acme, evidence };
+}
+
+describe("predicates", () => {
+  it("parses human numbers", () => {
+    expect(parseNumber("$4.1M")).toBe(4_100_000);
+    expect(parseNumber("1.2bn")).toBe(1_200_000_000);
+    expect(parseNumber("12,500")).toBe(12_500);
+    expect(parseNumber("35%")).toBe(35);
+    expect(parseNumber("about four")).toBeNull();
+  });
+
+  it("normalizes and rejects values", () => {
+    expect(normalizeValue("revenue.arr", "$4.1M")).toBe(4_100_000);
+    expect(normalizeValue("company.stage", "Series A")).toBe("series_a");
+    expect(normalizeValue("pilot.status", { customer: " Turner ", rung: "paid_pilot" })).toEqual({ customer: "Turner", rung: "paid_pilot" });
+    expect(() => normalizeValue("pilot.status", { customer: "Turner", rung: "deployed" })).toThrow(/rung/);
+    expect(() => normalizeValue("customers.paying.count", 2.5)).toThrow();
+    expect(() => normalizeValue("revenue.madeup", 1)).toThrow(/Unknown predicate/);
+  });
+
+  it("every predicate is documented", () => {
+    for (const def of PREDICATES.values()) {
+      expect(def.description.length).toBeGreaterThan(10);
+      if (def.kind === "enum") expect(def.enumValues?.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("entities", () => {
+  it("finds entities by normalized identifier", async () => {
+    const { acme } = await seed();
+    expect((await findByIdentifier(db, "domain", "acmerobotics.com"))?.id).toBe(acme.id);
+    expect((await findByIdentifier(db, "domain", "http://ACMEROBOTICS.com/"))?.id).toBe(acme.id);
+    expect(await findByIdentifier(db, "domain", "other.com")).toBeNull();
+  });
+
+  it("refuses to move an identifier to a second entity", async () => {
+    await seed();
+    const other = await createEntity(db, { type: "company", name: "Acme Two", source: "test" });
+    await expect(addIdentifier(db, other.id, "domain", "acmerobotics.com", "test")).rejects.toThrow(/already belongs/);
+  });
+});
+
+describe("evidence", () => {
+  it("stores identical content once per source", async () => {
+    const a = await insertEvidence(db, { kind: "note", source: "test", content: "same" });
+    const b = await insertEvidence(db, { kind: "note", source: "test", content: "same" });
+    expect(a.created).toBe(true);
+    expect(b.created).toBe(false);
+    expect(b.evidence.id).toBe(a.evidence.id);
+  });
+
+  it("is append-only", async () => {
+    const { evidence } = await insertEvidence(db, { kind: "note", source: "test", content: "x" });
+    await expect(db.query("update evidence set title='y' where id=$1", [evidence.id])).rejects.toThrow(/append-only/);
+    await expect(db.query("delete from evidence where id=$1", [evidence.id])).rejects.toThrow(/append-only/);
+  });
+});
+
+describe("claims", () => {
+  it("writes a cited claim and inherits the evidence's access scope", async () => {
+    const { acme, evidence } = await seed();
+    const cited = "$4.1M ARR";
+    const start = transcript.indexOf(cited);
+    const id = await insertClaim(db, {
+      subjectId: acme.id, predicate: "revenue.arr", value: "$4.1M", evidenceId: evidence.id,
+      spanStart: start, spanEnd: start + cited.length, citedText: cited,
+      sourceType: "self_reported", extractedBy: "test",
+    });
+    const { rows } = await db.query<{ value: number; access_scope: string; unit: string }>(
+      "select value, access_scope, unit from claims where id=$1", [id],
+    );
+    expect(rows[0]).toEqual({ value: 4_100_000, access_scope: "confidential", unit: "USD" });
+  });
+
+  it("rejects a cited span that doesn't match the evidence", async () => {
+    const { acme, evidence } = await seed();
+    await expect(
+      insertClaim(db, {
+        subjectId: acme.id, predicate: "revenue.arr", value: 4_100_000, evidenceId: evidence.id,
+        spanStart: 0, spanEnd: 10, citedText: "$4.1M ARR", sourceType: "self_reported", extractedBy: "test",
+      }),
+    ).rejects.toThrow(/does not match/);
+  });
+
+  it("rejects a predicate that doesn't apply to the entity type", async () => {
+    const { evidence } = await seed();
+    const person = await createEntity(db, { type: "person", name: "Jane Doe", source: "test" });
+    await expect(
+      insertClaim(db, {
+        subjectId: person.id, predicate: "revenue.arr", value: 1, evidenceId: evidence.id,
+        sourceType: "self_reported", extractedBy: "test",
+      }),
+    ).rejects.toThrow(/does not apply/);
+  });
+
+  it("supersedes instead of updating", async () => {
+    const { acme, evidence } = await seed();
+    const first = await insertClaim(db, {
+      subjectId: acme.id, predicate: "team.headcount", value: 20, evidenceId: evidence.id,
+      sourceType: "self_reported", extractedBy: "test",
+    });
+    await expect(db.query("update claims set value='21' where id=$1", [first])).rejects.toThrow(/append-only/);
+    await insertClaim(db, {
+      subjectId: acme.id, predicate: "team.headcount", value: 21, evidenceId: evidence.id,
+      sourceType: "self_reported", extractedBy: "human:subham", supersedes: first,
+    });
+    const current = await currentClaims(db, acme.id, "team.headcount");
+    expect(current.map((c) => c.value)).toEqual([21]);
+  });
+});
+
+describe("contradictions", () => {
+  it("flags a founder number that disagrees with an independent source", async () => {
+    const { acme, evidence } = await seed();
+    const { evidence: pb } = await insertEvidence(db, {
+      kind: "api_record", source: "pitchbook", content: '{"revenue": 2100000}', accessScope: "vendor",
+    });
+    await insertClaim(db, {
+      subjectId: acme.id, predicate: "revenue.arr", value: 4_100_000, asOf: "2026-08-31",
+      evidenceId: evidence.id, sourceType: "self_reported", extractedBy: "test",
+    });
+    await insertClaim(db, {
+      subjectId: acme.id, predicate: "revenue.arr", value: 2_100_000, asOf: "2026-07-31",
+      evidenceId: pb.id, sourceType: "third_party", extractedBy: "test",
+    });
+    const created = await detectContradictions(db, acme.id);
+    expect(created).toHaveLength(1);
+    expect(created[0]?.severity).toBe("high");
+    // Running again doesn't duplicate.
+    expect(await detectContradictions(db, acme.id)).toHaveLength(0);
+    expect(await openContradictions(db, acme.id)).toHaveLength(1);
+  });
+
+  it("treats numbers within tolerance, or far apart in time, as consistent", async () => {
+    const { acme, evidence } = await seed();
+    const { evidence: e2 } = await insertEvidence(db, { kind: "deck", source: "test", content: "deck" });
+    await insertClaim(db, { subjectId: acme.id, predicate: "revenue.arr", value: 4_000_000, asOf: "2026-08-01",
+      evidenceId: evidence.id, sourceType: "self_reported", extractedBy: "t" });
+    await insertClaim(db, { subjectId: acme.id, predicate: "revenue.arr", value: 4_100_000, asOf: "2026-08-15",
+      evidenceId: e2.id, sourceType: "self_reported", extractedBy: "t" });
+    await insertClaim(db, { subjectId: acme.id, predicate: "revenue.arr", value: 1_000_000, asOf: "2025-06-01",
+      evidenceId: e2.id, sourceType: "self_reported", extractedBy: "t" });
+    expect(await detectContradictions(db, acme.id)).toHaveLength(0);
+  });
+
+  it("catches a self-reported pilot rung above what the customer says", async () => {
+    const { acme, evidence } = await seed();
+    const { evidence: press } = await insertEvidence(db, {
+      kind: "web_page", source: "web", content: "Turner is trialing Acme at one site.", accessScope: "public",
+    });
+    await insertClaim(db, { subjectId: acme.id, predicate: "pilot.status", value: { customer: "Turner", rung: "production_contract" },
+      evidenceId: evidence.id, sourceType: "self_reported", extractedBy: "t" });
+    await insertClaim(db, { subjectId: acme.id, predicate: "pilot.status", value: { customer: "turner", rung: "unpaid_trial" },
+      evidenceId: press.id, sourceType: "third_party", extractedBy: "t" });
+    const created = await detectContradictions(db, acme.id);
+    expect(created).toHaveLength(1);
+    expect(created[0]?.severity).toBe("high");
+    expect(created[0]?.detail).toMatch(/production_contract/);
+  });
+});
+
+describe("decisions", () => {
+  it("requires a reason code for a pass", async () => {
+    const { acme } = await seed();
+    await expect(recordDecision(db, { entityId: acme.id, kind: "pass", actor: "subham" })).rejects.toThrow(/reason/);
+    const id = await recordDecision(db, { entityId: acme.id, kind: "pass", actor: "subham", reasonCode: "traction" });
+    expect(id).toBeTruthy();
+  });
+
+  it("requires a vote on IC votes, at the database level", async () => {
+    const { acme } = await seed();
+    await expect(
+      db.query("insert into decisions(entity_id, kind, actor, value) values ($1,'ic_vote_pre','x','{}')", [acme.id]),
+    ).rejects.toThrow();
+  });
+});

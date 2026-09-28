@@ -1,0 +1,34 @@
+{"name":"Kestrel Robotics Inc.","domain":"https://www.kestrelrobotics.com/team","expected":"kestrel","note":"identifier with URL noise"}
+{"name":"Groundwork","domain":"groundwork.ai","expected":"groundwork","note":"identifier, short name"}
+{"name":"Formline GmbH","domain":"formline.com","expected":"formline","note":"identifier, legal suffix"}
+{"name":"Kestrel Robotics, Inc.","founders":["Maya Lindqvist"],"expected":"kestrel","note":"no domain, suffix, founder"}
+{"name":"Trussly Inc","location":"Seattle, WA","expected":"trussly","note":"suffix plus location"}
+{"name":"Rebar Labs","expected":"rebar","note":"exact name only, distinctive"}
+{"name":"Plumbline Systems Inc.","expected":"plumbline","note":"suffix only"}
+{"name":"Verity Sensors Corp","location":"Toronto","expected":"verity","note":"suffix plus city"}
+{"name":"Brickwise","location":"Lisbon, Portugal","expected":"brickwise","note":"accelerator row, no domain"}
+{"name":"Cobalt Machines LLC","expected":"cobalt","note":"suffix only"}
+{"name":"Oxbow Energy Systems","founders":["Tariq Aziz"],"expected":"oxbow","note":"exact plus founder"}
+{"name":"Groundwork Technologies","domain":"groundwork.com","expected":"groundwork","note":"generic tail, other TLD"}
+{"name":"Loadstar AI","domain":"loadstar.ai","expected":"loadstar","note":"generic tail, other TLD"}
+{"name":"Kestral Robotics","founders":["Maya Lindqvist"],"expected":"kestrel","note":"typo plus founder"}
+{"name":"Trusly","location":"Seattle, WA","expected":"trussly","acceptReview":true,"note":"typo plus city: review is acceptable"}
+{"name":"Fieldtensor","expected":"tensorfield","note":"old name held as alias"}
+{"name":"Tensor Field","location":"Boston, MA","expected":"tensorfield","note":"dropped generic tail plus city"}
+{"name":"Iyer Robotics","founders":["Ravi Iyer"],"expected":"tensorfield","acceptReview":true,"note":"rebrand, only the founder links it"}
+{"name":"Quarry Labs","domain":"quarrylabs.com","founders":["Amelia Stone"],"expected":"quarry","note":"new domain, same founder"}
+{"name":"Northwind","location":"San Jose, CA","expected":"northwind","note":"dropped generic tail plus city"}
+{"name":"North Wind Robotics","expected":"northwind","acceptReview":true,"note":"spacing variant, name only"}
+{"name":"Siteline","domain":"sitelinecs.com","expected":"siteline_cs","note":"shared name, domain decides"}
+{"name":"Siteline","founders":["Omar Farouk"],"expected":"siteline_ai","note":"shared name, founder decides"}
+{"name":"Siteline","expected":"siteline_ai","mustReview":true,"note":"shared name, nothing else: must not auto-merge"}
+{"name":"Atlas Robotics","location":"Pittsburgh, PA","expected":"NEW","note":"shares a word with Atlas Autonomy only"}
+{"name":"Kestrel Energy","domain":"kestrelenergy.com","founders":["Paul Grant"],"expected":"NEW","note":"shared first word, different everything"}
+{"name":"Groundswell Robotics","domain":"groundswell.bot","expected":"NEW","note":"similar prefix"}
+{"name":"Rebar Analytics","domain":"rebaranalytics.com","founders":["Nina Kovac"],"expected":"NEW","note":"shared first word"}
+{"name":"Mason Robotics","domain":"masonrobotics.co","founders":["Eli Brooks"],"expected":"NEW","note":"close to both Mason AI and Masonry Robotics"}
+{"name":"Helix","domain":"helixbio.com","founders":["Anna Berg"],"expected":"NEW","note":"generic short name, different sector"}
+{"name":"Cobalt Robotics","domain":"cobaltrobotics.com","expected":"NEW","note":"shared first word"}
+{"name":"Quarrymind","domain":"quarrymind.ai","founders":["Dev Patel"],"expected":"NEW","note":"prefix of a known name"}
+{"name":"Plumb Line Surveying","domain":"plumblinesurvey.com","location":"Tampa, FL","expected":"NEW","note":"near-identical name, different company"}
+{"name":"Verity AI","domain":"verity.ai","founders":["Sofia Lange"],"expected":"NEW","note":"same core name, different founders and domain"}

@@ -1,0 +1,7 @@
+node_modules/
+.env
+.data/
+*.log
+dist/
+coverage/
+evals/resolver/real/
