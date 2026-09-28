@@ -2,6 +2,7 @@ import type { Db } from "../../lib/db.js";
 import type { Llm } from "../../lib/llm.js";
 import { parseJsonObject, textOf } from "../../lib/llm.js";
 import { config } from "../../lib/config.js";
+import { currentClaims, entityAliases, entityIdentifiers } from "../../ledger/repository.js";
 import type { Candidate, ScoredMatch } from "./resolve.js";
 
 export const LLM_SELECT_VERSION = "resolver-llm-select@0.1";
@@ -27,23 +28,19 @@ export async function llmSelect(
   const top = options.slice(0, 5);
   const described: string[] = [];
   for (const [i, o] of top.entries()) {
-    const facts = await db.query<{ predicate: string; value: unknown }>(
-      `select predicate, value from claims
-        where subject_id=$1 and predicate in ('company.description','team.founder','company.hq_location','company.website','company.founded_year')
-        order by created_at desc limit 12`,
-      [o.entityId],
-    );
-    const aliases = await db.query<{ alias: string }>("select alias from entity_aliases where entity_id=$1", [o.entityId]);
-    const domains = await db.query<{ value: string }>(
-      "select value from entity_identifiers where entity_id=$1 and kind='domain'",
-      [o.entityId],
-    );
+    const facts = (
+      await currentClaims(db, o.entityId, {
+        predicates: ["company.description", "team.founder", "company.hq_location", "company.website", "company.founded_year"],
+      })
+    ).slice(-12);
+    const aliases = (await entityAliases(db, o.entityId)).map((a) => a.alias);
+    const domains = (await entityIdentifiers(db, o.entityId, "domain")).map((i) => i.value);
     described.push(
       [
         `Option ${i + 1} (id ${o.entityId}): ${o.name}`,
-        aliases.rows.length ? `  aliases: ${aliases.rows.map((r) => r.alias).join(", ")}` : "",
-        domains.rows.length ? `  domains: ${domains.rows.map((r) => r.value).join(", ")}` : "",
-        ...facts.rows.map((f) => `  ${f.predicate}: ${typeof f.value === "string" ? f.value : JSON.stringify(f.value)}`),
+        aliases.length ? `  aliases: ${aliases.join(", ")}` : "",
+        domains.length ? `  domains: ${domains.join(", ")}` : "",
+        ...facts.map((f) => `  ${f.predicate}: ${typeof f.value === "string" ? f.value : JSON.stringify(f.value)}`),
       ]
         .filter(Boolean)
         .join("\n"),

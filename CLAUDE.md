@@ -2,7 +2,9 @@
 
 An AI-native operating system for a venture fund. One claim ledger feeds six
 modules: Sourcing, Diligence, IC Memo, Execution, Portfolio, LP Reporting.
-Read this file at the start of every session. It overrides your defaults.
+The end product is one interactive web app with each module as a section of
+it, all reading the same ledger. Read this file at the start of every
+session. It overrides your defaults.
 
 ## The six principles (do not break these)
 
@@ -41,16 +43,31 @@ Read this file at the start of every session. It overrides your defaults.
 - **Vendor data stays internal.** PitchBook, Harmonic, etc. records are
   Evidence with the vendor's scope. Don't export them.
 
+## Building toward the web app
+
+- Every phase ships as a module of the same web app, with a CLI alongside.
+  Write the workflow once in `modules/<name>/` as plain functions that return
+  data; the CLI and the web app both call them. Never put logic in a route,
+  a component or a CLI printer.
+- The UI never imports `lib/db.ts`, `ledger/` SQL or a vendor SDK. It calls
+  module functions, and modules call `ledger/`.
+- Read models (`companyProfile` is the first) live in `ledger/` and return
+  plain objects: no printing, no HTML.
+- Scope is a query parameter (`SHAREABLE_SCOPES`), filtered in SQL. A UI
+  toggle must re-query, never hide rows it already fetched.
+- Principle 3 holds in the UI: a button can queue a draft or record a
+  human's approval (written to `audit_log`); nothing sends on its own.
+
 ## Layout
 
 ```
-ledger/      schema, predicate vocabulary, repository (the only DB access)
+ledger/      predicate vocabulary, repository and read models (the only DB access)
 connectors/  one adapter per source; each yields EvidenceInput
 agents/      one folder per agent: prompt, tool definitions, logic
 engines/     deterministic math (empty in Phase 0)
 modules/     module workflows and queries (empty in Phase 0)
 evals/       one folder per agent: labeled data + runner
-cli/         entry points
+cli/         entry points (thin: parse args, call a function, print)
 lib/         db client, config, hashing, text utils
 tests/       vitest
 db/migrations/  plain SQL, applied in order
@@ -72,4 +89,7 @@ db/migrations/  plain SQL, applied in order
 ## Current phase
 
 Phase 0 — Foundation. Gate to Phase 1: resolver matches ≥95% of 200
-hand-labeled names (`pnpm eval:resolver`). Phase 1 is Diligence.
+hand-labeled names (`pnpm eval:resolver --set evals/resolver/real --gate 0.95`).
+Phase 1 is Diligence, and it starts the web app: the app shell plus a
+Ledger screen (company profile, sources with highlighted quotes,
+contradictions, merge review) and the Diligence module.

@@ -1,8 +1,10 @@
 # VC OS
 
-An AI-native operating system for a venture fund. Every fact about a company
-is stored once as a **claim**, with its source, date, confidence and the exact
-characters it came from. Sourcing scores, diligence flags, IC memos and LP
+An AI-native operating system for a venture fund, built toward one
+interactive web app with a module per stage of the fund: Sourcing,
+Diligence, IC Memo, Execution, Portfolio, LP Reporting. Every fact about a
+company is stored once as a **claim**, with its source, date, confidence and
+the exact characters it came from. Sourcing scores, diligence flags, IC memos and LP
 letters are all queries over that ledger.
 
 This is **Phase 0: the foundation.** The ledger, the entity resolver, the
@@ -14,7 +16,7 @@ Phase 1.
 ```bash
 pnpm install
 pnpm demo        # offline walk-through on fictional data, no keys needed
-pnpm test        # 46 tests on in-process Postgres
+pnpm test        # 48 tests on in-process Postgres
 ```
 
 The demo ingests a company from Harmonic, an SEC Form D, a press article and
@@ -37,6 +39,7 @@ pnpm ingest transcript ~/Downloads/acme-call.vtt --company "Acme Robotics" --dom
 pnpm ingest granola <meeting-id> --company "Acme Robotics"
 
 pnpm show acme.com              # everything the ledger knows, with sources and open contradictions
+pnpm show acme.com --shareable  # only what a shareable output may cite (public sources)
 pnpm resolve                    # merge proposals waiting for you
 pnpm resolve accept <id>
 ```
@@ -48,9 +51,9 @@ For production, `docker compose up -d` and set
 
 | Path | What it does |
 | --- | --- |
-| `db/migrations/0001_ledger.sql` | Entities, identifiers, aliases, relations, evidence, claims, contradictions, merge proposals, decisions, audit log. Evidence and claims are append-only, enforced by triggers. |
+| `db/migrations/` | Entities, identifiers, aliases, relations, evidence, claims, contradictions, merge proposals, decisions, audit log. Evidence and claims are append-only, enforced by triggers (UPDATE, DELETE and TRUNCATE). |
 | `ledger/predicates.ts` | The controlled vocabulary: 40 predicates with kind, unit, cardinality, tolerance and comparison window. Includes the pilot ladder (conversation → unpaid trial → paid pilot → production contract → expansion). |
-| `ledger/repository.ts` | The only code that writes to the ledger. Validates every claim, checks cited spans against the evidence, inherits access scope. |
+| `ledger/repository.ts` | The only code that touches the database. Validates every claim, checks cited spans against the evidence, inherits access scope. Holds the read models (`companyProfile`) the CLI and the web app share, with access-scope filtering in SQL. |
 | `ledger/contradictions.ts` | Finds claims that can't both be true. A self-reported number far from an independent source is high severity. |
 | `agents/resolver/` | Entity resolution: hard identifiers first, then Fellegi-Sunter scoring on name, domain, founders and city. Ambiguous cases become merge proposals; Claude can suggest a pick, a human accepts. |
 | `agents/extractor/` | Claim extraction with the Claude Citations API. Every claim carries the exact quote and character offsets. Lines without a valid citation are rejected. |
@@ -81,4 +84,5 @@ afternoon.
   you have a few thousand, or move batch dedupe to Splink (same model).
 - Web pages rendered by JavaScript come back nearly empty. A headless-browser
   fetcher is a Phase 1 task.
-- No UI yet. Phase 1 adds the diligence board.
+- No UI yet. Phase 1 starts the web app: an app shell, a Ledger screen and
+  the Diligence module. Later phases add their modules to the same app.

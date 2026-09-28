@@ -9,7 +9,7 @@ import { formDToRecord } from "../connectors/edgar.js";
 import { htmlToText } from "../connectors/web.js";
 import { transcriptFromFile } from "../connectors/transcripts.js";
 import { resolveOrCreate } from "../agents/resolver/index.js";
-import { recordDecision } from "../ledger/repository.js";
+import { recordDecision, SHAREABLE_SCOPES } from "../ledger/repository.js";
 import { printCompany, run } from "./common.js";
 
 /**
@@ -76,5 +76,8 @@ run(async () => {
 
   step(7, "What the ledger now knows");
   await printCompany(db, id);
+
+  step(8, "The shareable view: public sources only, filtered in SQL");
+  await printCompany(db, id, { scopes: SHAREABLE_SCOPES });
   await db.close();
 });

@@ -1,12 +1,14 @@
 import type { Db } from "../../lib/db.js";
 import type { Llm } from "../../lib/llm.js";
 import {
-  addAlias, addIdentifier, audit, createEntity, insertClaim, insertEvidence, type Entity, type IdentifierKind,
+  addAlias, addIdentifier, audit, createEntity, getEntity, insertClaim, insertEvidence, insertMergeProposal,
+  type Entity, type IdentifierKind,
 } from "../../ledger/repository.js";
 import { resolve, type Candidate, type Resolution } from "./resolve.js";
 import { llmSelect, LLM_SELECT_VERSION, type LlmSelection } from "./llm-select.js";
 
 export { resolve, type Candidate, type Resolution } from "./resolve.js";
+export { pendingProposals, decideProposal } from "../../ledger/repository.js";
 
 export const RESOLVER_VERSION = "resolver@0.1";
 
@@ -36,7 +38,7 @@ export async function resolveOrCreate(
   const identifiers = collectIdentifiers(candidate);
 
   if (resolution.decision === "match" && resolution.entityId) {
-    const entity = (await db.query<Entity>("select id, type, name, merged_into from entities where id=$1", [resolution.entityId])).rows[0]!;
+    const entity = (await getEntity(db, resolution.entityId))!;
     await addAlias(db, entity.id, entity.type, candidate.name, candidate.source);
     for (const id of identifiers) {
       try {
@@ -118,53 +120,10 @@ async function fileProposal(
   provisionalId?: string,
   method: string = resolution.method,
 ): Promise<string> {
-  const { rows } = await db.query<{ id: string }>(
-    `insert into merge_proposals(candidate, proposed_entity_id, score, method, explanation)
-     values ($1,$2,$3,$4,$5) returning id`,
-    [JSON.stringify({ ...candidate, provisionalEntityId: provisionalId ?? null }), targetId, resolution.probability, method, explanation],
-  );
-  await audit(db, RESOLVER_VERSION, "resolve.review", rows[0]!.id, { name: candidate.name, target: targetId });
-  return rows[0]!.id;
-}
-
-/** Pending proposals, strongest first. */
-export async function pendingProposals(db: Db) {
-  const { rows } = await db.query<{
-    id: string; candidate: Candidate & { provisionalEntityId: string | null }; proposed_entity_id: string | null;
-    target_name: string | null; score: number; method: string; explanation: string;
-  }>(
-    `select p.id, p.candidate, p.proposed_entity_id, e.name as target_name, p.score, p.method, p.explanation
-       from merge_proposals p left join entities e on e.id = p.proposed_entity_id
-      where p.status = 'pending' order by p.score desc, p.created_at`,
-  );
-  return rows;
-}
-
-/**
- * A human decides a proposal. Accepting folds the provisional entity into
- * the target (merged_into); claims stay where they are and are read through
- * the merge.
- */
-export async function decideProposal(db: Db, proposalId: string, accept: boolean, decidedBy: string) {
-  await db.transaction(async (tx) => {
-    const p = (
-      await tx.query<{ candidate: { provisionalEntityId: string | null }; proposed_entity_id: string | null; status: string }>(
-        "select candidate, proposed_entity_id, status from merge_proposals where id=$1",
-        [proposalId],
-      )
-    ).rows[0];
-    if (!p) throw new Error(`No proposal ${proposalId}`);
-    if (p.status !== "pending") throw new Error(`Proposal ${proposalId} is already ${p.status}`);
-    if (accept) {
-      const from = p.candidate.provisionalEntityId;
-      if (!from || !p.proposed_entity_id) throw new Error("Proposal has nothing to merge");
-      if (from === p.proposed_entity_id) throw new Error("Cannot merge an entity into itself");
-      await tx.query("update entities set merged_into=$1 where id=$2", [p.proposed_entity_id, from]);
-      await tx.query("update entities set merged_into=$1 where merged_into=$2", [p.proposed_entity_id, from]);
-    }
-    await tx.query("update merge_proposals set status=$1, decided_by=$2, decided_at=now() where id=$3", [
-      accept ? "accepted" : "rejected", decidedBy, proposalId,
-    ]);
-    await audit(tx, decidedBy, accept ? "merge.accept" : "merge.reject", proposalId);
+  const id = await insertMergeProposal(db, {
+    candidate: { ...candidate, provisionalEntityId: provisionalId ?? null },
+    targetId, score: resolution.probability, method, explanation,
   });
+  await audit(db, RESOLVER_VERSION, "resolve.review", id, { name: candidate.name, target: targetId });
+  return id;
 }

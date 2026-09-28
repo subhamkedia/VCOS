@@ -3,7 +3,9 @@ import {
   coreCompanyName, jaroWinkler, normalizeCompanyName, normalizeDomain, normalizeLinkedIn,
   normalizePersonName, tokenJaccard,
 } from "../../lib/text.js";
-import { findByIdentifier, type IdentifierKind } from "../../ledger/repository.js";
+import {
+  blockingCandidates, currentClaims, entityAliases, entityIdentifiers, findByIdentifier, getEntity, type IdentifierKind,
+} from "../../ledger/repository.js";
 import type { EntityType } from "../../ledger/predicates.js";
 
 /**
@@ -162,52 +164,26 @@ export function toProbability(weight: number, prior = PRIOR): number {
   return odds / (1 + odds);
 }
 
-/** Candidate entities that share enough of the name to be worth scoring. */
+/** Candidate entities that share enough of the name, or a founder, to be worth scoring. */
 async function block(db: Db, c: Candidate): Promise<KnownRecord[]> {
-  const cn = normalizeCompanyName(c.name);
-  const cc = coreCompanyName(c.name);
-  const { rows } = await db.query<{ entity_id: string }>(
-    `select distinct a.entity_id
-       from entity_aliases a join entities e on e.id = a.entity_id
-      where e.type = $1 and e.merged_into is null
-        and (a.normalized = $2 or a.normalized % $2 or a.normalized like $3 || '%' or similarity(a.normalized, $3) > 0.5)
-      limit 25`,
-    [c.type, cn, cc],
-  );
-  // Founder-based blocking catches rebrands where the name changed.
-  const founderRows = c.founders?.length
-    ? (
-        await db.query<{ entity_id: string }>(
-          `select distinct c.subject_id as entity_id from claims c join entities e on e.id = c.subject_id
-            where c.predicate = 'team.founder' and e.type = $1 and e.merged_into is null
-              and lower(c.value #>> '{}') = any($2::text[]) limit 25`,
-          [c.type, c.founders.map((f) => f.toLowerCase().trim())],
-        )
-      ).rows
-    : [];
-  const ids = [...new Set([...rows, ...founderRows].map((r) => r.entity_id))];
+  const ids = await blockingCandidates(db, {
+    type: c.type, normalized: normalizeCompanyName(c.name), core: coreCompanyName(c.name), founders: c.founders,
+  });
   const out: KnownRecord[] = [];
   for (const id of ids) out.push(await loadKnown(db, id));
   return out;
 }
 
 async function loadKnown(db: Db, entityId: string): Promise<KnownRecord> {
-  const e = (await db.query<{ name: string }>("select name from entities where id=$1", [entityId])).rows[0]!;
-  const aliases = (await db.query<{ alias: string }>("select alias from entity_aliases where entity_id=$1", [entityId])).rows.map((r) => r.alias);
-  const domains = (
-    await db.query<{ value: string }>("select value from entity_identifiers where entity_id=$1 and kind='domain'", [entityId])
-  ).rows.map((r) => r.value);
-  const claims = await db.query<{ predicate: string; value: unknown }>(
-    `select predicate, value from claims where subject_id=$1 and predicate in ('team.founder','company.hq_location')`,
-    [entityId],
-  );
+  const e = (await getEntity(db, entityId))!;
+  const claims = await currentClaims(db, entityId, { predicates: ["team.founder", "company.hq_location"] });
   return {
     entityId,
     name: e.name,
-    aliases,
-    domains,
-    founders: claims.rows.filter((r) => r.predicate === "team.founder").map((r) => String(r.value)),
-    location: (claims.rows.find((r) => r.predicate === "company.hq_location")?.value as string | undefined) ?? null,
+    aliases: (await entityAliases(db, entityId)).map((a) => a.alias),
+    domains: (await entityIdentifiers(db, entityId, "domain")).map((i) => i.value),
+    founders: claims.filter((r) => r.predicate === "team.founder").map((r) => String(r.value)),
+    location: (claims.find((r) => r.predicate === "company.hq_location")?.value as string | undefined) ?? null,
   };
 }
 

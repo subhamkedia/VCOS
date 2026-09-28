@@ -13,7 +13,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { createPgliteDb, migrate } from "../../lib/db.js";
 import { claude, hasClaude } from "../../lib/llm.js";
-import { createEntity, insertEvidence, type EvidenceKind } from "../../ledger/repository.js";
+import { claimsForEvidence, createEntity, insertEvidence, type EvidenceKind } from "../../ledger/repository.js";
 import { extractClaims } from "../../agents/extractor/index.js";
 
 export interface Expected {
@@ -86,10 +86,8 @@ async function runOnce(fx: Fixture) {
     kind: fx.kind, source: "eval", content: fx.document, title: fx.title, occurredAt: fx.date,
   });
   const out = await extractClaims(db, claude(), evidence.id, subject.id);
-  const { rows } = await db.query<{ predicate: string; value: unknown; span_start: number; span_end: number; cited_text: string }>(
-    "select predicate, value, span_start, span_end, cited_text from claims where evidence_id=$1", [evidence.id],
-  );
-  const citationsValid = rows.every((r) => fx.document.slice(r.span_start, r.span_end) === r.cited_text);
+  const rows = await claimsForEvidence(db, evidence.id);
+  const citationsValid = rows.every((r) => r.span_start !== null && fx.document.slice(r.span_start, r.span_end ?? undefined) === r.cited_text);
   await db.close();
   return { got: rows.map((r) => ({ predicate: r.predicate, value: r.value })), rejected: out.rejected, citationsValid };
 }

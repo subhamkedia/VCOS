@@ -5,7 +5,7 @@ import type { Llm } from "../lib/llm.js";
 import { testDb } from "./helpers.js";
 import { resolveOrCreate, pendingProposals, decideProposal } from "../agents/resolver/index.js";
 import { compareRecords, toProbability } from "../agents/resolver/resolve.js";
-import { currentClaims, findByIdentifier } from "../ledger/repository.js";
+import { currentClaims, findByIdentifier, insertEvidence, insertClaim, openContradictions } from "../ledger/repository.js";
 import { coreCompanyName, normalizeCompanyName, normalizeDomain, normalizeLinkedIn, jaroWinkler } from "../lib/text.js";
 
 let db: Db;
@@ -100,6 +100,23 @@ describe("resolveOrCreate", () => {
     const founders = await currentClaims(db, tf.entity.id, "team.founder");
     expect(founders).toHaveLength(2);
     await expect(decideProposal(db, rebrand.proposalId!, true, "human:subham")).rejects.toThrow(/already/);
+  });
+
+  it("checks the merged claims against each other when a merge is accepted", async () => {
+    const tf = await resolveOrCreate(db, {
+      type: "company", source: "harmonic", name: "Tensor Field Robotics", domain: "tensorfield.ai", founders: ["Ravi Iyer"],
+    });
+    const rebrand = await resolveOrCreate(db, { type: "company", source: "accelerator", name: "Iyer Robotics", founders: ["Ravi Iyer"] });
+    const { evidence: vendor } = await insertEvidence(db, { kind: "api_record", source: "harmonic", content: "headcount 20", accessScope: "vendor" });
+    const { evidence: call } = await insertEvidence(db, { kind: "transcript", source: "granola", content: "We're 60 people.", accessScope: "confidential" });
+    await insertClaim(db, { subjectId: tf.entity.id, predicate: "team.headcount", value: 20, asOf: "2026-09-01", evidenceId: vendor.id, sourceType: "third_party", extractedBy: "t" });
+    await insertClaim(db, { subjectId: rebrand.entity.id, predicate: "team.headcount", value: 60, asOf: "2026-09-10", evidenceId: call.id, sourceType: "self_reported", extractedBy: "t" });
+    expect(await openContradictions(db, tf.entity.id)).toHaveLength(0);
+
+    await decideProposal(db, rebrand.proposalId!, true, "human:subham");
+    const open = await openContradictions(db, tf.entity.id);
+    expect(open).toHaveLength(1);
+    expect(open[0]?.severity).toBe("high");
   });
 
   it("asks Claude to pick among candidates and records its suggestion, without auto-merging", async () => {

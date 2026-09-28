@@ -87,12 +87,14 @@ describe("extractor", () => {
     ]);
 
     // Spans point at the real characters, and scope is inherited.
-    const { rows } = await db.query<{ predicate: string; value: unknown; span_start: number; span_end: number; cited_text: string; access_scope: string; as_of: unknown }>(
-      "select predicate, value, span_start, span_end, cited_text, access_scope, as_of from claims where evidence_id=$1 order by predicate", [evidence.id],
+    const { rows } = await db.query<{ predicate: string; value: unknown; span_start: number; span_end: number; cited_text: string; access_scope: string; as_of: unknown; extracted_by: string }>(
+      "select predicate, value, span_start, span_end, cited_text, access_scope, as_of, extracted_by from claims where evidence_id=$1 order by predicate", [evidence.id],
     );
     for (const r of rows) {
       expect(TRANSCRIPT.slice(r.span_start, r.span_end)).toBe(r.cited_text);
       expect(r.access_scope).toBe("confidential");
+      // Provenance names the model that actually answered, not the one configured.
+      expect(r.extracted_by).toBe("extractor@0.1/fake");
     }
     const pilot = rows.find((r) => r.predicate === "pilot.status");
     expect(pilot?.value).toEqual({ customer: "Turner", rung: "production_contract" });

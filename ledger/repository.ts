@@ -249,18 +249,41 @@ export async function insertClaim(db: Db, input: ClaimInput): Promise<string> {
   return id;
 }
 
-/** Current (not superseded) claims about an entity, optionally for one predicate. */
-export async function currentClaims(db: Db, subjectId: string, predicate?: string): Promise<ClaimRow[]> {
+export interface ClaimFilter {
+  predicates?: string[];
+  /** Only claims whose evidence carries one of these scopes. Filtered in SQL. */
+  scopes?: AccessScope[];
+}
+
+/** The access scopes a shareable output (memo to co-investors, LP letter) may cite. */
+export const SHAREABLE_SCOPES: AccessScope[] = ["public"];
+
+/** Identifiers anyone can look up. The rest (Harmonic, PitchBook, Carta ids...) are vendor or internal data. */
+const PUBLIC_IDENTIFIER_KINDS: IdentifierKind[] = ["domain", "linkedin", "cik", "twitter"];
+
+/** An entity plus every entity merged into it. Claims and contradictions are read through merges. */
+const MERGE_FAMILY = "select id from entities where id = $1 or merged_into = $1";
+
+/**
+ * Current (not superseded) claims about an entity. Pass a predicate name,
+ * or a filter with predicates and/or access scopes.
+ */
+export async function currentClaims(db: Db, subjectId: string, filter: string | ClaimFilter = {}): Promise<ClaimRow[]> {
+  const f: ClaimFilter = typeof filter === "string" ? { predicates: [filter] } : filter;
   const params: unknown[] = [subjectId];
-  let filter = "";
-  if (predicate) {
-    params.push(predicate);
-    filter = "and c.predicate = $2";
+  const where: string[] = [];
+  if (f.predicates) {
+    params.push(f.predicates);
+    where.push(`and c.predicate = any($${params.length}::text[])`);
+  }
+  if (f.scopes) {
+    params.push(f.scopes);
+    where.push(`and c.access_scope = any($${params.length}::text[])`);
   }
   const { rows } = await db.query<Omit<ClaimRow, "as_of"> & { as_of: unknown }>(
     `select c.id, c.subject_id, c.predicate, c.value, c.as_of, c.source_type, c.evidence_id, c.cited_text
      from claims c
-     where c.subject_id in (select id from entities where id = $1 or merged_into = $1) ${filter}
+     where c.subject_id in (${MERGE_FAMILY}) ${where.join(" ")}
        and not exists (select 1 from claims s where s.supersedes = c.id)
      order by c.created_at`,
     params,
@@ -269,6 +292,15 @@ export async function currentClaims(db: Db, subjectId: string, predicate?: strin
     ...r,
     as_of: r.as_of instanceof Date ? r.as_of.toISOString().slice(0, 10) : (r.as_of as string | null),
   }));
+}
+
+/** Every claim cited from one piece of evidence, with its span. */
+export async function claimsForEvidence(db: Db, evidenceId: string) {
+  const { rows } = await db.query<{ id: string; predicate: string; value: unknown; span_start: number | null; span_end: number | null; cited_text: string | null }>(
+    "select id, predicate, value, span_start, span_end, cited_text from claims where evidence_id=$1 order by created_at",
+    [evidenceId],
+  );
+  return rows;
 }
 
 /**
@@ -293,12 +325,23 @@ export async function detectContradictions(db: Db, subjectId: string, actor = "c
   return created;
 }
 
-export async function openContradictions(db: Db, subjectId: string) {
-  const { rows } = await db.query<{ id: string; predicate: string; severity: string; detail: string }>(
-    `select id, predicate, severity, detail from contradictions
-     where subject_id=$1 and status='open'
-     order by case severity when 'high' then 0 when 'medium' then 1 else 2 end, detected_at`,
-    [subjectId],
+/**
+ * Open contradictions about an entity (and anything merged into it). With
+ * `scopes`, a contradiction is returned only if every claim it cites is in
+ * scope, so its detail text can't leak a hidden value.
+ */
+export async function openContradictions(db: Db, subjectId: string, opts: { scopes?: AccessScope[] } = {}) {
+  const params: unknown[] = [subjectId];
+  let scopeFilter = "";
+  if (opts.scopes) {
+    params.push(opts.scopes);
+    scopeFilter = `and not exists (select 1 from claims c where c.id = any(x.claim_ids) and c.access_scope <> all($2::text[]))`;
+  }
+  const { rows } = await db.query<{ id: string; predicate: string; severity: string; detail: string; claim_ids: string[] }>(
+    `select x.id, x.predicate, x.severity, x.detail, x.claim_ids from contradictions x
+     where x.subject_id in (${MERGE_FAMILY}) and x.status='open' ${scopeFilter}
+     order by case x.severity when 'high' then 0 when 'medium' then 1 else 2 end, x.detected_at`,
+    params,
   );
   return rows;
 }
@@ -333,3 +376,202 @@ export async function recordDecision(
   await audit(db, input.actor, `decision.${input.kind}`, id, { entity: input.entityId });
   return id;
 }
+
+// ---------------------------------------------------------------------------
+// Entity lookups (read through merges)
+// ---------------------------------------------------------------------------
+
+/** An active entity whose normalized alias matches `name` exactly. */
+export async function findEntityByAlias(db: Db, type: EntityType, name: string): Promise<Entity | null> {
+  const normalized = normalizeAlias(type, name);
+  if (!normalized) return null;
+  const { rows } = await db.query<{ entity_id: string }>(
+    `select a.entity_id from entity_aliases a join entities e on e.id = a.entity_id
+      where e.type = $1 and a.normalized = $2 limit 1`,
+    [type, normalized],
+  );
+  return rows[0] ? getEntity(db, rows[0].entity_id) : null;
+}
+
+export async function entityIdentifiers(db: Db, entityId: string, kind?: IdentifierKind) {
+  const { rows } = await db.query<{ kind: IdentifierKind; value: string; source: string }>(
+    `select kind, value, source from entity_identifiers
+      where entity_id in (${MERGE_FAMILY}) ${kind ? "and kind = $2" : ""} order by created_at`,
+    kind ? [entityId, kind] : [entityId],
+  );
+  return rows;
+}
+
+export async function entityAliases(db: Db, entityId: string): Promise<{ alias: string; source: string }[]> {
+  const { rows } = await db.query<{ alias: string; source: string }>(
+    `select alias, source from entity_aliases where entity_id in (${MERGE_FAMILY}) order by created_at`,
+    [entityId],
+  );
+  return rows;
+}
+
+/**
+ * Resolver blocking: active entities whose aliases look like the name, or
+ * that share a founder (catches rebrands). Returns entity ids.
+ */
+export async function blockingCandidates(
+  db: Db,
+  q: { type: EntityType; normalized: string; core: string; founders?: string[]; limit?: number },
+): Promise<string[]> {
+  const limit = q.limit ?? 25;
+  const byName = await db.query<{ entity_id: string }>(
+    `select distinct a.entity_id
+       from entity_aliases a join entities e on e.id = a.entity_id
+      where e.type = $1 and e.merged_into is null
+        and (a.normalized = $2 or a.normalized % $2 or a.normalized like $3 || '%' or similarity(a.normalized, $3) > 0.5)
+      limit $4`,
+    [q.type, q.normalized, q.core, limit],
+  );
+  const byFounder = q.founders?.length
+    ? (
+        await db.query<{ entity_id: string }>(
+          `select distinct coalesce(e.merged_into, e.id) as entity_id from claims c join entities e on e.id = c.subject_id
+            where c.predicate = 'team.founder' and e.type = $1
+              and lower(c.value #>> '{}') = any($2::text[]) limit $3`,
+          [q.type, q.founders.map((f) => f.toLowerCase().trim()), limit],
+        )
+      ).rows
+    : [];
+  return [...new Set([...byName.rows, ...byFounder].map((r) => r.entity_id))];
+}
+
+// ---------------------------------------------------------------------------
+// Merge proposals
+// ---------------------------------------------------------------------------
+
+/** The unresolved record as the source gave it, plus the provisional entity created for it. */
+export interface ProposalCandidate {
+  name: string;
+  source: string;
+  domain?: string;
+  founders?: string[];
+  provisionalEntityId: string | null;
+  [key: string]: unknown;
+}
+
+export async function insertMergeProposal(
+  db: Db,
+  p: { candidate: ProposalCandidate; targetId: string | null; score: number; method: string; explanation: string },
+): Promise<string> {
+  const { rows } = await db.query<{ id: string }>(
+    `insert into merge_proposals(candidate, proposed_entity_id, score, method, explanation)
+     values ($1,$2,$3,$4,$5) returning id`,
+    [JSON.stringify(p.candidate), p.targetId, p.score, p.method, p.explanation],
+  );
+  return rows[0]!.id;
+}
+
+/** Pending proposals, strongest first. */
+export async function pendingProposals(db: Db) {
+  const { rows } = await db.query<{
+    id: string; candidate: ProposalCandidate; proposed_entity_id: string | null;
+    target_name: string | null; score: number; method: string; explanation: string;
+  }>(
+    `select p.id, p.candidate, p.proposed_entity_id, e.name as target_name, p.score, p.method, p.explanation
+       from merge_proposals p left join entities e on e.id = p.proposed_entity_id
+      where p.status = 'pending' order by p.score desc, p.created_at`,
+  );
+  return rows;
+}
+
+/**
+ * A human decides a proposal. Accepting folds the provisional entity into
+ * the target (merged_into); claims stay where they are and are read through
+ * the merge. The merged claims are then checked against each other.
+ */
+export async function decideProposal(db: Db, proposalId: string, accept: boolean, decidedBy: string) {
+  const target = await db.transaction(async (tx) => {
+    const p = (
+      await tx.query<{ candidate: { provisionalEntityId: string | null }; proposed_entity_id: string | null; status: string }>(
+        "select candidate, proposed_entity_id, status from merge_proposals where id=$1",
+        [proposalId],
+      )
+    ).rows[0];
+    if (!p) throw new Error(`No proposal ${proposalId}`);
+    if (p.status !== "pending") throw new Error(`Proposal ${proposalId} is already ${p.status}`);
+    if (accept) {
+      const from = p.candidate.provisionalEntityId;
+      if (!from || !p.proposed_entity_id) throw new Error("Proposal has nothing to merge");
+      if (from === p.proposed_entity_id) throw new Error("Cannot merge an entity into itself");
+      await tx.query("update entities set merged_into=$1 where id=$2", [p.proposed_entity_id, from]);
+      await tx.query("update entities set merged_into=$1 where merged_into=$2", [p.proposed_entity_id, from]);
+    }
+    await tx.query("update merge_proposals set status=$1, decided_by=$2, decided_at=now() where id=$3", [
+      accept ? "accepted" : "rejected", decidedBy, proposalId,
+    ]);
+    await audit(tx, decidedBy, accept ? "merge.accept" : "merge.reject", proposalId);
+    return accept ? p.proposed_entity_id : null;
+  });
+  if (target) await detectContradictions(db, target);
+}
+
+// ---------------------------------------------------------------------------
+// Read models (shared by the CLI and the web app)
+// ---------------------------------------------------------------------------
+
+export interface ProfileClaim extends ClaimRow {
+  unit: string | null;
+  confidence: number;
+  extracted_by: string;
+  access_scope: AccessScope;
+  span_start: number | null;
+  span_end: number | null;
+  evidence: { source: string; kind: EvidenceKind; title: string | null; uri: string | null; occurred_at: string | null };
+}
+
+/**
+ * Everything the ledger knows about one entity, ready to display. With
+ * `scopes`, claims and contradictions outside those scopes are left out in
+ * SQL, so a shareable view can't see them; vendor identifiers and aliases
+ * are left out too.
+ */
+export async function companyProfile(db: Db, entityId: string, opts: { scopes?: AccessScope[] } = {}) {
+  const entity = await getEntity(db, entityId);
+  if (!entity) throw new Error(`No entity ${entityId}`);
+  const base = await currentClaims(db, entity.id, { scopes: opts.scopes });
+  const detail = base.length
+    ? (
+        await db.query<Omit<ProfileClaim, keyof ClaimRow | "evidence"> & { id: string; source: string; kind: EvidenceKind; title: string | null; uri: string | null; occurred_at: unknown }>(
+          `select c.id, c.unit, c.confidence, c.extracted_by, c.access_scope, c.span_start, c.span_end,
+                  e.source, e.kind, e.title, e.uri, e.occurred_at
+             from claims c join evidence e on e.id = c.evidence_id where c.id = any($1::uuid[])`,
+          [base.map((c) => c.id)],
+        )
+      ).rows
+    : [];
+  const byId = new Map(detail.map((d) => [d.id, d]));
+  const claims: ProfileClaim[] = base.map((c) => {
+    const d = byId.get(c.id)!;
+    const occurred = d.occurred_at instanceof Date ? d.occurred_at.toISOString() : (d.occurred_at as string | null);
+    return {
+      ...c, unit: d.unit, confidence: d.confidence, extracted_by: d.extracted_by, access_scope: d.access_scope,
+      span_start: d.span_start, span_end: d.span_end,
+      evidence: { source: d.source, kind: d.kind, title: d.title, uri: d.uri, occurred_at: occurred },
+    };
+  });
+  const decisions = (
+    await db.query<{ id: string; kind: string; actor: string; value: unknown; reason_code: string | null; rationale: string | null; created_at: unknown }>(
+      `select id, kind, actor, value, reason_code, rationale, created_at from decisions
+        where entity_id in (${MERGE_FAMILY}) order by created_at`,
+      [entity.id],
+    )
+  ).rows;
+  // Identifiers and aliases carry no scope of their own: a scoped view keeps
+  // only public identifier kinds and drops aliases (one may come from a confidential call).
+  const identifiers = await entityIdentifiers(db, entity.id);
+  return {
+    entity,
+    identifiers: opts.scopes ? identifiers.filter((i) => PUBLIC_IDENTIFIER_KINDS.includes(i.kind)) : identifiers,
+    aliases: opts.scopes ? [] : await entityAliases(db, entity.id),
+    claims,
+    contradictions: await openContradictions(db, entity.id, { scopes: opts.scopes }),
+    decisions,
+  };
+}
+
+export type CompanyProfile = Awaited<ReturnType<typeof companyProfile>>;

@@ -21,6 +21,8 @@ export interface ProposedClaim {
   spanStart?: number;
   spanEnd?: number;
   citedText?: string;
+  /** The model that answered, from the API response. Recorded in `extracted_by`. */
+  model?: string;
 }
 
 export interface Rejection {
@@ -193,7 +195,7 @@ export async function extractClaims(db: Db, llm: Llm, evidenceId: string, subjec
       ],
     });
     const parsed = parseCitedResponse(msg, part.offset);
-    proposed.push(...parsed.proposed);
+    proposed.push(...parsed.proposed.map((p) => ({ ...p, model: msg.model || config.extractionModel })));
     rejected.push(...parsed.rejected);
   }
 
@@ -215,7 +217,7 @@ export async function extractClaims(db: Db, llm: Llm, evidenceId: string, subjec
       spanEnd: span.end,
       citedText: span.text,
       sourceType: p.sourceType,
-      extractedBy: `${EXTRACTOR_VERSION}/${config.extractionModel}`,
+      extractedBy: `${EXTRACTOR_VERSION}/${p.model ?? config.extractionModel}`,
     };
     try {
       claimIds.push(await insertClaim(db, input));

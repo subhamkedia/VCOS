@@ -3,7 +3,7 @@ import type { Db } from "../lib/db.js";
 import { testDb } from "./helpers.js";
 import {
   createEntity, insertEvidence, insertClaim, currentClaims, detectContradictions, openContradictions,
-  findByIdentifier, recordDecision, addIdentifier,
+  findByIdentifier, recordDecision, addIdentifier, companyProfile, SHAREABLE_SCOPES,
 } from "../ledger/repository.js";
 import { normalizeValue, parseNumber, PREDICATES } from "../ledger/predicates.js";
 
@@ -86,6 +86,8 @@ describe("evidence", () => {
     const { evidence } = await insertEvidence(db, { kind: "note", source: "test", content: "x" });
     await expect(db.query("update evidence set title='y' where id=$1", [evidence.id])).rejects.toThrow(/append-only/);
     await expect(db.query("delete from evidence where id=$1", [evidence.id])).rejects.toThrow(/append-only/);
+    await expect(db.exec("truncate evidence cascade")).rejects.toThrow(/append-only/);
+    await expect(db.exec("truncate claims")).rejects.toThrow(/append-only/);
   });
 });
 
@@ -139,6 +141,35 @@ describe("claims", () => {
     });
     const current = await currentClaims(db, acme.id, "team.headcount");
     expect(current.map((c) => c.value)).toEqual([21]);
+  });
+});
+
+describe("access scope", () => {
+  it("filters shareable views in SQL, including contradictions that would leak a hidden value", async () => {
+    const { acme, evidence } = await seed(); // confidential transcript
+    const { evidence: press } = await insertEvidence(db, {
+      kind: "web_page", source: "web", content: "Acme employs 20 people.", accessScope: "public", occurredAt: "2026-09-01",
+    });
+    await insertClaim(db, { subjectId: acme.id, predicate: "team.headcount", value: 20, asOf: "2026-09-01",
+      evidenceId: press.id, sourceType: "third_party", extractedBy: "t" });
+    await insertClaim(db, { subjectId: acme.id, predicate: "team.headcount", value: 40, asOf: "2026-09-10",
+      evidenceId: evidence.id, sourceType: "self_reported", extractedBy: "t" });
+    await detectContradictions(db, acme.id);
+
+    const all = await companyProfile(db, acme.id);
+    expect(all.claims.map((c) => c.value)).toEqual([20, 40]);
+    expect(all.contradictions).toHaveLength(1);
+    expect(all.claims[0]?.evidence.source).toBe("web");
+
+    await addIdentifier(db, acme.id, "pitchbook", "12345-67", "pitchbook");
+    const shareable = await companyProfile(db, acme.id, { scopes: SHAREABLE_SCOPES });
+    expect(shareable.identifiers.map((i) => i.kind)).toEqual(["domain"]);
+    expect(shareable.aliases).toEqual([]);
+    expect(shareable.claims.map((c) => c.value)).toEqual([20]);
+    expect(shareable.claims.every((c) => c.access_scope === "public")).toBe(true);
+    // The contradiction names the confidential 40, so it's hidden too.
+    expect(shareable.contradictions).toHaveLength(0);
+    expect(await currentClaims(db, acme.id, { predicates: ["team.headcount"], scopes: ["confidential"] })).toHaveLength(1);
   });
 });
 
