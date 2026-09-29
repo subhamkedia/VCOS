@@ -6,6 +6,8 @@ import type { Mailer } from "../lib/mailer.js";
 import { testRoot } from "./helpers.js";
 import { createApp } from "../server/app.js";
 import { addMembership, readSession } from "../ledger/platform.js";
+import { scopedDb } from "../lib/db.js";
+import { insertInvestment } from "../ledger/execution.js";
 import { starterProfile } from "../modules/firm/profile.js";
 
 beforeAll(async () => {
@@ -250,5 +252,47 @@ describe("limits", () => {
     expect((await pat.get("/api/wires/00000000-0000-0000-0000-000000000000")).status).toBe(404);
     expect((await pat.post("/api/wires/00000000-0000-0000-0000-000000000000/approve")).status).toBe(404);
     expect((await (await pat.get("/api/execution")).json()).map((d: { id: string }) => d.id)).toEqual([id]);
+  });
+  it("runs portfolio over HTTP: analysts keep the numbers, partners decide, founders use the portal without an account", async () => {
+    const pat = await signIn("pat@alpha.example");
+    await pat.post("/api/firms", { name: "Alpha Ventures" });
+    const firmId = (await readSession(root, pat.cookie.split("=")[1]))!.firm!.id;
+    const ana = await signIn("ana@alpha.example");
+    await addMembership(root, firmId, (await readSession(root, ana.cookie.split("=")[1]))!.user.id, "analyst");
+    await ana.post("/api/firms/switch", { firmId });
+    const { id: dealId } = await (await ana.post("/api/deals", { company: { name: "Girderline", domain: "girderline.example" } })).json();
+    const db = scopedDb(root, firmId);
+    const companyId = (await db.query<{ company_id: string }>("select company_id from deals where id = $1", [dealId])).rows[0]!.company_id;
+    expect((await ana.get(`/api/portfolio/companies/${companyId}`)).status).toBe(404); // not held yet
+    await insertInvestment(db, { dealId, companyId, fundName: "Fund I", security: "preferred", closeDate: "2026-01-15", amountUsd: 1e6, shares: 1e6, ownershipFdPct: 10, rights: {} }, "human:pat@alpha.example");
+
+    expect((await (await ana.get("/api/portfolio")).json()).companies).toHaveLength(1);
+    expect((await ana.post(`/api/portfolio/companies/${companyId}/kpis`, { period: "2026-05", values: { "cash.balance": 500000, "burn.monthly": 120000 } })).status).toBe(201);
+    expect((await ana.post(`/api/portfolio/companies/${companyId}/kpis`, { period: "2026-05", values: { nonsense: 1 } })).status).toBe(400);
+    const view = await (await ana.get(`/api/portfolio/companies/${companyId}`)).json();
+    expect(view.signals[0]).toMatchObject({ key: "runway", severity: "high" });
+    expect((await ana.post(`/api/portfolio/companies/${companyId}/reserve`, { amountUsd: 1e6, rationale: "Pro rata in the Series A." })).status).toBe(403);
+    expect((await pat.post(`/api/portfolio/companies/${companyId}/reserve`, { amountUsd: 1e6, rationale: "Pro rata in the Series A." })).status).toBe(201);
+    const mark = await (await ana.post(`/api/portfolio/companies/${companyId}/marks`, { method: "cost", asOf: "2026-06-30", rationale: "Recent round; nothing material has changed." })).json();
+    expect((await ana.post(`/api/portfolio/marks/${mark.id}/review`, { approve: true })).status).toBe(403);
+    expect((await pat.post(`/api/portfolio/marks/${mark.id}/review`, { approve: true })).status).toBe(200);
+
+    // The founder portal: no session, the token is the key.
+    const { url } = await (await ana.post(`/api/portfolio/companies/${companyId}/portal`)).json();
+    const token = url.split("/portal/")[1];
+    const founder = await app.request(`/api/portal/${token}`);
+    expect(founder.status).toBe(200);
+    expect(await founder.json()).toMatchObject({ company: "Girderline", firm: expect.any(String) });
+    const noHeader = await app.request(`/api/portal/${token}/kpis`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ period: "2026-05", values: { "revenue.monthly": 50000 } }) });
+    expect(noHeader.status).toBe(400); // CSRF header required
+    const sent = await app.request(`/api/portal/${token}/kpis`, { method: "POST", headers: { "content-type": "application/json", "x-vcos": "1" }, body: JSON.stringify({ period: "2026-05", values: { "revenue.monthly": 50000 } }) });
+    expect(sent.status).toBe(201);
+    expect((await app.request("/api/portal/definitely-not-a-valid-token-000000000")).status).toBe(404);
+    const connect = await app.request(`/api/portal/${token}/connect/quickbooks`);
+    expect(connect.status).toBe(302);
+    expect(connect.headers.get("location")).toMatch(/^\/portal\/connected\?error=/); // no QuickBooks app on this server
+    expect((await app.request("/api/portal/callback?error=access_denied")).headers.get("location")).toMatch(/^\/portal\/connected\?error=access_denied/);
+    expect((await pat.post(`/api/portfolio/companies/${companyId}/portal/revoke`)).status).toBe(200);
+    expect((await app.request(`/api/portal/${token}`)).status).toBe(404);
   });
 });

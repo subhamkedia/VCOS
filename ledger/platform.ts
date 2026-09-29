@@ -280,6 +280,47 @@ export async function takeOAuthState(root: Db, state: string): Promise<OAuthStat
     : null;
 }
 
+// ---------------------------------------------------------------------------
+// Founder portal links. A founder has no session, so the firm comes from the
+// link: these two lookups run as root, return only ids, and everything after
+// runs on the firm's scoped Db.
+// ---------------------------------------------------------------------------
+
+export interface PortalRef {
+  id: string;
+  firmId: string;
+  companyId: string;
+}
+
+/** A live portal link by its token (only the hash is stored). */
+export async function portalLinkByToken(root: Db, token: string): Promise<PortalRef | null> {
+  if (!token || token.length < 20) return null;
+  const { rows } = await root.query<{ id: string; firm_id: string; company_id: string }>(
+    `update portal_links set last_used_at = now()
+      where token_hash = $1 and revoked_at is null and expires_at > now()
+      returning id, firm_id, company_id`,
+    [sha256(token)],
+  );
+  const r = rows[0];
+  return r ? { id: r.id, firmId: r.firm_id, companyId: r.company_id } : null;
+}
+
+/** The accounting OAuth flow a portal link started. Single use, within fifteen minutes. */
+export async function takePortalOAuth(root: Db, state: string): Promise<(PortalRef & { provider: "quickbooks" | "xero"; verifier: string }) | null> {
+  const { rows } = await root.query<{ id: string; firm_id: string; company_id: string; oauth_provider: "quickbooks" | "xero"; oauth_verifier: string }>(
+    `with hit as (
+       select id, firm_id, company_id, oauth_provider, oauth_verifier from portal_links
+        where oauth_state = $1 and oauth_expires_at > now() and revoked_at is null and expires_at > now()
+     )
+     update portal_links p set oauth_state = null, oauth_verifier = null, oauth_expires_at = null
+       from hit where p.id = hit.id
+     returning hit.id, hit.firm_id, hit.company_id, hit.oauth_provider, hit.oauth_verifier`,
+    [state],
+  );
+  const r = rows[0];
+  return r ? { id: r.id, firmId: r.firm_id, companyId: r.company_id, provider: r.oauth_provider, verifier: r.oauth_verifier } : null;
+}
+
 /** A throwaway in-memory database with one firm, for the demo and evals. Closing the Db closes the database. */
 export async function inMemoryFirm(name = "Demo Fund"): Promise<{ root: Db; db: Db; firm: Firm }> {
   const { createPgliteDb, migrate, scopedDb } = await import("../lib/db.js");

@@ -319,6 +319,7 @@ export interface InvestmentRow {
   post_money_usd: number | null;
   ownership_fd_pct: number | null;
   board_role: string | null;
+  round_kind: "initial" | "follow_on";
   rights: Record<string, unknown>;
   supersedes: string | null;
   created_by: string;
@@ -332,27 +333,28 @@ const investment = (r: InvestmentRow): InvestmentRow => ({
 
 export async function insertInvestment(
   db: Db,
-  i: { dealId: string; companyId: string; fundName: string; security: string; seriesName?: string | null; closeDate: string; amountUsd: number; shares?: number | null; pricePerShare?: number | null; postMoneyUsd?: number | null; ownershipFdPct?: number | null; boardRole?: string | null; rights: Record<string, unknown>; supersedes?: string | null },
+  i: { dealId: string; companyId: string; fundName: string; security: string; seriesName?: string | null; closeDate: string; amountUsd: number; shares?: number | null; pricePerShare?: number | null; postMoneyUsd?: number | null; ownershipFdPct?: number | null; boardRole?: string | null; rights: Record<string, unknown>; supersedes?: string | null; roundKind?: "initial" | "follow_on" },
   by: string,
 ): Promise<InvestmentRow> {
   const { rows } = await db.query<InvestmentRow>(
     `insert into investments(deal_id, company_id, fund_name, security, series_name, close_date, amount_usd, shares, price_per_share, post_money_usd,
-       ownership_fd_pct, board_role, rights, supersedes, created_by)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) returning *`,
+       ownership_fd_pct, board_role, rights, supersedes, created_by, round_kind)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) returning *`,
     [i.dealId, i.companyId, i.fundName, i.security, i.seriesName ?? null, i.closeDate, i.amountUsd, i.shares ?? null, i.pricePerShare ?? null,
-      i.postMoneyUsd ?? null, i.ownershipFdPct ?? null, i.boardRole ?? null, JSON.stringify(i.rights), i.supersedes ?? null, by],
+      i.postMoneyUsd ?? null, i.ownershipFdPct ?? null, i.boardRole ?? null, JSON.stringify(i.rights), i.supersedes ?? null, by, i.roundKind ?? "initial"],
   );
   await audit(db, by, "investment.record", i.dealId, { investment: rows[0]!.id, amount: i.amountUsd });
   return investment(rows[0]!);
 }
 
 /** Current investments (not superseded), newest first, with company names. */
-export async function listInvestments(db: Db, opts: { dealId?: string } = {}): Promise<InvestmentRow[]> {
+export async function listInvestments(db: Db, opts: { dealId?: string; companyId?: string } = {}): Promise<InvestmentRow[]> {
+  const where = opts.dealId ? "and i.deal_id = $1" : opts.companyId ? "and i.company_id = $1" : "";
   const { rows } = await db.query<InvestmentRow>(
     `select i.*, e.name as company_name from investments i join entities e on e.id = i.company_id
-      where not exists (select 1 from investments s where s.supersedes = i.id) ${opts.dealId ? "and i.deal_id = $1" : ""}
+      where not exists (select 1 from investments s where s.supersedes = i.id) ${where}
       order by i.close_date desc, i.created_at desc`,
-    opts.dealId ? [opts.dealId] : [],
+    opts.dealId ? [opts.dealId] : opts.companyId ? [opts.companyId] : [],
   );
   return rows.map(investment);
 }

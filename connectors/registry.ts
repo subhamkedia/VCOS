@@ -23,6 +23,8 @@ import { companyJobs } from "./jobs.js";
 import { sameCompanyName, type CompanyRef } from "./research.js";
 import { docusignCheck } from "./docusign.js";
 import { cartaCheck } from "./carta.js";
+import { accountingCheck } from "./accounting.js";
+import { standardMetricsCheck, standardMetricsFor, visibleCheck, visibleFor } from "./portfolio-platforms.js";
 import { ofacCheck } from "./ofac.js";
 import { outlookCheck, outlookSearch } from "./outlook.js";
 import { emailToRecord } from "./email.js";
@@ -40,7 +42,7 @@ import { discoverFromPortfolioPage, ORG_TYPES, type OrgType } from "./portfolio-
  * the Sourcing screen and `pnpm connectors` all render from this list.
  */
 
-export type Category = "data vendor" | "public" | "crm" | "email" | "documents" | "meetings" | "closing";
+export type Category = "data vendor" | "public" | "crm" | "email" | "documents" | "meetings" | "closing" | "portfolio";
 
 /** What diligence knows about the company it's researching. */
 export interface ResearchTarget extends CompanyRef {
@@ -64,6 +66,16 @@ export interface MeetingsSpec {
   list: (since: Date) => Promise<MeetingRecord[]>;
 }
 export type Cadence = "hourly" | "daily" | "weekly" | "monthly" | "manual";
+
+/** Pull a portfolio company's latest numbers and updates, for Portfolio monitoring. */
+export interface PortfolioSpec {
+  summary: string;
+  needsDomain?: boolean;
+  /** The firm's own account: pull what it holds on one company. */
+  run?: (c: ResearchTarget) => Promise<SourceRecord[]>;
+  /** Connected by each company (its founder), not by the firm: synced per company link. */
+  perCompany?: boolean;
+}
 
 export interface CredentialField {
   key: ConfigKey;
@@ -113,6 +125,8 @@ export interface ConnectorInfo {
   meetings?: MeetingsSpec;
   /** Used by Investment Execution (signatures, cap tables, screening). */
   execution?: { summary: string };
+  /** Used by Portfolio monitoring: KPIs and founder updates. */
+  portfolio?: PortfolioSpec;
   /** OAuth products that share one account consent (Gmail, Drive, Calendar, Meet). */
   product?: string;
   ingest: string;
@@ -324,6 +338,10 @@ export const CONNECTORS: ConnectorInfo[] = [
       summary: "Last year's threads with the company's domain", needsDomain: true,
       run: async (c) => (await gmailSearch(`(from:${c.domain} OR to:${c.domain}) newer_than:1y`, { max: 50 })).map((m) => emailToRecord(m, { company: c.name, companyDomain: c.domain })),
     },
+    portfolio: {
+      summary: "Founder updates from the company's domain", needsDomain: true,
+      run: async (c) => (await gmailSearch(`from:${c.domain} (update OR monthly OR quarterly OR investors OR KPIs OR board) newer_than:120d`, { max: 25 })).map((m) => emailToRecord(m, { company: c.name, companyDomain: c.domain })),
+    },
     ingest: 'pnpm ingest gmail "<gmail query>"', check: gmailCheck,
   },
   {
@@ -342,6 +360,10 @@ export const CONNECTORS: ConnectorInfo[] = [
     research: {
       summary: "Threads mentioning the company's domain", needsDomain: true,
       run: async (c) => (await outlookSearch(c.domain!, { max: 50 })).map((m) => emailToRecord(m, { company: c.name, companyDomain: c.domain })),
+    },
+    portfolio: {
+      summary: "Founder updates from the company's domain", needsDomain: true,
+      run: async (c) => (await outlookSearch(`from:${c.domain} update`, { max: 25 })).map((m) => emailToRecord(m, { company: c.name, companyDomain: c.domain })),
     },
     ingest: 'pnpm ingest outlook "<search>"', check: outlookCheck,
   },
@@ -456,6 +478,42 @@ export const CONNECTORS: ConnectorInfo[] = [
     ingest: "Used on the Closing tab", check: () => ofacCheck(),
     execution: { summary: "Sanctions screening before closing" },
   },
+
+  // --- Portfolio --------------------------------------------------------------
+  // Used by Portfolio monitoring. The books are connected by each company's
+  // founder from the link the firm sends; the platforms are the firm's own.
+  {
+    id: "quickbooks", name: "QuickBooks Online", category: "portfolio", scope: "confidential",
+    description: "A portfolio company's monthly revenue, expenses and cash, read from its books. The founder connects it from the link you send; read only.",
+    auth: { kind: "platform", keys: ["quickbooksClientId", "quickbooksClientSecret"], note: "Needs the server's QuickBooks app (ask your administrator). Founders connect their own company." },
+    docsUrl: "https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/profitandloss",
+    ingest: "Founders connect from their company's portal link", check: () => accountingCheck(),
+    portfolio: { summary: "Monthly revenue, expenses and cash from the company's books", perCompany: true },
+  },
+  {
+    id: "xero", name: "Xero", category: "portfolio", scope: "confidential",
+    description: "A portfolio company's monthly revenue, expenses and cash, read from its books. The founder connects it from the link you send; read only.",
+    auth: { kind: "platform", keys: ["xeroClientId", "xeroClientSecret"], note: "Needs the server's Xero app (ask your administrator). Founders connect their own company." },
+    docsUrl: "https://developer.xero.com/documentation/api/accounting/reports",
+    ingest: "Founders connect from their company's portal link", check: () => accountingCheck(),
+    portfolio: { summary: "Monthly revenue, expenses and cash from the company's books", perCompany: true },
+  },
+  {
+    id: "standard-metrics", name: "Standard Metrics", category: "portfolio", scope: "confidential",
+    description: "KPIs your portfolio companies already report to you in Standard Metrics, brought into the ledger with their history.",
+    auth: { kind: "api_key", fields: [key("standardMetricsClientId", "Client id", "Standard Metrics → Developer Settings"), key("standardMetricsClientSecret", "Client secret")] },
+    docsUrl: "https://docs.standardmetrics.io/",
+    ingest: "Portfolio → company → Refresh numbers", check: () => standardMetricsCheck(),
+    portfolio: { summary: "Metrics founders report in Standard Metrics", run: (c) => standardMetricsFor(c) },
+  },
+  {
+    id: "visible", name: "Visible", category: "portfolio", scope: "confidential",
+    description: "KPIs your portfolio companies already report to you in Visible, brought into the ledger with their history.",
+    auth: { kind: "api_key", fields: [key("visibleApiToken", "API token", "Visible → Settings → API")] },
+    docsUrl: "https://docs.visible.vc/",
+    ingest: "Portfolio → company → Refresh numbers", check: () => visibleCheck(),
+    portfolio: { summary: "Metrics founders report in Visible", run: (c) => visibleFor(c) },
+  },
 ];
 
 export function getConnector(id: string): ConnectorInfo {
@@ -495,4 +553,7 @@ export const ENV_NAMES: Record<ConfigKey, string> = {
   zoomRefreshToken: "ZOOM_REFRESH_TOKEN", granolaApiKey: "GRANOLA_API_KEY", firefliesApiKey: "FIREFLIES_API_KEY",
   docusignClientId: "DOCUSIGN_CLIENT_ID", docusignClientSecret: "DOCUSIGN_CLIENT_SECRET", docusignAuthServer: "DOCUSIGN_AUTH_SERVER",
   docusignRefreshToken: "DOCUSIGN_REFRESH_TOKEN", cartaClientId: "CARTA_CLIENT_ID", cartaClientSecret: "CARTA_CLIENT_SECRET", cartaApiBase: "CARTA_API_BASE",
+  quickbooksClientId: "QUICKBOOKS_CLIENT_ID", quickbooksClientSecret: "QUICKBOOKS_CLIENT_SECRET", quickbooksEnvironment: "QUICKBOOKS_ENVIRONMENT",
+  xeroClientId: "XERO_CLIENT_ID", xeroClientSecret: "XERO_CLIENT_SECRET",
+  standardMetricsClientId: "STANDARD_METRICS_CLIENT_ID", standardMetricsClientSecret: "STANDARD_METRICS_CLIENT_SECRET", visibleApiToken: "VISIBLE_API_TOKEN",
 };

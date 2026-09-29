@@ -51,18 +51,19 @@ export const MODULES: ModuleInfo[] = [
     reads: ["The IC memo and diligence", "Cap table (Carta or a CSV export)", "House terms and your fund's LPs"],
   },
   {
-    id: "portfolio", name: "Portfolio & Value Creation", path: "/portfolio", status: "next", phase: 3,
-    summary: "Tracks every portfolio company's KPIs and flags trouble early; plans and logs the help you give.",
+    id: "portfolio", name: "Portfolio & Value Creation", path: "/portfolio", status: "live", phase: 3,
+    summary: "Every company the fund holds: its numbers from the books and founders, early warnings, fair value marks, reserves and follow-ons, board meetings, and the help you give.",
     does: [
-      "KPI collection from founder updates, with each number cited",
-      "Early warnings on runway, burn and missed plans",
-      "Value-creation initiatives: hires, customer intros, follow-on prep",
-      "Reserves planning against the fund model",
+      "Numbers from the company's QuickBooks or Xero, a founder portal with no login, KPI requests, spreadsheets, Standard Metrics or Visible, and founder update emails; each figure cited",
+      "Early warnings: runway, burn above plan, revenue behind plan, burn multiple, shrinking teams, stale data",
+      "Fair value marks by IPEV-recognized methods, prepared by one person and approved by another",
+      "Gross MOIC, IRR, DPI, RVPI and TVPI; the reserve pool; follow-on decisions with their reasons",
+      "Board meetings with resolutions and conflict review; value-creation work measured by outcome",
     ],
-    reads: ["Founder updates and board decks", "Cap tables", "Fund model"],
+    reads: ["Investment records from Execution", "The company's books and founder updates", "Fund size and reserves"],
   },
   {
-    id: "lp-reporting", name: "LP Reporting", path: "/lp-reporting", status: "planned", phase: 4,
+    id: "lp-reporting", name: "LP Reporting", path: "/lp-reporting", status: "next", phase: 4,
     summary: "Quarterly reports and capital account statements in ILPA formats, with numbers from code.",
     does: [
       "ILPA reporting and performance templates",

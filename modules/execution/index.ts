@@ -169,6 +169,8 @@ export interface Model {
   scenarios: { exit: number; proceeds: number; multiple: number; converted: boolean }[];
   error: string | null;
   basedOn: { termSheetVersion: number | null; capTableVersion: number | null };
+  /** Every class after the round, for waterfalls (exit scenarios here, fair value marks in Portfolio). */
+  classes?: { prefs: PreferredSeries[]; commons: CommonClass[]; ourSeries: string; ourShares: number };
 }
 
 export async function model(db: Db, dealId: string): Promise<Model> {
@@ -212,6 +214,7 @@ export async function model(db: Db, dealId: string): Promise<Model> {
       proForma: p, basedOn, error: null,
       ours: mine ? { holder: us, amount: mine.amount, shares: mine.shares, postPct: (mine.shares / p.postMoneyFullyDiluted) * 100 } : null,
       scenarios: scenarios.map(({ exit, proceeds, multiple, converted }) => ({ exit, proceeds, multiple, converted })),
+      classes: mine ? { prefs, commons, ourSeries: t.seriesName, ourShares: mine.shares } : undefined,
     };
   } catch (err) {
     return empty((err as Error).message);

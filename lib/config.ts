@@ -49,6 +49,19 @@ export const config = {
   cartaClientSecret: env("CARTA_CLIENT_SECRET"),
   cartaApiBase: env("CARTA_API_BASE", "https://api.carta.com"),
 
+  // Portfolio companies' accounting systems. One app registration each for
+  // every firm; each company's founder connects its own books.
+  quickbooksClientId: env("QUICKBOOKS_CLIENT_ID"),
+  quickbooksClientSecret: env("QUICKBOOKS_CLIENT_SECRET"),
+  quickbooksEnvironment: env("QUICKBOOKS_ENVIRONMENT", "production"),
+  xeroClientId: env("XERO_CLIENT_ID"),
+  xeroClientSecret: env("XERO_CLIENT_SECRET"),
+
+  // Portfolio monitoring platforms a firm may already use (its own keys)
+  standardMetricsClientId: env("STANDARD_METRICS_CLIENT_ID"),
+  standardMetricsClientSecret: env("STANDARD_METRICS_CLIENT_SECRET"),
+  visibleApiToken: env("VISIBLE_API_TOKEN"),
+
   // Meeting notetakers (API keys belong to one firm)
   granolaApiKey: env("GRANOLA_API_KEY"),
   firefliesApiKey: env("FIREFLIES_API_KEY"),
@@ -65,6 +78,7 @@ export const PLATFORM_KEYS: ReadonlySet<ConfigKey> = new Set<ConfigKey>([
   "anthropicApiKey", "extractionModel", "reasoningModel", "secUserAgent",
   "googleClientId", "googleClientSecret", "msClientId", "msClientSecret", "msTenant",
   "zoomClientId", "zoomClientSecret", "patentsviewApiKey", "docusignClientId", "docusignClientSecret", "docusignAuthServer", "cartaApiBase",
+  "quickbooksClientId", "quickbooksClientSecret", "quickbooksEnvironment", "xeroClientId", "xeroClientSecret",
 ]);
 
 type Creds = Partial<Record<ConfigKey, string>>;

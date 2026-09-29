@@ -133,6 +133,26 @@ const defs: PredicateDef[] = [
   { id: "product.stage", kind: "enum", enumValues: ["concept", "prototype", "beta", "ga", "scaled"], cardinality: "one",
     timeVarying: true, appliesTo: C, description: "Product maturity." },
 
+  // --- Monthly operating results (portfolio monitoring; as_of = the month's last day) ---
+  { id: "revenue.monthly", kind: "money", windowDays: 20, unit: "USD", cardinality: "one", timeVarying: true, tolerance: 0.1, appliesTo: C,
+    description: "Revenue recognized in one month, from the income statement (as_of = last day of the month)." },
+  { id: "expenses.monthly", kind: "money", windowDays: 20, unit: "USD", cardinality: "one", timeVarying: true, tolerance: 0.1, appliesTo: C,
+    description: "Total expenses in one month: cost of revenue plus operating expenses (as_of = last day of the month)." },
+  { id: "customers.nrr", kind: "percent", unit: "%", windowDays: 60, cardinality: "one", timeVarying: true, tolerance: 0.1, appliesTo: C,
+    description: "Net revenue retention over the trailing twelve months (100% = no net churn)." },
+  { id: "fleet.units_deployed", kind: "integer", windowDays: 45, cardinality: "one", timeVarying: true, tolerance: 0.05, appliesTo: C,
+    description: "Units (robots, machines, sensors) deployed and operating at customers." },
+  { id: "fleet.uptime", kind: "percent", unit: "%", windowDays: 45, cardinality: "one", timeVarying: true, tolerance: 0.05, appliesTo: C,
+    description: "Share of scheduled hours the deployed fleet was available and working." },
+  { id: "debt.balance", kind: "money", windowDays: 45, unit: "USD", cardinality: "one", timeVarying: true, tolerance: 0.1, appliesTo: C,
+    description: "Outstanding debt: venture debt, loans and credit lines drawn." },
+
+  // --- The company's plan (budget), for plan-versus-actual ---
+  { id: "plan.revenue.monthly", kind: "money", windowDays: 20, unit: "USD", cardinality: "one", timeVarying: true, tolerance: 0.1, appliesTo: C,
+    description: "Budgeted revenue for one month, from the board-approved plan (as_of = last day of the month)." },
+  { id: "plan.burn.monthly", kind: "money", windowDays: 20, unit: "USD", cardinality: "one", timeVarying: true, tolerance: 0.1, appliesTo: C,
+    description: "Budgeted net burn for one month, from the board-approved plan (as_of = last day of the month)." },
+
   // --- Unit economics and cash ---
   { id: "unit_economics.gross_margin", kind: "percent", unit: "%", cardinality: "one", timeVarying: true, tolerance: 0.1, appliesTo: C,
     description: "Gross margin." },
@@ -227,6 +247,14 @@ export const PREDICATE_LABELS: Record<string, string> = {
   "contract.government": "Government contract",
   "market.tam": "Total addressable market",
   "competition.competitor": "Competitor",
+  "revenue.monthly": "Monthly revenue",
+  "expenses.monthly": "Monthly expenses",
+  "customers.nrr": "Net revenue retention",
+  "fleet.units_deployed": "Units deployed",
+  "fleet.uptime": "Fleet uptime",
+  "debt.balance": "Debt outstanding",
+  "plan.revenue.monthly": "Planned monthly revenue",
+  "plan.burn.monthly": "Planned monthly burn",
 };
 
 /** Sections of a company page, in order. A predicate belongs to the first group whose prefix it starts with. */
@@ -235,10 +263,11 @@ export const PREDICATE_GROUPS: { id: string; label: string; prefixes: string[] }
   { id: "team", label: "Team", prefixes: ["team.", "person."] },
   { id: "raise", label: "Current raise", prefixes: ["raise."] },
   { id: "funding", label: "Funding history", prefixes: ["funding."] },
-  { id: "traction", label: "Revenue and customers", prefixes: ["revenue.", "customers.", "pilot."] },
+  { id: "traction", label: "Revenue and customers", prefixes: ["revenue.", "customers.", "pilot.", "fleet."] },
   { id: "product", label: "Product and technology", prefixes: ["product.", "tech.", "ip."] },
   { id: "regulatory", label: "Regulatory and government", prefixes: ["compliance.", "contract.", "grant."] },
-  { id: "economics", label: "Unit economics and cash", prefixes: ["unit_economics.", "burn.", "cash.", "runway."] },
+  { id: "economics", label: "Unit economics and cash", prefixes: ["unit_economics.", "expenses.", "burn.", "cash.", "runway.", "debt."] },
+  { id: "plan", label: "Plan and budget", prefixes: ["plan."] },
   { id: "market", label: "Market", prefixes: ["market.", "competition."] },
 ];
 

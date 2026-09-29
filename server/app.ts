@@ -4,7 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import { scopedDb, type Db } from "../lib/db.js";
 import type { Llm } from "../lib/llm.js";
 import type { Mailer } from "../lib/mailer.js";
-import { endSession, readSession, removeMember, renameFirm, switchFirm, team, SESSION_DAYS, ROLES, type Role, type SessionInfo } from "../ledger/platform.js";
+import { endSession, portalLinkByToken, readSession, removeMember, renameFirm, switchFirm, takePortalOAuth, team, SESSION_DAYS, ROLES, type Role, type SessionInfo } from "../ledger/platform.js";
 import * as auth from "../modules/auth/index.js";
 import * as connections from "../modules/connections/index.js";
 import * as sourcing from "../modules/sourcing/index.js";
@@ -13,6 +13,7 @@ import * as outbox from "../modules/outbox/index.js";
 import * as meetings from "../modules/meetings/index.js";
 import * as diligence from "../modules/diligence/index.js";
 import * as execution from "../modules/execution/index.js";
+import * as portfolio from "../modules/portfolio/index.js";
 import type { MeetingStatus } from "../ledger/meetings.js";
 import type { DealStage } from "../ledger/diligence.js";
 import { checkProfile, construction, getProfile, profileHistory, profileOptions, saveProfile, ProfileInvalid } from "../modules/firm/profile.js";
@@ -54,7 +55,7 @@ export function createApp(deps: AppDeps) {
   app.onError((err, c) => {
     if (err instanceof ProfileInvalid) return c.json({ error: err.message, errors: err.errors }, 422);
     if (err instanceof auth.Forbidden) return c.json({ error: err.message }, 403);
-    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid || err instanceof execution.ExecutionInvalid) {
+    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid || err instanceof execution.ExecutionInvalid || err instanceof portfolio.PortfolioInvalid) {
       return c.json({ error: err.message }, /^No such/.test(err.message) ? 404 : 400);
     }
     const msg = err.message || "Something went wrong.";
@@ -119,6 +120,48 @@ export function createApp(deps: AppDeps) {
       return c.redirect("/");
     } catch (err) {
       return c.redirect(`/signin?error=${encodeURIComponent((err as Error).message)}`);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Founder portal (no session: the link's token finds the firm; everything
+  // after runs on that firm's scoped Db). Shows the company only what it
+  // needs to report, never the firm's marks, ratings or notes.
+  // -------------------------------------------------------------------------
+
+  const portalCallback = `${appUrl.replace(/\/$/, "")}/api/portal/callback`;
+  const portalRef = async (c: Context) => {
+    const ref = await portalLinkByToken(root, c.req.param("token") ?? "");
+    if (!ref) throw new portfolio.PortfolioInvalid("No such link: it may have expired. Ask your investor for a new one.");
+    return ref;
+  };
+  app.get("/api/portal/callback", async (c) => {
+    const state = c.req.query("state") ?? "";
+    const done = (q: Record<string, string>) => c.redirect(`/portal/connected?${new URLSearchParams(q)}`);
+    if (c.req.query("error") || !c.req.query("code")) return done({ error: c.req.query("error_description") ?? c.req.query("error") ?? "The connection was cancelled." });
+    const ref = await takePortalOAuth(root, state);
+    if (!ref) return done({ error: "This connection link has expired. Open your portal link and try again." });
+    try {
+      const r = await portfolio.finishAccountingLink(scopedDb(root, ref.firmId), ref, { code: c.req.query("code")!, realmId: c.req.query("realmId"), redirectUri: portalCallback });
+      return done({ provider: r.provider, company: r.company, ...(r.externalName ? { books: r.externalName } : {}) });
+    } catch (err) {
+      return done({ error: (err as Error).message });
+    }
+  });
+  app.get("/api/portal/:token", async (c) => {
+    const ref = await portalRef(c);
+    return c.json(await portfolio.portalView(scopedDb(root, ref.firmId), ref));
+  });
+  app.post("/api/portal/:token/kpis", async (c) => {
+    const ref = await portalRef(c);
+    return c.json(await portfolio.portalSubmit(scopedDb(root, ref.firmId), ref, await c.req.json()), 201);
+  });
+  app.get("/api/portal/:token/connect/:provider", async (c) => {
+    try {
+      const ref = await portalRef(c);
+      return c.redirect(await portfolio.startAccountingLink(scopedDb(root, ref.firmId), ref, c.req.param("provider"), portalCallback));
+    } catch (err) {
+      return c.redirect(`/portal/connected?${new URLSearchParams({ error: (err as Error).message })}`);
     }
   });
 
@@ -430,6 +473,51 @@ export function createApp(deps: AppDeps) {
     return c.json({ ok: true });
   });
   firm.post("/deals/:id/close", allow("decide_deals"), async (c) => c.json(await execution.closeDeal(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+
+  // Portfolio Management and Value Creation. Analysts keep the numbers, the
+  // board record and the value-creation work; partners decide reserves,
+  // follow-ons and realizations, and review marks (never their own).
+  firm.get("/portfolio", async (c) => c.json(await portfolio.overview(c.get("db"))));
+  firm.get("/portfolio/queues", async (c) => c.json(await portfolio.workQueues(c.get("db"))));
+  firm.get("/portfolio/companies/:id", async (c) => c.json(await portfolio.companyView(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/portfolio/companies/:id/kpis", allow("work_deals"), async (c) => c.json(await portfolio.recordKpis(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/portfolio/companies/:id/kpis/uploads", uploadLimit, allow("work_deals"), async (c) => {
+    const body = await c.req.parseBody();
+    const file = body.file;
+    if (!(file instanceof File)) return c.json({ error: "Attach a CSV file." }, 400);
+    if (!/\.(csv|txt)$/i.test(file.name)) return c.json({ error: "Export the sheet as CSV first." }, 400);
+    return c.json(await portfolio.importKpiCsv(c.get("db"), param(c, "id"), { name: file.name, text: await file.text() }, who(c)), 201);
+  });
+  firm.post("/portfolio/companies/:id/sync", allow("work_deals"), async (c) => c.json(await portfolio.syncCompany(c.get("db"), param(c, "id"), who(c), { llm })));
+  firm.post("/portfolio/companies/:id/requests", allow("queue"), async (c) => c.json(await portfolio.requestKpis(c.get("db"), param(c, "id"), await c.req.json(), who(c), appUrl), 201));
+  firm.post("/portfolio/requests/:id/cancel", allow("work_deals"), async (c) => {
+    await portfolio.cancelRequest(c.get("db"), param(c, "id"), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/portfolio/companies/:id/portal", allow("work_deals"), async (c) => c.json(await portfolio.createPortalLink(c.get("db"), param(c, "id"), who(c), appUrl), 201));
+  firm.post("/portfolio/companies/:id/portal/revoke", allow("work_deals"), async (c) => c.json(await portfolio.revokePortal(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/portfolio/companies/:id/contacts", allow("work_deals"), async (c) => c.json(await portfolio.addContact(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.delete("/portfolio/companies/:id/contacts/:cid", allow("work_deals"), async (c) => {
+    await portfolio.deleteContact(c.get("db"), param(c, "id"), param(c, "cid"), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/portfolio/companies/:id/health", allow("work_deals"), async (c) => c.json({ id: await portfolio.rateHealth(c.get("db"), param(c, "id"), await c.req.json(), who(c)) }, 201));
+  firm.post("/portfolio/companies/:id/marks", allow("work_deals"), async (c) => c.json(await portfolio.proposeMark(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/portfolio/marks/:id/review", allow("decide_deals"), async (c) => {
+    const b = await c.req.json<{ approve: boolean; note?: string }>();
+    await portfolio.reviewMark(c.get("db"), param(c, "id"), { approve: Boolean(b.approve), note: b.note }, who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/portfolio/companies/:id/reserve", allow("decide_deals"), async (c) => c.json({ id: await portfolio.planReserve(c.get("db"), param(c, "id"), await c.req.json(), who(c)) }, 201));
+  firm.post("/portfolio/companies/:id/follow-on", allow("decide_deals"), async (c) => c.json(await portfolio.decideFollowOn(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/portfolio/companies/:id/realizations", allow("decide_deals"), async (c) => c.json(await portfolio.recordRealization(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/portfolio/companies/:id/board", allow("work_deals"), async (c) => c.json(await portfolio.addBoardMeeting(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/portfolio/companies/:id/initiatives", allow("work_deals"), async (c) => c.json(await portfolio.addInitiative(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.patch("/portfolio/initiatives/:id", allow("work_deals"), async (c) => {
+    await portfolio.setInitiative(c.get("db"), param(c, "id"), await c.req.json(), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/portfolio/initiatives/:id/intro", allow("queue"), async (c) => c.json(await portfolio.queueIntro(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
 
   // Approvals
   firm.get("/outbox", async (c) => c.json(await outbox.pending(c.get("db"), (c.req.query("status") as never) || "pending")));
