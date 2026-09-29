@@ -29,11 +29,11 @@ export default function Overview({ data, onChange, go }: TabProps & { go: (t: "c
             {r.highContradictions > 0 && <li>{r.highContradictions} high-severity {r.highContradictions === 1 ? "conflict" : "conflicts"} between sources</li>}
             {r.ready && <li>Every required item is done, with no red flags or serious conflicts.</li>}
           </ul>
-          <table className="t small">
+          <table className="t small ws-table">
             <caption className="sr-only">Progress by workstream</caption>
             <tbody>
               {r.byWorkstream.map((w) => (
-                <tr key={w.id}><th scope="row" style={{ textTransform: "none", letterSpacing: 0, fontSize: 13, background: "none", fontWeight: 500, color: "var(--ink)" }}>{w.label}</th><td style={{ width: "45%" }}><Progress done={w.complete} total={w.total} label={w.label} /></td></tr>
+                <tr key={w.id}><th scope="row">{w.label}</th><td><Progress done={w.complete} total={w.total} label={w.label} /></td></tr>
               ))}
             </tbody>
           </table>
@@ -231,8 +231,8 @@ function Flags({ data, onChange }: TabProps) {
       <h2 aria-hidden="true">Extra checklist sections</h2>
       <p className="small muted" style={{ margin: 0 }}>Suggested from what the ledger says about the company. Change them if they're wrong.</p>
       {(Object.keys(data.flagLabels) as (keyof DealFlags)[]).map((k) => (
-        <label key={k} className="row" style={{ alignItems: "flex-start", gap: 8 }}>
-          <input type="checkbox" checked={Boolean(data.flags[k])} disabled={!can("work_deals")} onChange={(e) => void set(k, e.target.checked)} style={{ marginTop: 4 }} />
+        <label key={k} className="check-row">
+          <input type="checkbox" checked={Boolean(data.flags[k])} disabled={!can("work_deals")} onChange={(e) => void set(k, e.target.checked)} />
           <span><strong className="small">{data.flagLabels[k].label}</strong><br /><span className="small muted">{data.flagLabels[k].help}</span></span>
         </label>
       ))}

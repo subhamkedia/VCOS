@@ -146,3 +146,29 @@ describe("job boards", () => {
     expect(rec!.evidence.content).toContain("- Controls engineer (Engineering), Pittsburgh");
   });
 });
+
+describe("as-of dates", () => {
+  it("accepts month-only and year-only dates as the end of that period, and refuses non-dates", async () => {
+    const { normalizeAsOf } = await import("../ledger/repository.js");
+    expect(normalizeAsOf("2025-12")).toBe("2025-12-31");
+    expect(normalizeAsOf("2024-02")).toBe("2024-02-29");
+    expect(normalizeAsOf("2025")).toBe("2025-12-31");
+    expect(normalizeAsOf("2026-09-01")).toBe("2026-09-01");
+    expect(normalizeAsOf(undefined)).toBeNull();
+    expect(() => normalizeAsOf("2025-13")).toThrow(/real month/);
+    expect(() => normalizeAsOf("last spring")).toThrow(/isn't a date/);
+  });
+
+  it("stores an SBIR award dated by year", async () => {
+    const { testDb } = await import("./helpers.js");
+    const { ingest } = await import("../connectors/ingest.js");
+    const { currentClaims } = await import("../ledger/repository.js");
+    const { sbirRecord } = await import("../connectors/sbir.js");
+    const db = await testDb();
+    const rec = sbirRecord(kestrel, [{ firm: "Kestrel Robotics Inc", title: "Rebar placement", agency: "DOT", year: "2025", amount: 199500 }])!;
+    const out = await ingest(db, rec);
+    expect(out.structuredRejected).toEqual([]);
+    const [award] = await currentClaims(db, out.subject!.entity.id, "grant.award");
+    expect(award!.as_of).toBe("2025-12-31");
+  });
+});

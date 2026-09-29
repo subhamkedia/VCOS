@@ -109,14 +109,18 @@ async function run(db: Db, dealId: string, companyId: string, runId: string, by:
         const c = getConnector(s.id);
         const fetchRecords = deps.run?.[s.id] ?? c.research!.run;
         const records = (await withFirmCredentials(db, [s.id], () => fetchRecords(target))).slice(0, MAX_RECORDS_PER_SOURCE);
+        const rejected: string[] = [];
         for (const rec of records) {
           r.records++;
           const out = await ingest(db, rec, { llm: deps.llm, subjectId: companyId });
           if (!out.duplicate) r.newEvidence++;
           r.claims += out.structuredClaims + (out.extraction?.claimIds.length ?? 0);
+          rejected.push(...out.structuredRejected.map((x) => x.reason));
         }
         r.status = r.records ? "ok" : "empty";
         if (!r.records) r.detail = "Nothing found for this company.";
+        // Never drop a fact silently: say what was refused and why.
+        if (rejected.length) r.detail = `${rejected.length} ${rejected.length === 1 ? "fact" : "facts"} refused: ${rejected[0]!.slice(0, 160)}`;
       } catch (err) {
         r.status = "failed";
         r.detail = (err as Error).message.slice(0, 300);

@@ -71,7 +71,7 @@ function MemoView({ dealId, version }: { dealId: string; version: number }) {
   };
   const r = m.check_result;
   return (
-    <div className="grid-2" style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)" }}>
+    <div className="memo-grid">
       <article className="panel panel-pad memo" aria-label={m.body.title}>
         <div className="spread">
           <h2 style={{ fontSize: 20, marginTop: 0 }}>{m.body.title}</h2>

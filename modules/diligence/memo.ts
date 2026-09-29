@@ -86,18 +86,22 @@ export function draftMemo(x: MemoInputs): MemoDoc {
   const byPred = (p: string) => x.claims.filter((c) => c.predicate === p);
   const one = (p: string) => byPred(p).at(-1);
   const fact = (text: string, cites: string[]): MemoSentence => ({ text, cites, kind: "fact" });
+  // One sentence per fact, however many sources state it: newest first, each with who said it.
   const each = (preds: string[], opts: { verify?: boolean } = {}): MemoSentence[] =>
     preds.flatMap((p) => {
       const cs = byPred(p);
       if (!cs.length) return [];
       const def = PREDICATES.get(p);
       if (def?.cardinality === "many" && p !== "pilot.status") {
-        return [fact(`${predicateLabel(p)}: ${cs.map(say).join("; ")}.`, cs.map((c) => c.id))];
+        return [fact(`${predicateLabel(p)}: ${[...new Set(cs.map(say))].join("; ")}.`, cs.map((c) => c.id))];
       }
-      return cs.map((c) => {
-        const unverified = opts.verify && !cs.some((o) => INDEPENDENT.includes(o.source_type));
-        return fact(`${predicateLabel(p)}: ${say(c)} (${source(c)}).${unverified ? " Not yet verified by an independent source." : ""}`, [c.id]);
-      });
+      const sorted = [...cs].sort((a, b) => (b.as_of ?? "").localeCompare(a.as_of ?? ""));
+      const unverified = opts.verify && !cs.some((o) => INDEPENDENT.includes(o.source_type));
+      const values = sorted.map((c) => `${say(c)} (${source(c)})`);
+      const text = values.length === 1
+        ? `${predicateLabel(p)}: ${values[0]}.`
+        : `${predicateLabel(p)}, by source: ${values.join("; ")}.`;
+      return [fact(`${text}${unverified ? " Not yet verified by an independent source." : ""}`, sorted.map((c) => c.id))];
     });
 
   const sections: MemoSection[] = [];
@@ -156,8 +160,8 @@ export function draftMemo(x: MemoInputs): MemoDoc {
   add("conflicts", "Where sources disagree", x.contradictions.map((c) => fact(`${c.detail}.`, c.claim_ids)));
   if (!x.shareable) {
     const risks: MemoSentence[] = [
-      ...x.redFlags.map((t) => ({ text: `Red flag: ${t}.`, cites: [], kind: "view" as const })),
-      ...x.openItems.map((t) => ({ text: `Not yet complete: ${t}.`, cites: [], kind: "view" as const })),
+      ...(x.redFlags.length ? [{ text: `Red ${x.redFlags.length === 1 ? "flag" : "flags"}: ${x.redFlags.join("; ")}.`, cites: [], kind: "view" as const }] : []),
+      ...(x.openItems.length ? [{ text: `Required diligence still open: ${x.openItems.join("; ")}.`, cites: [], kind: "view" as const }] : []),
     ];
     add("risks", "Risks and open diligence", risks.filter((r) => !/\d/.test(r.text)));
     const status = x.calcs.find((k) => k.id === "calc:status");

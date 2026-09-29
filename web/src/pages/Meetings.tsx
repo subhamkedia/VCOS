@@ -48,8 +48,8 @@ export default function Meetings() {
       <SyncPanel syncs={syncs} onRun={() => { void reloadSyncs(); refresh(); }} canRun={can("triage_meetings")} />
       <div className="spread">
         <Seg label="Which meetings" options={tabs} value={status} onChange={setStatus} />
-        <form className="row" role="search" onSubmit={(e) => { e.preventDefault(); setSearch(q.trim()); }}>
-          <input className="input" type="search" style={{ maxWidth: 260 }} aria-label="Search meetings by title or attendee" placeholder="Title or attendee" value={q} onChange={(e) => setQ(e.target.value)} />
+        <form className="row search-row" role="search" onSubmit={(e) => { e.preventDefault(); setSearch(q.trim()); }}>
+          <input className="input" type="search" aria-label="Search meetings by title or attendee" placeholder="Title or attendee" value={q} onChange={(e) => setQ(e.target.value)} />
           <button className="btn">Search</button>
           {search && <button type="button" className="btn ghost" onClick={() => { setQ(""); setSearch(""); }}>Clear</button>}
         </form>

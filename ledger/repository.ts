@@ -211,6 +211,26 @@ export async function getEvidence(db: Db, id: string): Promise<Evidence | null> 
  * the evidence span, and inherits the evidence's access scope. Throws on
  * anything that doesn't fit.
  */
+/**
+ * The date a claim is true as of. Sources often give only a month ("as of
+ * September 2026") or a year: those mean the end of that period. Anything
+ * that isn't a real date is refused with a clear message.
+ */
+export function normalizeAsOf(v: string | undefined | null): string | null {
+  if (v === undefined || v === null || v === "") return null;
+  const s = String(v).trim();
+  let m: RegExpMatchArray | null;
+  if ((m = s.match(/^(\d{4})$/))) return `${m[1]}-12-31`;
+  if ((m = s.match(/^(\d{4})-(\d{2})$/))) {
+    const [y, mo] = [Number(m[1]), Number(m[2])];
+    if (mo < 1 || mo > 12) throw new Error(`as_of ${s} isn't a real month`);
+    return `${m[1]}-${m[2]}-${String(new Date(Date.UTC(y, mo, 0)).getUTCDate()).padStart(2, "0")}`;
+  }
+  const d = new Date(s);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s) && !isNaN(d.getTime())) return s.slice(0, 10);
+  throw new Error(`as_of "${s}" isn't a date (use YYYY-MM-DD, YYYY-MM or YYYY)`);
+}
+
 export async function insertClaim(db: Db, input: ClaimInput): Promise<string> {
   const def = getPredicate(input.predicate);
   const subject = await getEntity(db, input.subjectId);
@@ -222,6 +242,7 @@ export async function insertClaim(db: Db, input: ClaimInput): Promise<string> {
   if (!evidence) throw new Error(`No evidence ${input.evidenceId}`);
 
   const value = normalizeValue(input.predicate, input.value);
+  const asOf = normalizeAsOf(input.asOf);
 
   if (input.spanStart !== undefined || input.spanEnd !== undefined) {
     const s = input.spanStart ?? 0;
@@ -239,7 +260,7 @@ export async function insertClaim(db: Db, input: ClaimInput): Promise<string> {
                         cited_text, source_type, confidence, extracted_by, access_scope, supersedes)
      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning id`,
     [
-      subject.id, input.predicate, JSON.stringify(value), input.unit ?? def.unit ?? null, input.asOf ?? null,
+      subject.id, input.predicate, JSON.stringify(value), input.unit ?? def.unit ?? null, asOf,
       evidence.id, input.spanStart ?? null, input.spanEnd ?? null, input.citedText ?? null, input.sourceType,
       input.confidence ?? 0.8, input.extractedBy, evidence.access_scope, input.supersedes ?? null,
     ],
