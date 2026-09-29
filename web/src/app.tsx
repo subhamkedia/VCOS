@@ -14,6 +14,9 @@ import Connections from "./pages/Connections";
 import Approvals from "./pages/Approvals";
 import Settings from "./pages/Settings";
 import ModulePage from "./pages/ModulePage";
+import Diligence from "./pages/Diligence";
+import Deal from "./pages/Deal";
+import Meetings from "./pages/Meetings";
 
 interface Session {
   me: Me;
@@ -77,6 +80,7 @@ function Shell() {
   useFocusOnNavigate();
   const { data: modules } = useApi<ModuleInfo[]>("/modules");
   const { data: pending } = useApi<OutboxItem[]>("/outbox");
+  const { data: meetingCounts } = useApi<{ needs_review: number }>("/meetings/counts");
   const switchFirm = async (firmId: string) => {
     await api("/firms/switch", { body: { firmId } });
     await reload();
@@ -112,6 +116,9 @@ function Shell() {
           <h6 id="nav-workspace">Workspace</h6>
           <nav aria-labelledby="nav-workspace">
             <NavLink to="/companies">Companies</NavLink>
+            <NavLink to="/meetings">
+              Meetings {meetingCounts && meetingCounts.needs_review > 0 && <span className="count" aria-label={`${meetingCounts.needs_review} need you`}>{meetingCounts.needs_review}</span>}
+            </NavLink>
             <NavLink to="/approvals">
               Approvals {pending && pending.length > 0 && <span className="count" aria-label={`${pending.length} waiting`}>{pending.length}</span>}
             </NavLink>
@@ -131,6 +138,9 @@ function Shell() {
           <Route path="/sourcing" element={<Sourcing />} />
           <Route path="/companies" element={<Companies />} />
           <Route path="/companies/:id" element={<Company />} />
+          <Route path="/diligence" element={<Diligence />} />
+          <Route path="/diligence/:id" element={<Deal />} />
+          <Route path="/meetings" element={<Meetings />} />
           <Route path="/connections" element={<Connections />} />
           <Route path="/approvals" element={<Approvals />} />
           <Route path="/settings/*" element={<Settings />} />

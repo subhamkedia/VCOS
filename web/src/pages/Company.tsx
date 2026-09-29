@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../api";
 import { useSession } from "../app";
-import type { Claim, CompanyProfile, Evidence } from "../types";
+import type { Claim, CompanyProfile, DealListRow, Evidence } from "../types";
 import { ErrorState, Field, FitBadge, Loading, Notice, PageHead, Seg, dateOnly, useToast } from "../ui";
 import { useVocab } from "../vocab";
 
@@ -16,6 +16,19 @@ export default function Company() {
   const { data, error, reload } = useApi<CompanyProfile>(`/companies/${id}${view === "shareable" ? "?shareable=1" : ""}`);
   const [source, setSource] = useState<{ id: string; claim?: string } | null>(null);
   const [adding, setAdding] = useState(false);
+  const { can } = useSession();
+  const { data: open } = useApi<DealListRow[]>("/deals?stages=screening,diligence,ic");
+  const deal = open?.find((d) => d.company_id === id);
+  const nav = useNavigate();
+  const toast = useToast();
+  const startDeal = async () => {
+    try {
+      const r = await api<{ id: string }>("/deals", { body: { companyId: id } });
+      nav(`/diligence/${r.id}`);
+    } catch (e) {
+      toast("bad", (e as Error).message);
+    }
+  };
 
   if (error) return <ErrorState error={error} retry={() => void reload()} />;
   if (!data) return <Loading what="Loading company" />;
@@ -42,6 +55,8 @@ export default function Company() {
           <>
             <Seg label="Which facts to show" options={[{ id: "all", label: "Everything" }, { id: "shareable", label: "Shareable only" }]} value={view} onChange={(x) => { setView(x); setSource(null); }} />
             <button className="btn" onClick={() => setAdding(!adding)} aria-expanded={adding}>{adding ? "Close" : "Add a source"}</button>
+            {deal ? <Link className="btn primary" to={`/diligence/${deal.id}`}>Open diligence</Link>
+              : can("work_deals") && !data.shareable && <button className="btn primary" onClick={() => void startDeal()}>Start diligence</button>}
           </>
         }
       />
@@ -157,7 +172,7 @@ export default function Company() {
 }
 
 /** The raw source, with every cited span highlighted. */
-function SourceViewer({ id, claimId, onClose }: { id: string; claimId?: string; onClose: () => void }) {
+export function SourceViewer({ id, claimId, onClose }: { id: string; claimId?: string; onClose: () => void }) {
   const v = useVocab();
   const { data, error } = useApi<Evidence>(`/evidence/${id}`);
   const box = useRef<HTMLDivElement>(null);

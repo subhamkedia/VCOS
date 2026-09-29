@@ -169,4 +169,42 @@ describe("limits", () => {
     });
     expect(big.status).toBe(413);
   });
+
+  it("runs diligence over HTTP: analysts do the work, partners decide", async () => {
+    const pat = await signIn("pat@alpha.example");
+    await pat.post("/api/firms", { name: "Alpha Ventures" });
+    const firmId = (await readSession(root, pat.cookie.split("=")[1]))!.firm!.id;
+    const ana = await signIn("ana@alpha.example");
+    await addMembership(root, firmId, (await readSession(root, ana.cookie.split("=")[1]))!.user.id, "analyst");
+    await ana.post("/api/firms/switch", { firmId });
+
+    const created = await ana.post("/api/deals", { company: { name: "Girderline", domain: "girderline.example" } });
+    expect(created.status).toBe(201);
+    const { id } = await created.json();
+    const view = await (await ana.get(`/api/deals/${id}`)).json();
+    expect(view).toMatchObject({ deal: { company_name: "Girderline", stage: "diligence" }, readiness: { ready: false } });
+    expect(view.checklist.length).toBeGreaterThan(20);
+
+    expect((await ana.put(`/api/deals/${id}/items/${encodeURIComponent("legal.corporate")}`, { status: "done" })).status).toBe(200);
+    expect((await ana.post(`/api/deals/${id}/round`, { raiseUsd: 5e6, stage: "seed", source: "founder" })).status).toBe(201);
+    expect((await ana.post(`/api/deals/${id}/notes`, { kind: "customer_call", title: "Call with PennDOT district 11", text: "They have two decks instrumented and plan to add six more next spring if the pilot holds." })).status).toBe(201);
+    const bad = await ana.post(`/api/deals/${id}/notes`, { kind: "customer_call", title: "", text: "x" });
+    expect(bad.status).toBe(400);
+    expect((await ana.post(`/api/deals/${id}/memos`, {})).status).toBe(201);
+    expect((await ana.get(`/api/deals/${id}/memos/1?format=md`)).headers.get("content-type")).toContain("text/markdown");
+    const gathered = await (await ana.post(`/api/deals/${id}/gather?wait=1`, { only: ["harmonic"] })).json();
+    expect(gathered.sources).toEqual([expect.objectContaining({ id: "harmonic", status: "skipped" })]);
+
+    // Deciding is a partner's call.
+    expect((await ana.post(`/api/deals/${id}/decision`, { kind: "pass", reasonCode: "team", rationale: "Not the right team for this market." })).status).toBe(403);
+    const passed = await pat.post(`/api/deals/${id}/decision`, { kind: "pass", reasonCode: "team", rationale: "Not the right team for this market." });
+    expect(passed.status).toBe(200);
+    expect((await (await pat.get("/api/deals?stages=passed")).json()).map((d: { id: string }) => d.id)).toEqual([id]);
+    expect((await pat.get("/api/deals/00000000-0000-0000-0000-000000000000")).status).toBe(404);
+
+    // Meetings: empty but reachable, and triage is open to analysts.
+    expect(await (await ana.get("/api/meetings/counts")).json()).toEqual({ matched: 0, needs_review: 0, internal: 0, ignored: 0 });
+    expect((await ana.post("/api/meetings/00000000-0000-0000-0000-000000000000/mark", { status: "ignored" })).status).toBe(404);
+  });
 });
+

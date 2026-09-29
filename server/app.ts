@@ -10,6 +10,10 @@ import * as connections from "../modules/connections/index.js";
 import * as sourcing from "../modules/sourcing/index.js";
 import * as companies from "../modules/companies/index.js";
 import * as outbox from "../modules/outbox/index.js";
+import * as meetings from "../modules/meetings/index.js";
+import * as diligence from "../modules/diligence/index.js";
+import type { MeetingStatus } from "../ledger/meetings.js";
+import type { DealStage } from "../ledger/diligence.js";
 import { checkProfile, construction, getProfile, profileHistory, profileOptions, saveProfile, ProfileInvalid } from "../modules/firm/profile.js";
 import { MODULES } from "../modules/catalog.js";
 import { vocabulary } from "../ledger/labels.js";
@@ -49,7 +53,9 @@ export function createApp(deps: AppDeps) {
   app.onError((err, c) => {
     if (err instanceof ProfileInvalid) return c.json({ error: err.message, errors: err.errors }, 422);
     if (err instanceof auth.Forbidden) return c.json({ error: err.message }, 403);
-    if (err instanceof sourcing.FeedInvalid) return c.json({ error: err.message }, 400);
+    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid) {
+      return c.json({ error: err.message }, /^No such/.test(err.message) ? 404 : 400);
+    }
     const msg = err.message || "Something went wrong.";
     const status = /not a member/i.test(msg) ? 403 : /^(Unknown connector|No such|No entity|No outbox item)/.test(msg) ? 404 : /required|invalid|Enter a valid|already|can't|doesn't|Connect .* first|Not an email/i.test(msg) ? 400 : 500;
     if (status === 500) console.error(err);
@@ -155,7 +161,7 @@ export function createApp(deps: AppDeps) {
     const { firmsOf } = await import("../ledger/platform.js");
     const firms = await firmsOf(root, s.user.id);
     const role = s.firm?.role;
-    const actions: auth.Action[] = ["read", "queue", "upload", "edit_thesis", "manage_feeds", "manage_connections", "approve_outbox", "decide_merges", "manage_team", "manage_firm"];
+    const actions = auth.ACTIONS;
     const profile = s.firm ? await getProfile(scopedDb(root, s.firm.id)) : null;
     return c.json({
       user: s.user, firm: s.firm, firms,
@@ -206,12 +212,18 @@ export function createApp(deps: AppDeps) {
   firm.get("/connections", async (c) => c.json(await connections.catalog(c.get("db"))));
   firm.post("/connections/:id/keys", allow("manage_connections"), async (c) => {
     const { values } = await c.req.json<{ values: Record<string, string> }>();
-    return c.json(await connections.connectWithKeys(c.get("db"), param(c, "id"), values ?? {}, who(c)));
+    const out = await connections.connectWithKeys(c.get("db"), param(c, "id"), values ?? {}, who(c));
+    await meetings.ensureSync(c.get("db"), param(c, "id"), who(c));
+    return c.json(out);
   });
   firm.post("/connections/:id/enable", allow("manage_connections"), async (c) =>
     c.json(await connections.enable(c.get("db"), param(c, "id"), who(c))));
-  firm.post("/connections/:id/oauth", allow("manage_connections"), async (c) =>
-    c.json({ url: await auth.beginConnect(root, c.get("session"), param(c, "id"), callback) }));
+  // One consent for several products from the same account provider: { with: ["google-calendar", "google-meet"] }.
+  firm.post("/connections/:id/oauth", allow("manage_connections"), async (c) => {
+    const body = await c.req.json<{ with?: string[] }>().catch(() => ({} as { with?: string[] }));
+    return c.json({ url: await auth.beginConnect(root, c.get("session"), [param(c, "id"), ...(body.with ?? [])], callback) });
+  });
+  firm.get("/research-sources", async (c) => c.json(await connections.researchSources(c.get("db"))));
   firm.post("/connections/:id/test", allow("manage_connections"), async (c) =>
     c.json(await connections.testConnection(c.get("db"), param(c, "id"))));
   firm.delete("/connections/:id", allow("manage_connections"), async (c) => {
@@ -269,6 +281,80 @@ export function createApp(deps: AppDeps) {
     await companies.decideMerge(c.get("db"), param(c, "id"), Boolean(accept), who(c));
     return c.json({ ok: true });
   });
+
+  // Meetings
+  firm.get("/meetings", async (c) => c.json(await meetings.meetings(c.get("db"), {
+    status: (c.req.query("status") as MeetingStatus) || undefined, companyId: c.req.query("company") || undefined, search: c.req.query("q") || undefined,
+  })));
+  firm.get("/meetings/counts", async (c) => c.json(await meetings.counts(c.get("db"))));
+  firm.get("/meetings/syncs", async (c) => c.json(await meetings.syncs(c.get("db"))));
+  firm.post("/meetings/syncs/:id/run", allow("triage_meetings"), async (c) => c.json(await meetings.syncMeetings(c.get("db"), param(c, "id"), who(c), { llm })));
+  firm.post("/meetings/:id/assign", allow("triage_meetings"), async (c) => {
+    const body = await c.req.json<{ companyId?: string; newCompany?: { name: string; domain?: string } }>();
+    return c.json(await meetings.assignMeeting(c.get("db"), param(c, "id"), body, who(c), llm));
+  });
+  firm.post("/meetings/:id/mark", allow("triage_meetings"), async (c) => {
+    const { status } = await c.req.json<{ status: "internal" | "ignored" | "needs_review" }>();
+    if (!["internal", "ignored", "needs_review"].includes(status)) return c.json({ error: "Unknown status." }, 400);
+    return c.json(await meetings.markMeeting(c.get("db"), param(c, "id"), status, who(c)));
+  });
+
+  // Diligence
+  firm.get("/deals", async (c) => {
+    const stages = (c.req.query("stages") ?? "").split(",").filter(Boolean) as DealStage[];
+    return c.json(await diligence.deals(c.get("db"), { stages: stages.length ? stages : undefined }));
+  });
+  firm.post("/deals", allow("work_deals"), async (c) => c.json(await diligence.startDeal(c.get("db"), await c.req.json(), who(c)), 201));
+  firm.get("/deals/:id", async (c) => c.json(await diligence.dealView(c.get("db"), param(c, "id"))));
+  firm.patch("/deals/:id", allow("work_deals"), async (c) => c.json(await diligence.updateDealInfo(c.get("db"), param(c, "id"), await c.req.json(), who(c))));
+  firm.post("/deals/:id/round", allow("work_deals"), async (c) => c.json(await diligence.recordRound(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/deals/:id/notes", allow("work_deals"), async (c) => c.json(await diligence.addNote(c.get("db"), param(c, "id"), await c.req.json(), who(c), llm), 201));
+  firm.post("/deals/:id/items", allow("work_deals"), async (c) => c.json({ key: await diligence.addItem(c.get("db"), param(c, "id"), await c.req.json(), who(c)) }, 201));
+  firm.put("/deals/:id/items/:key", allow("work_deals"), async (c) => {
+    await diligence.setItem(c.get("db"), param(c, "id"), decodeURIComponent(param(c, "key")), await c.req.json(), who(c));
+    return c.json({ ok: true });
+  });
+  firm.delete("/deals/:id/items/:key", allow("work_deals"), async (c) => {
+    await diligence.removeItem(c.get("db"), param(c, "id"), decodeURIComponent(param(c, "key")), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/deals/:id/questions", allow("work_deals"), async (c) => c.json({ id: await diligence.addQuestion(c.get("db"), param(c, "id"), await c.req.json(), who(c)) }, 201));
+  firm.patch("/deals/:id/questions/:qid", allow("work_deals"), async (c) => {
+    await diligence.updateQuestion(c.get("db"), param(c, "id"), param(c, "qid"), await c.req.json(), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/deals/:id/questions/email", allow("queue"), async (c) => c.json(await diligence.queueQuestionsEmail(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/deals/:id/contradictions/:cid", allow("work_deals"), async (c) => {
+    await diligence.resolveContradiction(c.get("db"), param(c, "id"), param(c, "cid"), await c.req.json(), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/deals/:id/gather", allow("work_deals"), async (c) => {
+    const body = await c.req.json<{ only?: string[] }>().catch(() => ({} as { only?: string[] }));
+    const { runId, done } = await diligence.gather(c.get("db"), param(c, "id"), who(c), { llm, only: body.only });
+    if (c.req.query("wait") === "1") return c.json({ runId, sources: await done });
+    done.catch((err) => console.error("gather failed", err));
+    return c.json({ runId }, 202);
+  });
+  firm.post("/deals/:id/memos", allow("work_deals"), async (c) => {
+    const body = await c.req.json<{ shareable?: boolean; writer?: "deterministic" | "claude" }>();
+    return c.json(await diligence.draftMemoFor(c.get("db"), param(c, "id"), body, who(c), llm), 201);
+  });
+  firm.get("/deals/:id/memos/latest", async (c) => {
+    const m = await diligence.memo(c.get("db"), param(c, "id"));
+    return m ? c.json(m) : c.json({ error: "No memo yet." }, 404);
+  });
+  firm.get("/deals/:id/memos/:version", async (c) => {
+    const m = await diligence.memo(c.get("db"), param(c, "id"), Number(param(c, "version")));
+    if (!m) return c.json({ error: "No such memo version." }, 404);
+    if (c.req.query("format") === "md") {
+      c.header("Content-Type", "text/markdown; charset=utf-8");
+      c.header("Content-Disposition", `attachment; filename="memo-v${m.version}.md"`);
+      return c.body(m.markdown);
+    }
+    return c.json(m);
+  });
+  firm.post("/deals/:id/decision", allow("decide_deals"), async (c) => c.json(await diligence.decide(c.get("db"), param(c, "id"), await c.req.json(), who(c))));
+  firm.get("/diligence/options", (c) => c.json({ checklist: diligence.CHECKLIST.map((i) => ({ key: i.key, workstream: i.workstream, title: i.title })), workstreams: diligence.WORKSTREAMS, noteKinds: diligence.NOTE_KINDS, flags: diligence.FLAG_LABELS, llm: Boolean(llm) }));
 
   // Approvals
   firm.get("/outbox", async (c) => c.json(await outbox.pending(c.get("db"), (c.req.query("status") as never) || "pending")));

@@ -2,8 +2,8 @@
 
 export type Role = "admin" | "partner" | "analyst";
 export type Action =
-  | "read" | "queue" | "upload" | "edit_thesis" | "manage_feeds" | "manage_connections"
-  | "approve_outbox" | "decide_merges" | "manage_team" | "manage_firm";
+  | "read" | "queue" | "upload" | "work_deals" | "triage_meetings" | "edit_thesis" | "manage_feeds" | "manage_connections"
+  | "approve_outbox" | "decide_merges" | "decide_deals" | "manage_team" | "manage_firm";
 
 export interface Me {
   user: { id: string; email: string; name: string | null };
@@ -69,8 +69,10 @@ export interface Connector {
     | { kind: "none" }
     | { kind: "platform"; note: string; ready: boolean }
     | { kind: "api_key"; fields: { key: string; label: string; secret: boolean; placeholder?: string; help?: string }[] }
-    | { kind: "oauth"; provider: "google" | "microsoft"; available: boolean };
+    | { kind: "oauth"; provider: "google" | "microsoft" | "zoom"; available: boolean; product?: string };
   sourcing?: { mode: "discover" | "enrich"; summary: string; params: ParamSpec[]; defaultCadence: Cadence };
+  research?: { summary: string; needsDomain: boolean };
+  meetings?: { summary: string; defaultCadence: Cadence };
   status: "available" | "connected" | "error" | "not_configured";
   accountLabel: string | null; connectedBy: string | null; connectedAt: string | null; lastCheckedAt: string | null; lastError: string | null;
 }
@@ -121,3 +123,102 @@ export interface Evidence {
 export interface OutboxItem { id: string; channel: string; summary: string; payload: Record<string, unknown>; status: string; proposed_by: string; decided_by: string | null; error: string | null; created_at: string }
 
 export interface ModuleInfo { id: string; name: string; path: string; status: "live" | "next" | "planned"; phase: number; summary: string; does: string[]; reads: string[] }
+
+// ---------------------------------------------------------------------------
+// Meetings
+// ---------------------------------------------------------------------------
+
+export type MeetingStatus = "matched" | "needs_review" | "internal" | "ignored";
+
+export interface Meeting {
+  id: string; source: string; sourceName: string; external_id: string; title: string; started_at: string | null; ended_at: string | null;
+  organizer: string | null; attendees: { name?: string; email?: string; self?: boolean }[]; join_key: string | null; url: string | null;
+  evidence_id: string | null; company_id: string | null; company_name: string | null; status: MeetingStatus;
+  match: { method?: string; confidence?: number; reasons?: string[]; candidates?: { entityId: string; name: string; why: string }[]; newDomain?: string };
+  matched_by: string | null; extracted: boolean; has_words: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Diligence
+// ---------------------------------------------------------------------------
+
+export type DealStage = "screening" | "diligence" | "ic" | "approved" | "passed" | "closed";
+export type ItemStatus = "open" | "in_progress" | "done" | "na" | "red_flag";
+export type Workstream = "team" | "market" | "product" | "traction" | "economics" | "financing" | "legal" | "fit";
+export interface DealFlags { hardware?: boolean; regulated?: boolean; sensitive_tech?: boolean }
+
+export interface Deal {
+  id: string; company_id: string; company_name: string; stage: DealStage; lead: string | null; team: string[]; our_check_usd: number | null;
+  flags: DealFlags; target_ic_date: string | null; created_by: string; created_at: string; updated_at: string;
+}
+
+export interface DealListRow extends Deal {
+  domain: string | null; open_contradictions: number; open_questions: number; meetings: number; last_activity: string | null;
+  readiness: { ready: boolean; complete: number; total: number; requiredOpen: number };
+}
+
+export interface ChecklistItem {
+  key: string; workstream: Workstream; title: string; why: string; required?: boolean; applies?: keyof DealFlags;
+  state: "missing" | "self_reported" | "evidenced" | "verified" | "done" | "na" | "red_flag" | "in_progress" | "open" | "manual" | "flagged";
+  complete: boolean; claimIds: string[]; noteCount: number; detail: string; assignee: string | null; note: string | null;
+  person: { status: ItemStatus | null; by: string; at: string } | null; custom: boolean;
+}
+
+export interface Readiness {
+  ready: boolean; complete: number; total: number; requiredOpen: { key: string; title: string }[]; redFlags: { key: string; title: string }[];
+  highContradictions: number; byWorkstream: { id: Workstream; label: string; complete: number; total: number }[];
+}
+
+export interface Question {
+  id: string; key: string; workstream: Workstream; text: string; origin: "gap" | "unverified" | "contradiction" | "pilot" | "risk" | "custom";
+  claim_ids: string[]; status: "open" | "asked" | "answered" | "dropped"; answer: string | null; updated_by: string | null; created_at: string; updated_at: string;
+}
+
+export interface SourceResult { id: string; name: string; status: "ok" | "empty" | "skipped" | "failed"; records: number; newEvidence: number; claims: number; detail?: string }
+
+export interface DealRun { id: string; kind: string; status: string; started_at: string | null; finished_at: string | null; stats: { sources?: SourceResult[] }; error: string | null; triggered_by: string }
+
+export interface Check { ok: boolean; detail: string }
+
+export interface DealView {
+  deal: Deal;
+  company: { id: string; name: string; identifiers: { kind: string; value: string }[] };
+  fit: Hit | null;
+  claims: Claim[];
+  contradictions: CompanyProfile["contradictions"];
+  settled: { id: string; predicate: string; severity: string; status: string; detail: string | null; claim_ids: string[]; resolution_note: string | null; resolved_by: string | null; resolved_at: string | null }[];
+  checklist: ChecklistItem[];
+  readiness: Readiness;
+  workstreams: { id: Workstream; label: string }[];
+  flags: DealFlags;
+  flagLabels: Record<keyof DealFlags, { label: string; help: string }>;
+  round: {
+    raise: { id: string; predicate: string; label: string; display: string; source_type: string }[];
+    ourCheckUsd: number | null;
+    math: { postMoneyUsd?: number; ownershipPct?: number; shareOfRoundPct?: number; totalExposureUsd?: number; exposurePctOfFund?: number; checks: Partial<Record<"checkSize" | "ownership" | "concentration" | "roundFit", Check>> };
+  };
+  questions: Question[];
+  notes: { id: string; kind: string; title: string | null; with: string | null; occurred_at: string | null; excerpt: string }[];
+  noteKinds: { id: string; label: string; help: string }[];
+  meetings: Meeting[];
+  sources: { source: string; kind: string; items: number; claims: number; latest: string | null }[];
+  runs: DealRun[];
+  memos: MemoVersion[];
+  decisions: CompanyProfile["decisions"] & { value?: unknown }[];
+  activity: { at: string | null; actor: string; action: string; target: string | null; detail: Record<string, unknown> }[];
+  passReasons: string[];
+}
+
+export interface MemoVersion {
+  id: string; version: number; shareable: boolean; drafted_by: string; created_by: string; created_at: string;
+  check_result: { ok: boolean; sentences: number; facts: number; cited: number; citations: number; rejected: { section: string; text: string; reason: string }[] };
+}
+
+export interface MemoSentence { text: string; cites: string[]; kind: "fact" | "view" }
+export interface Memo extends MemoVersion {
+  body: { title: string; sections: { id: string; heading: string; sentences: MemoSentence[] }[] };
+  refs: Record<string, { label: string; display: string; source: string; evidenceId?: string; sourceType?: string; superseded?: boolean }>;
+  markdown: string;
+}
+
+export interface ResearchSource { id: string; name: string; category: string; summary: string; needsDomain: boolean; ready: boolean; reason?: string }

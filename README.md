@@ -11,14 +11,62 @@ its source, date, confidence and the exact characters it came from. Scores,
 diligence flags, memos and LP letters are all queries over that ledger. Each
 firm's data is isolated by Postgres row-level security.
 
-**Built so far:** the ledger, entity resolver and cited extractor; 16
+**Built so far:** the ledger, entity resolver and cited extractor; 28
 connectors; multi-firm workspaces with Google, Microsoft and email sign-in;
 onboarding (firm, fund, mandate, sectors, scoring) with live portfolio
-construction math; connections; the Sourcing module with scheduled feeds,
-portfolio websites (accelerators, incubators, studios, VCs, CVCs) and
-thesis fit; company pages with readable, highlighted sources; and an
+construction math; connections you set up once and every module reuses;
+the **Sourcing** module (scheduled feeds, portfolio websites, thesis fit);
+**Meetings** (Google Calendar and Meet, Outlook and Teams, Zoom, Granola,
+Fireflies, each call matched to the right company); the **Diligence**
+module (research across every connected and public source, a checklist
+that fills in from the ledger, founder questions, a contradiction board,
+reference and customer call notes, round math against the fund, pass and
+IC decisions, and an IC memo whose citations are checked in code); and an
 approval queue for anything outbound.
-**Next:** Diligence.
+**Next:** Investment Execution.
+
+### How Diligence works
+
+1. **Start a deal** on any company (from Sourcing, the Companies page, or by
+   name and website).
+2. **Gather everything.** One run pulls from each source the firm has
+   connected (connect a tool once, in setup or Connections; sourcing,
+   diligence and meetings all use it): meeting tools, Affinity, Gmail or
+   Outlook, Drive, PitchBook, Harmonic, Crunchbase, Dealroom; and public
+   sources that need no account: the company's website, news (GDELT), USPTO
+   patents, SBIR awards, federal contracts and grants (USAspending), its job
+   board, and SEC Form D filings. Public lookups by name keep only exact
+   company-name matches, so a namesake's patents or contracts never land on
+   the wrong company. Sources that aren't connected are listed as skipped,
+   with the reason.
+3. **Meetings match themselves.** Calendar invites carry attendee emails;
+   recordings and notetakers carry the words. Invites and recordings join
+   through the conference link, and a meeting is filed under a company by
+   its attendees' email domains or addresses a person assigned before.
+   Anything ambiguous waits on the Meetings screen, and the answer is
+   remembered. The matcher's eval (`pnpm eval:meetings`) holds it to zero
+   wrong automatic matches.
+4. **The checklist fills in.** Team, market, product and technology,
+   customers and traction, unit economics, round and terms, legal and
+   compliance, and fit, with extra sections for hardware (TRL, MRL, bill of
+   materials, pilots), regulated markets and sensitive technology (export
+   controls, CFIUS, Treasury's outbound investment rules). Items show as
+   missing, company-says, evidenced or verified from the ledger; people can
+   mark done, not applicable or red flag, with a reason.
+5. **Questions and conflicts.** Questions for the founders come from gaps,
+   unverified numbers, conflicting sources and stalled pilots, and close
+   themselves when evidence arrives. Send them as an email draft through
+   the approval queue. On the contradiction board, explain a disagreement
+   or settle it; settling writes a new fact and supersedes the old one.
+6. **Round math and the memo.** Round terms become claims; the firm's check
+   is checked against the mandate, target ownership and concentration
+   limits in code (`engines/round-math.ts`). The IC memo is drafted from
+   claims (or by Claude, beta), and a citation check drops any sentence
+   that doesn't cite, or whose numbers don't match what it cites
+   (`pnpm eval:memo`). A shareable version uses public facts only.
+7. **Decide.** Pass with a reason code and a sentence, or send to IC
+   (with a written reason if diligence isn't complete). Both are recorded
+   as decisions with the state of diligence at that moment.
 
 ## Run the web app
 
@@ -42,21 +90,25 @@ For production:
 | `DATABASE_URL` | Postgres. The migrations create the `vcos_app` role that firm queries run as; the connecting user must be allowed to `SET ROLE vcos_app` (the migration grants it when it can). |
 | `VCOS_SECRET_KEY` | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts every firm's connector credentials. Losing it means firms reconnect their tools. |
 | `APP_URL` | The public URL. OAuth redirect URI is `APP_URL/api/auth/callback`. |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | One Google OAuth app for sign-in, Gmail and Drive. |
-| `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT` | One Microsoft Entra app for sign-in and Outlook. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | One Google OAuth app for sign-in, Gmail, Drive, Calendar and Meet. |
+| `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT` | One Microsoft Entra app for sign-in, Outlook, Outlook Calendar and Teams transcripts. |
+| `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` | One Zoom user-managed OAuth app, so firms can connect Zoom cloud recordings. |
+| `PATENTSVIEW_API_KEY` | Free USPTO PatentsView key for patent lookups in diligence. |
 | `RESEND_API_KEY`, `MAIL_FROM` | Sends sign-in links and invitations. Without it they're printed to the log. |
 | `ANTHROPIC_API_KEY` | Claim extraction from decks, calls and email. |
 | `SEC_USER_AGENT` | Contact string SEC requires for Form D feeds. |
 
-Vendor keys (Harmonic, PitchBook, Crunchbase, Dealroom, Affinity) are not
-server settings: each firm adds its own under Connections, and they're
-encrypted and used only for that firm.
+Vendor keys (Harmonic, PitchBook, Crunchbase, Dealroom, Affinity, Granola,
+Fireflies) are not server settings: each firm adds its own under
+Connections, and they're encrypted and used only for that firm.
 
 ## Try the ledger in two minutes
 
 ```bash
 pnpm demo        # offline walk-through on fictional data, no keys needed
-pnpm test        # 147 tests on in-process Postgres
+pnpm test        # 200+ tests on in-process Postgres
+pnpm eval:meetings   # meeting-to-company matcher: zero wrong automatic matches
+pnpm eval:memo       # IC memo citation check on labeled sentences
 ```
 
 The demo ingests a company from Harmonic, an SEC Form D, a press article and
@@ -116,6 +168,10 @@ For production, `docker compose up -d` and set
 | `engines/portfolio-construction.ts` | Fund math from the profile: fees over the fund's life, investable capital, reserves, new-to-reserve ratio, implied number of companies, average check and entry ownership. Unit-tested; the setup wizard shows it live. |
 | `connectors/portfolio-pages.ts` | Follow any public portfolio page. Reads outbound company links and JSON-LD, respects robots.txt, refuses private addresses, and records each company as a claim citing the page. |
 | `modules/firm/` | The firm profile: firm, fund (size, structure, closes, term, fees, carry, reserves, target count, checks, LPs, IC), mandate, sectors and scoring weights, validated across fields and saved as versions. |
+| `modules/meetings/` | Meeting sync and the matcher (`match.ts`): attendee domains, learned contacts and conference links decide which company a call was with; the rest waits for a person. |
+| `modules/diligence/` | Deals, the checklist (`checklist.ts`), founder questions (`questions.ts`), research runs (`gather.ts`), the contradiction board, decisions, and the IC memo with its citation check (`memo.ts`, `memo-check.ts`). |
+| `agents/memo-writer/` | Claude drafts memo prose from claims only (never raw evidence); the same citation check applies. Beta until it has 20 real cases in `evals/memo-writer/`. |
+| `engines/round-math.ts` | Post-money, entry ownership, check plus reserves as a share of the fund, and checks against the mandate. |
 | `modules/outbox/` | The approval queue for anything that leaves VC OS. Agents queue; a person approves; then it runs once. |
 | `evals/resolver/` | Resolver eval and the Phase 0 gate. |
 | `evals/extraction/` | Extraction eval: precision, recall, citation validity, pass^k. |

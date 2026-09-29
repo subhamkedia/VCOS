@@ -15,6 +15,8 @@ import { enable } from "../modules/connections/index.js";
 import { saveProfile, starterProfile } from "../modules/firm/profile.js";
 import { createFeed, runFeed } from "../modules/sourcing/index.js";
 import { queue } from "../modules/outbox/index.js";
+import { ensureSync, syncMeetings } from "../modules/meetings/index.js";
+import { addNote, draftMemoFor, gather, recordRound, setItem, startDeal, updateDealInfo } from "../modules/diligence/index.js";
 import { parseArgs, run } from "./common.js";
 
 /**
@@ -63,6 +65,7 @@ run(async () => {
     ...base,
     firm: {
       ...base.firm, legalName: "Demo Fund Management LLC", type: "micro_vc", website: "demofund.example", hq: "Pittsburgh, PA",
+      emailDomains: [email.split("@")[1]!.toLowerCase()],
       offices: ["Austin, TX"], foundedYear: 2021, aumUsd: 85_000_000, fundsRaised: 2, teamSize: 9, investmentTeamSize: 5,
       description: "A fictional seed fund backing physical AI for the built world.",
     },
@@ -124,6 +127,61 @@ run(async () => {
     subject: "Following up on our call",
     body: "Hi Maya,\n\nThanks for the time on Thursday. Could you share the September board deck and the headcount plan? Harmonic shows 21 people as of September 20; you mentioned 34, and we'd like to reconcile the two before our partner meeting.\n\nBest,\nDemo Fund",
   }, { summary: "Follow-up to Kestrel Robotics after the founder call", proposedBy: "agent:diligence@0.1", entityId: kestrel });
+
+  // Meetings: a calendar invite and its Zoom recording (joined through the link), one for a person to place, one internal.
+  const calSync = (await ensureSync(db, "google-calendar", by))!;
+  const zoomSync = (await ensureSync(db, "zoom", by))!;
+  const at = (d: string) => `2026-${d}:00.000Z`;
+  await syncMeetings(db, calSync, "seed-demo", {
+    now: new Date("2026-10-20T00:00:00Z"),
+    list: async () => [
+      { source: "google-calendar", externalId: "demo-ev-1", title: "Demo Fund <> Kestrel Robotics", startedAt: at("10-02T17:00"), joinKey: "zoom:81234567890",
+        attendees: [{ email, self: true }, { email: "maya@kestrelrobotics.com", name: "Maya Lindqvist" }, { email: "raj@kestrelrobotics.com", name: "Raj Patel" }] },
+      { source: "google-calendar", externalId: "demo-ev-2", title: "Intro: Brightforge (via Foundry Works)", startedAt: at("10-14T15:00"),
+        attendees: [{ email, self: true }, { email: "ceo@brightforge.example", name: "Ana Brightwell" }] },
+      { source: "google-calendar", externalId: "demo-ev-3", title: "Monday partner meeting", startedAt: at("10-19T14:00"),
+        attendees: [{ email, self: true }, { email: `partner@${email.split("@")[1]}`, name: "Lee" }] },
+    ],
+  });
+  await syncMeetings(db, zoomSync, "seed-demo", {
+    now: new Date("2026-10-20T00:00:00Z"),
+    list: async () => [{
+      source: "zoom", externalId: "demo-zoom-1", title: "Zoom meeting", startedAt: at("10-02T17:01"), joinKey: "zoom:81234567890",
+      attendees: [{ name: "Maya Lindqvist" }, { name: "Raj Patel" }],
+      transcript: "Maya Lindqvist: We have two paid pilots with state DOTs and a third starting in November.\nRaj Patel: Each robot ties about 1,200 intersections an hour on a flat deck.",
+    }],
+  });
+
+  // Diligence on Kestrel: research from sources with no keys (demo data), the round, calls, a memo.
+  const deal = await startDeal(db, { companyId: kestrel }, by);
+  const demoSite = { name: "Kestrel Robotics", domain: "kestrelrobotics.com" };
+  await (await gather(db, deal.id, by, {
+    only: ["company-site", "uspto", "sbir", "harmonic", "pitchbook"],
+    run: {
+      "company-site": async () => [{
+        evidence: { kind: "web_page", source: "company-site", uri: "https://kestrelrobotics.com/ (demo)", title: "Kestrel Robotics (demo page)", accessScope: "public",
+          content: "Site description: Autonomous rebar-tying robots for bridge decks.\n\nKestrel builds robots that tie rebar on bridge decks. We're hiring field engineers in Pittsburgh." },
+        subject: { type: "company", ...demoSite, source: "company-site" }, sourceType: "self_reported",
+        claims: [{ predicate: "company.description", value: "Autonomous rebar-tying robots for bridge decks.", citedText: "Autonomous rebar-tying robots for bridge decks." }],
+      }],
+      uspto: async () => [{
+        evidence: { kind: "api_record", source: "uspto", uri: "patentsview:assignee:Kestrel Robotics (demo)", title: "USPTO patents (demo data)", accessScope: "public",
+          content: "Granted US patents assigned to Kestrel Robotics (demo data):\nUS 11999001: Rebar tying end effector (granted 2025-06-03)" },
+        sourceType: "primary", claims: [{ predicate: "ip.patent", value: "US 11999001: Rebar tying end effector", asOf: "2025-06-03", citedText: "US 11999001: Rebar tying end effector" }],
+      }],
+      sbir: async () => [{
+        evidence: { kind: "api_record", source: "sbir", uri: "sbir:firm:Kestrel Robotics (demo)", title: "SBIR awards (demo data)", accessScope: "public",
+          content: "SBIR and STTR awards to Kestrel Robotics (demo data):\nDepartment of Transportation SBIR Phase I: Autonomous rebar placement, $199,500, 2025" },
+        sourceType: "primary", claims: [{ predicate: "grant.award", value: "Department of Transportation SBIR Phase I: Autonomous rebar placement, $199,500, 2025", asOf: "2025-12", citedText: "Department of Transportation SBIR Phase I: Autonomous rebar placement, $199,500, 2025" }],
+      }],
+    },
+  })).done;
+  await recordRound(db, deal.id, { raiseUsd: 12_000_000, preMoneyUsd: 48_000_000, stage: "series_a", leadInvestor: "Ironbridge Ventures", source: "founder", date: "2026-10-02" }, by);
+  await updateDealInfo(db, deal.id, { ourCheckUsd: 1_500_000 }, by);
+  await addNote(db, deal.id, { kind: "reference", title: "Reference: Maya's former manager (demo)", with: "VP Engineering, a robotics company", date: "2026-10-08", text: "Worked with Maya for four years. Ships hardware on time, hires strong field engineers, can be optimistic on pilot timelines." }, by);
+  await addNote(db, deal.id, { kind: "customer_call", title: "Customer call: state DOT pilot lead (demo)", with: "Bridge program manager", date: "2026-10-10", text: "Pilot is paid, two decks so far. They want crew-hour savings proven over a full season before a production contract." }, by);
+  await setItem(db, deal.id, "legal.corporate", { status: "done" }, by);
+  await draftMemoFor(db, deal.id, {}, by);
 
   console.log(`\nSeeded "${firm.name}" for ${user.email}.`);
   console.log("Start the app with `pnpm web` and sign in with that email; the sign-in link is printed in the server log.");

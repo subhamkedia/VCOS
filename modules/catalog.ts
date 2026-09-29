@@ -27,18 +27,19 @@ export const MODULES: ModuleInfo[] = [
     reads: ["Firm profile and thesis", "Connected sources"],
   },
   {
-    id: "diligence", name: "Diligence", path: "/diligence", status: "next", phase: 1,
-    summary: "Turns decks, calls and data-room files into cited claims, and shows where sources disagree.",
+    id: "diligence", name: "Diligence", path: "/diligence", status: "live", phase: 1,
+    summary: "Everything your tools and public sources know about a company, its calls, a checklist that fills in from the ledger, and a cited IC memo.",
     does: [
-      "Claims by workstream: team, technology, market, customers, financials",
-      "Contradiction board: self-reported numbers against independent sources",
-      "Questions for the next founder call, drawn from gaps and conflicts",
-      "IC memo draft where every factual sentence cites a claim",
+      "Gather from every connected tool once: meetings, CRM, email, Drive, PitchBook, Harmonic and more",
+      "Public sources: the company's site, news, patents, SBIR and federal awards, job boards, filings",
+      "Meetings from Zoom, Teams, Meet, Granola and Fireflies matched to the right company",
+      "Checklist by workstream, questions for the founders, and a board for conflicting sources",
+      "IC memo where every factual sentence cites a claim, checked in code",
     ],
-    reads: ["The ledger", "Decks, transcripts, email", "Your thesis dimensions"],
+    reads: ["The ledger", "Meetings and notes", "Connected tools", "Your fund model and thesis"],
   },
   {
-    id: "execution", name: "Investment Execution", path: "/execution", status: "planned", phase: 2,
+    id: "execution", name: "Investment Execution", path: "/execution", status: "next", phase: 2,
     summary: "From term sheet to close: terms compared with your standards, and the math done in code.",
     does: [
       "Parse term sheets and flag departures from NVCA and your house terms",

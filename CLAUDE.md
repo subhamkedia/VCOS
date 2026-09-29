@@ -96,9 +96,10 @@ ledger/      predicates, repository, read models, platform (firms, users,
              sessions) and workspace (thesis, connections, feeds): the only SQL
 connectors/  one adapter per source, plus registry.ts (auth, scope, sourcing)
 agents/      one folder per agent: prompt, tool definitions, logic
-engines/     deterministic math (portfolio construction so far)
+engines/     deterministic math (portfolio construction, round math)
 modules/     workflows as plain functions: auth, firm, connections, sourcing,
-             companies, outbox; catalog.ts lists the five product modules
+             meetings, diligence, companies, outbox; catalog.ts lists the
+             five product modules
 server/      Hono API: thin routes over modules (session, role, JSON)
 web/         React + Vite app; talks only to /api
 evals/       one folder per agent: labeled data + runner
@@ -124,8 +125,9 @@ db/migrations/  plain SQL, applied in order
 ## Roles
 
 `admin` manages the team and firm; `partner` edits the thesis, connects
-sources, runs feeds, approves outbound items and merges; `analyst` reads,
-uploads and queues drafts. Check with `requireAction` in modules/auth, and
+sources, runs feeds, approves outbound items and merges, and decides deals
+(pass or IC); `analyst` reads, uploads, queues drafts, works deals and
+triages meetings. Check with `requireAction` in modules/auth, and
 return 403 from the API, never hide the check in the UI alone.
 
 ## Current phase
@@ -134,6 +136,14 @@ Phase 0 — Foundation. Gate to Phase 1: the resolver scores ≥95% with zero
 false merges on the YC 2026 set, 200 companies across the 2026 batches
 (`pnpm eval:resolver:build-yc`, then
 `pnpm eval:resolver --set evals/resolver/yc2026 --gate 0.95`).
-The web app, multi-firm tenancy, sign-in, onboarding, connections and the
-Sourcing module are built. Diligence is next: claims by workstream, the
-contradiction board, call questions and the cited IC memo.
+The web app, multi-firm tenancy, sign-in, onboarding, connections, the
+Sourcing module, Meetings and the Diligence module (research runs, the
+checklist, founder questions, the contradiction board, decisions and the
+cited IC memo) are built. Investment Execution is next: term sheets against
+NVCA and house terms, pro-forma cap tables in `engines/`, the closing
+checklist, and IC votes before and after discussion.
+
+Connectors are connected once per firm and reused by every module: a
+connector declares what it can do (`sourcing`, `research`, `meetings`) in
+`connectors/registry.ts`. Never ask a firm to connect the same tool again
+for a new module.

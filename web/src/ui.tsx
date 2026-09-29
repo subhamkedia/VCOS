@@ -303,3 +303,60 @@ export function FitBadge({ score, verdict }: { score: number | null; verdict: st
     </span>
   );
 }
+
+/**
+ * WAI-ARIA tabs: arrow keys move between tabs, Home/End jump, only the
+ * selected tab is in the tab order. Render the panel with `tabPanelProps`.
+ */
+export function Tabs<T extends string>({ tabs, value, onChange, label, idBase }: {
+  tabs: { id: T; label: string; badge?: ReactNode }[]; value: T; onChange: (v: T) => void; label: string; idBase: string;
+}) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const move = (i: number) => {
+    const n = (i + tabs.length) % tabs.length;
+    onChange(tabs[n]!.id);
+    refs.current[n]?.focus();
+  };
+  return (
+    <div className="tabs" role="tablist" aria-label={label}>
+      {tabs.map((t, i) => (
+        <button
+          key={t.id} ref={(el) => { refs.current[i] = el; }} type="button" role="tab" id={`${idBase}-tab-${t.id}`}
+          aria-selected={t.id === value} aria-controls={`${idBase}-panel-${t.id}`} tabIndex={t.id === value ? 0 : -1}
+          onClick={() => onChange(t.id)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowRight") { e.preventDefault(); move(i + 1); }
+            else if (e.key === "ArrowLeft") { e.preventDefault(); move(i - 1); }
+            else if (e.key === "Home") { e.preventDefault(); move(0); }
+            else if (e.key === "End") { e.preventDefault(); move(tabs.length - 1); }
+          }}
+        >
+          {t.label}{t.badge !== undefined && t.badge !== null && t.badge !== 0 && <span className="count">{t.badge}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export const tabPanelProps = (idBase: string, id: string) => ({ role: "tabpanel" as const, id: `${idBase}-panel-${id}`, "aria-labelledby": `${idBase}-tab-${id}`, tabIndex: 0 });
+
+/** A small modal that asks for a line of text (a reason, an answer). Native <dialog>. */
+export function usePrompt() {
+  const confirm = useConfirm();
+  return async (o: { title: string; label: string; confirm: string; initial?: string; required?: boolean; danger?: boolean; multiline?: boolean }): Promise<string | null> => {
+    let value = o.initial ?? "";
+    const ok = await confirm({
+      title: o.title, confirm: o.confirm, danger: o.danger,
+      body: (
+        <label className="field">
+          <span>{o.label}</span>
+          {o.multiline
+            ? <textarea className="input" defaultValue={value} required={o.required} onChange={(e) => { value = e.target.value; }} />
+            : <input className="input" defaultValue={value} required={o.required} onChange={(e) => { value = e.target.value; }} />}
+        </label>
+      ),
+    });
+    if (!ok) return null;
+    return value.trim();
+  };
+}

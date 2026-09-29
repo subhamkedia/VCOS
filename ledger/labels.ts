@@ -71,6 +71,13 @@ export const SOURCE_LABELS: Record<string, string> = {
   "portfolio-page": "Portfolio page",
   "sec-edgar": "SEC EDGAR",
   web: "Web page",
+  "diligence-note": "Diligence note",
+  "company-site": "Company website",
+  news: "News",
+  uspto: "USPTO",
+  sbir: "SBIR.gov",
+  usaspending: "USAspending.gov",
+  jobs: "Job board",
 };
 
 export const ENUM_VALUE_LABELS: Record<string, string> = {

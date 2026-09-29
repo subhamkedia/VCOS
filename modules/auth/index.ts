@@ -25,14 +25,22 @@ import { saveProfile, starterProfile } from "../firm/profile.js";
 // ---------------------------------------------------------------------------
 
 export type Action =
-  | "read" | "queue" | "upload"
-  | "edit_thesis" | "manage_feeds" | "manage_connections" | "approve_outbox" | "decide_merges"
+  | "read" | "queue" | "upload" | "work_deals" | "triage_meetings"
+  | "edit_thesis" | "manage_feeds" | "manage_connections" | "approve_outbox" | "decide_merges" | "decide_deals"
   | "manage_team" | "manage_firm";
 
+export const ACTIONS: Action[] = [
+  "read", "queue", "upload", "work_deals", "triage_meetings", "edit_thesis", "manage_feeds", "manage_connections",
+  "approve_outbox", "decide_merges", "decide_deals", "manage_team", "manage_firm",
+];
+
+const ANALYST: Action[] = ["read", "queue", "upload", "work_deals", "triage_meetings"];
+const PARTNER: Action[] = [...ANALYST, "edit_thesis", "manage_feeds", "manage_connections", "approve_outbox", "decide_merges", "decide_deals"];
+
 const GRANTS: Record<Role, Action[]> = {
-  analyst: ["read", "queue", "upload"],
-  partner: ["read", "queue", "upload", "edit_thesis", "manage_feeds", "manage_connections", "approve_outbox", "decide_merges"],
-  admin: ["read", "queue", "upload", "edit_thesis", "manage_feeds", "manage_connections", "approve_outbox", "decide_merges", "manage_team", "manage_firm"],
+  analyst: ANALYST,
+  partner: PARTNER,
+  admin: [...PARTNER, "manage_team", "manage_firm"],
 };
 
 export const can = (role: Role, action: Action) => GRANTS[role].includes(action);
@@ -105,6 +113,9 @@ export async function completeOAuth(
       continue;
     }
     results.push({ connectorId: c.id, ...(await connectWithOAuth(db, c.id, ex.refreshToken, who.email, `human:${who.email}`)) });
+    // A meeting tool starts syncing as soon as it's connected.
+    const { ensureSync } = await import("../meetings/index.js");
+    await ensureSync(db, c.id, `human:${who.email}`);
   }
   const failed = results.filter((r) => !r.ok);
   return {
