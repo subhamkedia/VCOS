@@ -8,8 +8,21 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "noEmit": true
   },
-  "include": ["ledger", "connectors", "agents", "engines", "modules", "evals", "cli", "lib", "tests"]
+  "include": [
+    "ledger",
+    "connectors",
+    "agents",
+    "engines",
+    "modules",
+    "evals",
+    "cli",
+    "lib",
+    "tests",
+    "server"
+  ]
 }

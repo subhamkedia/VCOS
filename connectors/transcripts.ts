@@ -33,8 +33,18 @@ export async function transcriptFromFile(
   file: string,
   opts: { company: string; date?: string; title?: string; companyDomain?: string },
 ): Promise<SourceRecord> {
-  const raw = await readFile(file, "utf8");
+  return transcriptRecord(path.basename(file), await readFile(file, "utf8"), opts);
+}
+
+/** A transcript from text already in memory (an upload). `.vtt` files are cleaned to speaker lines. */
+export function transcriptRecord(
+  fileName: string,
+  raw: string,
+  opts: { company: string; date?: string; title?: string; companyDomain?: string },
+): SourceRecord {
+  const file = fileName;
   const text = file.toLowerCase().endsWith(".vtt") ? vttToText(raw) : raw.trim();
+  if (text.length < 20) throw new Error(`${fileName} has almost no text.`);
   return {
     evidence: {
       kind: "transcript",

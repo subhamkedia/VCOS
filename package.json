@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "AI-native operating system for a venture fund: one claim ledger, six modules.",
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p web",
     "test": "vitest run",
     "db:migrate": "tsx cli/migrate.ts",
     "ingest": "tsx cli/ingest.ts",
@@ -16,15 +16,24 @@
     "show": "tsx cli/show.ts",
     "connectors": "tsx cli/connectors.ts",
     "outbox": "tsx cli/outbox.ts",
-    "worker": "tsx cli/worker.ts"
+    "worker": "tsx cli/worker.ts",
+    "web": "tsx server/index.ts",
+    "dev": "WEB_PORT=5173 tsx watch server/index.ts & vite --config web/vite.config.ts",
+    "build:web": "vite build --config web/vite.config.ts",
+    "seed:demo": "tsx cli/seed-demo.ts"
   },
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
     "@electric-sql/pglite": "^0.5.8",
+    "@hono/node-server": "^2.1.1",
     "@modelcontextprotocol/sdk": "^1.31.0",
     "dotenv": "^18.0.4",
+    "hono": "^4.13.10",
     "pg": "^8.23.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4",
     "unpdf": "^1.8.1",
     "yaml": "^2.9.1",
     "zod": "^4.6.5"
@@ -32,8 +41,12 @@
   "devDependencies": {
     "@types/node": "^26.6.3",
     "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
+    "vite": "^8.3.1",
     "vitest": "^5.0.2"
   },
   "private": true,

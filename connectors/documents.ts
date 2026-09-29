@@ -66,6 +66,25 @@ export function documentRecord(input: {
   };
 }
 
+/** A PDF, .txt or .md file already in memory (an upload). */
+export async function documentFromBytes(
+  fileName: string,
+  bytes: Uint8Array,
+  opts: { company: string; companyDomain?: string; date?: string; url?: string },
+): Promise<SourceRecord> {
+  const lower = fileName.toLowerCase();
+  let text: string;
+  if (lower.endsWith(".pdf")) text = await pdfToText(bytes);
+  else if (/\.(txt|md|markdown)$/.test(lower)) text = new TextDecoder().decode(bytes).trim();
+  else throw new Error(`Unsupported file type: ${fileName}. Use PDF, .txt or .md (export slides to PDF first).`);
+  const docsend = isDocSendUrl(opts.url);
+  return documentRecord({
+    text, fileName, source: docsend ? "docsend" : "document", uri: opts.url ?? `upload:${fileName}`,
+    company: opts.company, companyDomain: opts.companyDomain, date: opts.date,
+    mimeType: lower.endsWith(".pdf") ? "application/pdf" : "text/plain",
+  });
+}
+
 /** Ingest a local PDF, .txt or .md file. `url` records where it came from (a DocSend link, a data room). */
 export async function documentFromFile(
   file: string,

@@ -1,22 +1,60 @@
 # VC OS
 
-An AI-native operating system for a venture fund, built toward one
-interactive web app with a module per stage of the fund: Sourcing,
-Diligence, IC Memo, Execution, Portfolio, LP Reporting. Every fact about a
-company is stored once as a **claim**, with its source, date, confidence and
-the exact characters it came from. Sourcing scores, diligence flags, IC memos and LP
-letters are all queries over that ledger.
+An AI-native operating system for venture firms. Any firm signs up,
+describes its fund and mandate, connects the tools it already uses, and
+works in one web app with five modules: **Sourcing**, **Diligence**,
+**Investment Execution**, **Portfolio Management & Value Creation** and **LP
+Reporting**.
 
-This is **Phase 0: the foundation.** The ledger, the entity resolver, the
-cited-claim extractor, the first connectors and the eval harness that gates
-Phase 1.
+Underneath, every fact about a company is stored once as a **claim**, with
+its source, date, confidence and the exact characters it came from. Scores,
+diligence flags, memos and LP letters are all queries over that ledger. Each
+firm's data is isolated by Postgres row-level security.
 
-## Try it in two minutes
+**Built so far:** the ledger, entity resolver and cited extractor; 15
+connectors; multi-firm workspaces with Google, Microsoft and email sign-in;
+onboarding (firm, fund, mandate, sectors, scoring); connections; the
+Sourcing module with scheduled feeds and thesis fit; company pages with
+highlighted sources; and an approval queue for anything outbound.
+**Next:** Diligence.
+
+## Run the web app
 
 ```bash
 pnpm install
+pnpm build:web
+pnpm seed:demo --email you@example.com   # optional: a workspace of fictional companies
+pnpm web                                 # http://localhost:8787
+```
+
+Sign in with your email. Without Google or Microsoft configured, the
+sign-in link is printed in the server log. A new email address gets an
+empty workspace and the setup wizard. `pnpm dev` runs the API with Vite hot
+reload on http://localhost:5173. `pnpm worker` runs scheduled sourcing feeds
+for every firm.
+
+For production:
+
+| Variable | What it's for |
+| --- | --- |
+| `DATABASE_URL` | Postgres. The migrations create the `vcos_app` role that firm queries run as; the connecting user must be allowed to `SET ROLE vcos_app` (the migration grants it when it can). |
+| `VCOS_SECRET_KEY` | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts every firm's connector credentials. Losing it means firms reconnect their tools. |
+| `APP_URL` | The public URL. OAuth redirect URI is `APP_URL/api/auth/callback`. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | One Google OAuth app for sign-in, Gmail and Drive. |
+| `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT` | One Microsoft Entra app for sign-in and Outlook. |
+| `RESEND_API_KEY`, `MAIL_FROM` | Sends sign-in links and invitations. Without it they're printed to the log. |
+| `ANTHROPIC_API_KEY` | Claim extraction from decks, calls and email. |
+| `SEC_USER_AGENT` | Contact string SEC requires for Form D feeds. |
+
+Vendor keys (Harmonic, PitchBook, Crunchbase, Dealroom, Affinity) are not
+server settings: each firm adds its own under Connections, and they're
+encrypted and used only for that firm.
+
+## Try the ledger in two minutes
+
+```bash
 pnpm demo        # offline walk-through on fictional data, no keys needed
-pnpm test        # 83 tests on in-process Postgres
+pnpm test        # 130 tests on in-process Postgres
 ```
 
 The demo ingests a company from Harmonic, an SEC Form D, a press article and
@@ -25,10 +63,11 @@ with its source. It flags that the founder says 34 people while Harmonic said
 21 twelve days earlier. Add `ANTHROPIC_API_KEY` to `.env` and the demo uses
 live Claude for extraction instead of scripted replies.
 
-## Use it on real companies
+## The command line
 
-Every connector is built and tested; each one goes live when you add its
-keys to `.env`.
+The CLI works on one firm (`--firm <slug>`, or the only firm in a local
+database) and reads vendor keys from `.env`, which is handy for trying a
+connector before using it in the app.
 
 ```bash
 cp .env.example .env            # add the keys you have (setup notes inside)
@@ -89,7 +128,7 @@ names and look-alike YC companies. The bundled synthetic set scores 100%,
 but it was written alongside the resolver, so treat it as a smoke test.
 `evals/resolver/README.md` explains both sets.
 
-## Known limits in Phase 0
+## Known limits
 
 - Vendor mappings (Harmonic, PitchBook, Crunchbase, Dealroom, Affinity)
   follow each vendor's documentation and are tested against fixtures, not
@@ -103,5 +142,8 @@ but it was written alongside the resolver, so treat it as a smoke test.
   you have a few thousand, or move batch dedupe to Splink (same model).
 - Web pages rendered by JavaScript come back nearly empty. A headless-browser
   fetcher is a Phase 1 task.
-- No UI yet. Phase 1 starts the web app: an app shell, a Ledger screen and
-  the Diligence module. Later phases add their modules to the same app.
+- Thesis fit is v0: sector keywords (stemmed), geography and stage, with
+  every reason cited. The weighted dimensions (team, moat, GTM) are scored
+  in Diligence from evidence.
+- Diligence, Execution, Portfolio and LP Reporting have their pages and
+  scope in the app; their workflows are the next phases.

@@ -1,9 +1,10 @@
 # VC OS — instructions for Claude Code
 
-An AI-native operating system for a venture fund. One claim ledger feeds six
-modules: Sourcing, Diligence, IC Memo, Execution, Portfolio, LP Reporting.
-The end product is one interactive web app with each module as a section of
-it, all reading the same ledger. Read this file at the start of every
+An AI-native operating system for venture firms: one web app that any firm
+signs up to, describes its fund and mandate, connects the tools it uses, and
+works in. One claim ledger per firm feeds five modules: Sourcing, Diligence
+(including the IC memo), Investment Execution, Portfolio Management & Value
+Creation, and LP Reporting. Read this file at the start of every
 session. It overrides your defaults.
 
 ## The six principles (do not break these)
@@ -21,10 +22,24 @@ session. It overrides your defaults.
 5. **Judgment is data.** Pass reasons, IC votes (before and after
    discussion), and score overrides go in `decisions`. They are required
    fields in any workflow that produces them.
-6. **Thesis is config.** Scoring reads `thesis.yaml`. Never hard-code sector
-   logic.
+6. **Thesis is config.** Scoring reads the firm's profile (fund, mandate,
+   sectors, weights), saved as append-only versions in `thesis_versions` and
+   edited in the app. `thesis.yaml` is only the starter template. Every score
+   records the thesis version it used. Never hard-code sector logic.
 
 ## Hard rules
+
+- **Firms are isolated by the database.** Every firm-owned table has
+  `firm_id` and a row-level-security policy. Firm code gets a `scopedDb`
+  (role `vcos_app`, `app.firm_id` set) and never the root Db. Only
+  `ledger/platform.ts`, `modules/auth`, the scheduler (`runDueFeeds`) and
+  migrations use the root Db. A new firm-owned table needs `firm_id default
+  current_firm()`, a policy and grants in its migration, and a test that a
+  second firm can't see it.
+- **Credentials belong to one firm.** Connector keys and refresh tokens are
+  stored encrypted per firm (`lib/secrets.ts`) and loaded only inside
+  `withFirmCredentials`. Inside a firm's context, vendor keys never fall
+  back to the server's `.env`; only `PLATFORM_KEYS` do.
 
 - **Math is code.** Cap tables, waterfalls, IRR, TVPI live in `engines/` and
   are unit-tested. A model may explain a number; it never computes one.
@@ -69,15 +84,19 @@ session. It overrides your defaults.
 ## Layout
 
 ```
-ledger/      predicate vocabulary, repository and read models (the only DB access)
-connectors/  one adapter per source; each yields EvidenceInput
+ledger/      predicates, repository, read models, platform (firms, users,
+             sessions) and workspace (thesis, connections, feeds): the only SQL
+connectors/  one adapter per source, plus registry.ts (auth, scope, sourcing)
 agents/      one folder per agent: prompt, tool definitions, logic
-engines/     deterministic math (empty in Phase 0)
-modules/     module workflows and queries (empty in Phase 0)
+engines/     deterministic math (empty so far)
+modules/     workflows as plain functions: auth, firm, connections, sourcing,
+             companies, outbox; catalog.ts lists the five product modules
+server/      Hono API: thin routes over modules (session, role, JSON)
+web/         React + Vite app; talks only to /api
 evals/       one folder per agent: labeled data + runner
 cli/         entry points (thin: parse args, call a function, print)
-lib/         db client, config, hashing, text utils
-tests/       vitest
+lib/         db client, config, secrets, mailer, text utils
+tests/       vitest, including API tests through server/app.ts
 db/migrations/  plain SQL, applied in order
 ```
 
@@ -94,12 +113,19 @@ db/migrations/  plain SQL, applied in order
 - Any new agent ships with an eval set in `evals/<agent>/` of at least 20
   real cases before it's used on live deals.
 
+## Roles
+
+`admin` manages the team and firm; `partner` edits the thesis, connects
+sources, runs feeds, approves outbound items and merges; `analyst` reads,
+uploads and queues drafts. Check with `requireAction` in modules/auth, and
+return 403 from the API, never hide the check in the UI alone.
+
 ## Current phase
 
 Phase 0 — Foundation. Gate to Phase 1: the resolver scores ≥95% with zero
 false merges on the YC 2026 set, 200 companies across the 2026 batches
 (`pnpm eval:resolver:build-yc`, then
 `pnpm eval:resolver --set evals/resolver/yc2026 --gate 0.95`).
-Phase 1 is Diligence, and it starts the web app: the app shell plus a
-Ledger screen (company profile, sources with highlighted quotes,
-contradictions, merge review) and the Diligence module.
+The web app, multi-firm tenancy, sign-in, onboarding, connections and the
+Sourcing module are built. Diligence is next: claims by workstream, the
+contradiction board, call questions and the cited IC memo.
