@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import { useSession } from "../app";
-import { Field, Notice } from "../ui";
+import { Field, Notice, usePageTitle } from "../ui";
 
 /** Signed in, but not in any firm yet: create one (or wait for an invitation). */
 export default function Welcome() {
@@ -9,6 +9,7 @@ export default function Welcome() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  usePageTitle("Set up your firm");
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();

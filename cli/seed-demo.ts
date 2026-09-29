@@ -10,6 +10,7 @@ import { formDToRecord } from "../connectors/edgar.js";
 import { htmlToText } from "../connectors/web.js";
 import { transcriptFromFile } from "../connectors/transcripts.js";
 import { ycToRecord, type YcCompany } from "../connectors/yc.js";
+import { extractPortfolio, portfolioRecord } from "../connectors/portfolio-pages.js";
 import { enable } from "../modules/connections/index.js";
 import { saveProfile, starterProfile } from "../modules/firm/profile.js";
 import { createFeed, runFeed } from "../modules/sourcing/index.js";
@@ -60,9 +61,25 @@ run(async () => {
   await saveProfile(db, base, by);
   await saveProfile(db, {
     ...base,
-    firm: { ...base.firm, hq: "Pittsburgh, PA", description: "A fictional seed fund backing physical AI for the built world." },
-    fund: { ...base.fund, targetSizeUsd: 60_000_000, committedUsd: 42_000_000, vintage: 2026, investmentPeriodYears: 4, termYears: 10, reservesPct: 45, managementFeePct: 2, carryPct: 20, targetInvestments: 28 },
-    mandate: { ...base.mandate, targetOwnershipPct: { min: 8, max: 15 }, leadPreference: "lead", thesis: "Software and robotics that make building, making and maintaining physical things faster and safer." },
+    firm: {
+      ...base.firm, legalName: "Demo Fund Management LLC", type: "micro_vc", website: "demofund.example", hq: "Pittsburgh, PA",
+      offices: ["Austin, TX"], foundedYear: 2021, aumUsd: 85_000_000, fundsRaised: 2, teamSize: 9, investmentTeamSize: 5,
+      description: "A fictional seed fund backing physical AI for the built world.",
+    },
+    fund: {
+      ...base.fund, name: "Demo Fund", number: "II", legalForm: "Delaware LP", domicile: "Delaware, US", currency: "USD", vintage: 2026,
+      targetSizeUsd: 60_000_000, hardCapUsd: 75_000_000, committedUsd: 42_000_000, firstCloseDate: "2026-03-31", finalCloseDate: "2027-03-31",
+      gpCommitmentPct: 2, investmentPeriodYears: 4, termYears: 10, extensionYears: 2, managementFeePct: 2, feeStepDownPct: 1.5,
+      feeBasisAfterPeriod: "invested", fundExpensesPct: 1, recyclingPct: 10, carryPct: 20, hurdlePct: 8, waterfall: "european",
+      reservesPct: 45, targetInvestments: 25, avgInitialCheckUsd: 1_000_000, maxConcentrationPct: 10, followOnStrategy: "super_pro_rata",
+      lpTypes: ["Institutional (pensions, endowments)", "Family offices", "High-net-worth individuals"], icMembers: 3, icApproval: "majority",
+    },
+    mandate: {
+      ...base.mandate, followOnCheckUsd: { min: 500_000, max: 4_000_000 }, targetOwnershipPct: { min: 8, max: 15 }, leadPreference: "lead",
+      boardSeat: "preferred", businessModels: ["Hardware plus software", "B2B software"], customerTypes: ["Enterprise", "Government and public sector"],
+      traction: "pre_revenue", maxCompanyAgeYears: 5, impact: "esg_screened",
+      thesis: "Software and robotics that make building, making and maintaining physical things faster and safer.",
+    },
   }, by);
 
   await enable(db, "yc", by);
@@ -72,6 +89,13 @@ run(async () => {
     .catch(() => console.log("Skipped the Form D feed: set SEC_USER_AGENT to enable it."));
   const r = await runFeed(db, ycFeed, "seed-demo", { discover: async () => DEMO_BATCH.map((c) => ycToRecord(c, new Date().toISOString())) });
   console.log(`Feed run: ${r.stats.records} companies, ${r.stats.strongFits} strong fits`);
+
+  // A portfolio website (the fictional accelerator page from the tests).
+  await enable(db, "websites", by);
+  const site = { orgName: "Foundry Works (demo)", orgType: "accelerator" as const, url: "https://www.foundryworks.example/portfolio" };
+  const siteFeed = await createFeed(db, { connectorId: "websites", name: "Foundry Works portfolio (demo data)", params: site, cadence: "weekly" }, by);
+  const page = extractPortfolio(await readFile("tests/fixtures/portfolio-page.html", "utf8"), site.url);
+  await runFeed(db, siteFeed, "seed-demo", { discover: async () => page.map((c) => portfolioRecord(site, c)) });
 
   // One company with every kind of source, as in `pnpm demo`.
   const fx = (f: string) => readFile(`tests/fixtures/${f}`, "utf8");

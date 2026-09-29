@@ -6,6 +6,7 @@ import {
 import { latestHits, listCompanies, type HitRow } from "../../ledger/workspace.js";
 import { getProfile } from "../firm/profile.js";
 import { thesisFit } from "../sourcing/fit.js";
+import { formatValue, predicateLabel, sourceTypeLabel } from "../../ledger/labels.js";
 import { ingest } from "../../connectors/ingest.js";
 import { documentFromBytes } from "../../connectors/documents.js";
 import { transcriptRecord } from "../../connectors/transcripts.js";
@@ -30,7 +31,16 @@ export async function profile(db: Db, id: string, opts: { shareable?: boolean } 
     s.claims++;
     sources.set(c.evidence_id, s);
   }
-  return { ...p, fit, sources: [...sources.values()], shareable: Boolean(opts.shareable) };
+  const claims = p.claims.map((c) => ({ ...c, label: predicateLabel(c.predicate), display: formatValue(c.predicate, c.value) }));
+  const byId = new Map(claims.map((c) => [c.id, c]));
+  // Contradictions read from the claims they cite, so older stored wording doesn't leak through.
+  const contradictions = p.contradictions.map((x) => {
+    const [a, b] = x.claim_ids.map((cid) => byId.get(cid));
+    if (!a || !b) return x;
+    const side = (c: typeof a) => `${c.display} (${sourceTypeLabel(c.source_type).toLowerCase()}, ${c.evidence.title ?? c.evidence.source})`;
+    return { ...x, detail: `${predicateLabel(x.predicate)}: ${side(a)} vs ${side(b)}` };
+  });
+  return { ...p, claims, contradictions, fit, sources: [...sources.values()], shareable: Boolean(opts.shareable) };
 }
 
 /** A company no feed has scored (an upload, a CRM import): score it now against the current thesis. */

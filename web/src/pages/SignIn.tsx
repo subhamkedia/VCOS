@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, useApi } from "../api";
-import { Field, Notice } from "../ui";
+import { Field, Notice, usePageTitle } from "../ui";
 
 export default function SignIn() {
   const [params] = useSearchParams();
@@ -10,6 +10,7 @@ export default function SignIn() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState(params.get("error"));
   const [busy, setBusy] = useState(false);
+  usePageTitle("Sign in");
 
   const sendLink = async (e: React.FormEvent) => {
     e.preventDefault();

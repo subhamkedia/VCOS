@@ -16,27 +16,52 @@ export interface Me {
 export interface Sector { id: string; label: string; keywords: string[]; priority: "core" | "opportunistic" }
 export interface Dimension { id: string; label: string; weight: number; guide: string }
 
+export type Opt = { id: string; label: string };
+
 export interface Profile {
-  firm: { name: string; website?: string; hq?: string; description?: string };
+  firm: {
+    name: string; legalName?: string; type: string; website?: string; linkedin?: string; hq?: string; offices: string[];
+    foundedYear?: number; aumUsd?: number; fundsRaised?: number; teamSize?: number; investmentTeamSize?: number; description?: string;
+  };
   fund: {
-    name: string; structure: string; vintage?: number; targetSizeUsd?: number; committedUsd?: number;
-    investmentPeriodYears?: number; termYears?: number; reservesPct?: number; managementFeePct?: number;
-    carryPct?: number; targetInvestments?: number;
+    name: string; number?: string; structure: string; legalForm?: string; domicile?: string; currency: string; vintage?: number;
+    targetSizeUsd?: number; hardCapUsd?: number; committedUsd?: number; firstCloseDate?: string; finalCloseDate?: string; gpCommitmentPct?: number;
+    investmentPeriodYears?: number; termYears?: number; extensionYears?: number;
+    managementFeePct?: number; feeStepDownPct?: number; feeBasisAfterPeriod: string; fundExpensesPct?: number; recyclingPct?: number;
+    carryPct?: number; hurdlePct?: number; waterfall?: string;
+    reservesPct?: number; targetInvestments?: number; avgInitialCheckUsd?: number; maxConcentrationPct?: number; followOnStrategy?: string;
+    lpTypes: string[]; icMembers?: number; icApproval?: string;
   };
   mandate: {
-    stages: string[]; checkSizeUsd: { min: number; max: number }; targetOwnershipPct?: { min: number; max: number };
-    leadPreference: "lead" | "co_lead" | "follow" | "any"; geographies: string[]; sectors: Sector[];
-    exclusions: string[]; thesis: string;
+    stages: string[]; checkSizeUsd: { min: number; max: number }; followOnCheckUsd?: { min: number; max: number };
+    targetOwnershipPct?: { min: number; max: number }; leadPreference: string; boardSeat?: string;
+    geographies: string[]; sectors: Sector[]; businessModels: string[]; customerTypes: string[];
+    traction?: string; minArrUsd?: number; maxCompanyAgeYears?: number; impact?: string; exclusions: string[]; thesis: string;
   };
   scoring: { dimensions: Dimension[] };
 }
 
-export interface ProfileResponse {
-  current: { version: number; profile: Profile } | null;
-  options: { stages: { id: string; label: string }[]; structures: { id: string; label: string }[] };
+export interface ProfileOptions {
+  stages: Opt[]; structures: Opt[]; firmTypes: Opt[]; currencies: Opt[]; feeBasis: Opt[]; waterfall: Opt[]; followOn: Opt[];
+  icApproval: Opt[]; lead: Opt[]; board: Opt[]; traction: Opt[]; impact: Opt[];
+  suggestions: { lpTypes: string[]; businessModels: string[]; customerTypes: string[]; geographies: string[] };
 }
 
-export interface ParamSpec { name: string; label: string; kind: "text" | "list" | "number" | "boolean"; placeholder?: string; help?: string; required?: boolean; default?: unknown }
+export interface Construction {
+  sizeUsd: number; managementFeesUsd: number; feeLoadPct: number; expensesUsd: number; recycledUsd: number; investableUsd: number;
+  initialCapitalUsd: number; reserveCapitalUsd: number; reserveRatio: number | null; impliedInvestments: number | null;
+  impliedAvgInitialCheckUsd: number | null; avgReservePerCompanyUsd: number | null; avgPositionPct: number | null; warnings: string[];
+}
+
+export interface ProfileResponse {
+  current: { version: number; profile: Profile } | null;
+  options: ProfileOptions;
+  construction: Construction | null;
+}
+
+export interface ProfileCheck { ok: boolean; errors?: { path: string; message: string }[]; construction: Construction | null }
+
+export interface ParamSpec { name: string; label: string; kind: "text" | "list" | "number" | "boolean" | "select" | "url"; options?: Opt[]; placeholder?: string; help?: string; required?: boolean; default?: unknown }
 
 export interface Connector {
   id: string; name: string; category: string; description: string; scope: string; docsUrl?: string; writes?: string; manual: boolean;
@@ -72,7 +97,7 @@ export interface CompanyRow { id: string; name: string; claims: number; open_con
 
 export interface Claim {
   id: string; predicate: string; value: unknown; as_of: string | null; source_type: string; evidence_id: string; cited_text: string | null;
-  confidence: number; extracted_by: string; access_scope: string;
+  confidence: number; extracted_by: string; access_scope: string; label: string; display: string;
   evidence: { source: string; kind: string; title: string | null; uri: string | null; occurred_at: string | null };
 }
 

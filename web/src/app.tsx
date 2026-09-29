@@ -1,8 +1,9 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect } from "react";
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { api, useApi } from "./api";
 import type { Action, Me, ModuleInfo, OutboxItem } from "./types";
-import { Loading } from "./ui";
+import { ConfirmProvider, ErrorState, Loading, PageHead, ToastProvider } from "./ui";
+import { VocabProvider } from "./vocab";
 import SignIn from "./pages/SignIn";
 import Welcome from "./pages/Welcome";
 import Onboarding from "./pages/Onboarding";
@@ -25,36 +26,55 @@ export const useSession = () => useContext(SessionCtx)!;
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/signin" element={<SignIn />} />
-        <Route path="*" element={<Gate />} />
-      </Routes>
-    </BrowserRouter>
+    <ToastProvider>
+      <ConfirmProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="*" element={<Gate />} />
+          </Routes>
+        </BrowserRouter>
+      </ConfirmProvider>
+    </ToastProvider>
   );
 }
+
+export const ROLE_LABELS = { admin: "Admin", partner: "Partner", analyst: "Analyst" } as const;
 
 /** Signed in? Has a firm? Finished onboarding? Route accordingly. */
 function Gate() {
   const { data: me, error, loading, reload } = useApi<Me>("/me");
   const loc = useLocation();
   if (loading && !me) return <div className="center-page"><Loading /></div>;
-  if (error?.status === 401 || !me) return <Navigate to="/signin" replace />;
+  if (error?.status === 401) return <Navigate to="/signin" replace />;
+  if (error || !me) return <div className="center-page"><ErrorState error={error ?? { message: "Couldn't load your session." }} retry={() => void reload()} /></div>;
   const session: Session = { me, reload, can: (a) => Boolean(me.can[a]) };
   if (!me.firm) return <SessionCtx.Provider value={session}><Welcome /></SessionCtx.Provider>;
   if (!me.onboarded && !loc.pathname.startsWith("/setup") && me.can.edit_thesis) return <Navigate to="/setup" replace />;
   return (
     <SessionCtx.Provider value={session}>
-      <Routes>
-        <Route path="/setup" element={<Onboarding />} />
-        <Route path="*" element={<Shell />} />
-      </Routes>
+      <VocabProvider>
+        <Routes>
+          <Route path="/setup" element={<Onboarding />} />
+          <Route path="*" element={<Shell />} />
+        </Routes>
+      </VocabProvider>
     </SessionCtx.Provider>
   );
 }
 
+/** After each navigation, move focus to the new page's title so screen readers announce it. */
+function useFocusOnNavigate() {
+  const loc = useLocation();
+  useEffect(() => {
+    const t = setTimeout(() => document.getElementById("page-title")?.focus({ preventScroll: true }), 50);
+    return () => clearTimeout(t);
+  }, [loc.pathname]);
+}
+
 function Shell() {
   const { me, reload } = useSession();
+  useFocusOnNavigate();
   const { data: modules } = useApi<ModuleInfo[]>("/modules");
   const { data: pending } = useApi<OutboxItem[]>("/outbox");
   const switchFirm = async (firmId: string) => {
@@ -67,7 +87,8 @@ function Shell() {
   };
   return (
     <div className="shell">
-      <aside className="rail">
+      <a className="skip" href="#main">Skip to content</a>
+      <aside className="rail" aria-label="Main menu">
         <div className="brand">VC OS</div>
         {me.firms.length > 1 ? (
           <select className="firm-switch" value={me.firm!.id} onChange={(e) => void switchFirm(e.target.value)} aria-label="Firm">
@@ -77,8 +98,8 @@ function Shell() {
           <div className="firm-switch">{me.firm!.name}</div>
         )}
         <div>
-          <h6>Modules</h6>
-          <nav>
+          <h6 id="nav-modules">Modules</h6>
+          <nav aria-labelledby="nav-modules">
             {(modules ?? []).map((m) => (
               <NavLink key={m.id} to={m.path}>
                 {m.name}
@@ -88,21 +109,23 @@ function Shell() {
           </nav>
         </div>
         <div>
-          <h6>Workspace</h6>
-          <nav>
+          <h6 id="nav-workspace">Workspace</h6>
+          <nav aria-labelledby="nav-workspace">
             <NavLink to="/companies">Companies</NavLink>
-            <NavLink to="/approvals">Approvals {pending && pending.length > 0 && <span className="count">{pending.length}</span>}</NavLink>
+            <NavLink to="/approvals">
+              Approvals {pending && pending.length > 0 && <span className="count" aria-label={`${pending.length} waiting`}>{pending.length}</span>}
+            </NavLink>
             <NavLink to="/connections">Connections</NavLink>
             <NavLink to="/settings">Firm settings</NavLink>
           </nav>
         </div>
         <div className="me">
           <span>{me.user.name ?? me.user.email}</span>
-          <span>{me.firm!.role}</span>
+          <span>{ROLE_LABELS[me.firm!.role]}</span>
           <button type="button" onClick={() => void signOut()}>Sign out</button>
         </div>
       </aside>
-      <main className="work">
+      <main className="work" id="main">
         <Routes>
           <Route path="/" element={<Navigate to="/sourcing" replace />} />
           <Route path="/sourcing" element={<Sourcing />} />
@@ -121,6 +144,6 @@ function Shell() {
   );
 }
 
-function NotFound(): ReactNode {
-  return <p className="muted">There's nothing at this address. Use the menu on the left.</p>;
+function NotFound() {
+  return <PageHead title="Page not found" lead="There's nothing at this address. Use the menu to find your way." />;
 }

@@ -3,23 +3,18 @@ import { useSearchParams } from "react-router-dom";
 import { api, useApi } from "../api";
 import { useSession } from "../app";
 import type { Connector } from "../types";
-import { Field, Loading, Notice, PageHead, when } from "../ui";
+import { ErrorState, Field, Loading, Notice, PageHead, Time, useConfirm, useToast } from "../ui";
+import { useVocab } from "../vocab";
 import { FeedForm } from "./Sourcing";
 
 const CATEGORY_ORDER = ["data vendor", "public", "crm", "email", "documents", "meetings"];
 const CATEGORY_LABEL: Record<string, string> = {
   "data vendor": "Data vendors", public: "Public sources", crm: "CRM", email: "Email", documents: "Documents", meetings: "Meetings",
 };
-const SCOPE_NOTE: Record<string, string> = {
-  vendor: "Vendor data: stays inside your firm, never shared",
-  public: "Public: may appear in shareable documents",
-  internal: "Internal to your firm",
-  confidential: "Confidential: never in shareable documents",
-};
 
 export default function Connections() {
   const [params] = useSearchParams();
-  const { data, reload } = useApi<Connector[]>("/connections");
+  const { data, error, reload } = useApi<Connector[]>("/connections");
   const connected = params.get("connected");
   const failed = params.get("failed");
   return (
@@ -31,12 +26,12 @@ export default function Connections() {
       />
       {connected && <Notice tone="good">Connected {data?.find((c) => c.id === connected)?.name ?? connected}.</Notice>}
       {failed && <Notice tone="bad">Couldn't connect {failed}: {params.get("detail")}</Notice>}
-      {!data ? <Loading /> : CATEGORY_ORDER.map((cat) => {
+      {error ? <ErrorState error={error} retry={() => void reload()} /> : !data ? <Loading /> : CATEGORY_ORDER.map((cat) => {
         const list = data.filter((c) => c.category === cat);
         if (!list.length) return null;
         return (
-          <section className="section" key={cat}>
-            <h2>{CATEGORY_LABEL[cat]}</h2>
+          <section className="section" key={cat} aria-labelledby={`cat-${cat.replace(" ", "-")}`}>
+            <h2 id={`cat-${cat.replace(" ", "-")}`}>{CATEGORY_LABEL[cat]}</h2>
             <div className="cards">
               {list.map((c) => <ConnectorCard key={c.id} c={c} onChange={reload} />)}
             </div>
@@ -56,6 +51,9 @@ function statusOf(c: Connector): { tone: string; label: string } {
 
 export function ConnectorCard({ c, onChange }: { c: Connector; onChange: () => void }) {
   const { can } = useSession();
+  const v = useVocab();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
@@ -98,12 +96,12 @@ export function ConnectorCard({ c, onChange }: { c: Connector; onChange: () => v
       </div>
       <p className="small" style={{ margin: 0 }}>{c.description}</p>
       <div className="row small muted">
-        <span className="pill outline">{c.scope}</span>
-        <span>{SCOPE_NOTE[c.scope]}</span>
+        <span className="pill outline">{v.scope(c.scope)}</span>
+        <span>{v.scopeHelp(c.scope)}</span>
       </div>
       {c.accountLabel && <div className="small">Account: <strong>{c.accountLabel}</strong></div>}
       {c.lastError && <div className="small" style={{ color: "var(--bad)" }}>{c.lastError}</div>}
-      {c.lastCheckedAt && !c.lastError && <div className="small muted">Checked {when(c.lastCheckedAt)}</div>}
+      {c.lastCheckedAt && !c.lastError && <div className="small muted">Checked <Time at={c.lastCheckedAt} /></div>}
       {msg && <Notice tone={msg.tone}>{msg.text || (msg.tone === "good" ? "Done." : "Failed.")}</Notice>}
 
       {manage && (
@@ -116,7 +114,7 @@ export function ConnectorCard({ c, onChange }: { c: Connector; onChange: () => v
                 </Field>
               ))}
               <div className="row">
-                <button className="btn primary small" disabled={busy}>{busy ? "Checking…" : "Save and test"}</button>
+                <button className="btn primary small" disabled={busy} aria-busy={busy}>{busy ? "Checking…" : "Save and test"}</button>
                 <button type="button" className="btn ghost small" onClick={() => setOpen(false)}>Cancel</button>
               </div>
             </form>
@@ -131,9 +129,12 @@ export function ConnectorCard({ c, onChange }: { c: Connector; onChange: () => v
             )}
             {live && <button type="button" className="btn small" disabled={busy} onClick={() => void run(() => api(`/connections/${c.id}/test`, { body: {} }))}>Test</button>}
             {live && c.auth.kind !== "none" && c.auth.kind !== "platform" && (
-              <button type="button" className="btn ghost small danger" disabled={busy} onClick={() => void run(() => api(`/connections/${c.id}`, { method: "DELETE" }))}>Disconnect</button>
+              <button type="button" className="btn ghost small danger" disabled={busy} onClick={() => void (async () => {
+                const ok = await confirm({ title: `Disconnect ${c.name}?`, body: "VC OS deletes the stored credentials. Feeds using it stop until you connect again. What it already found stays in your ledger.", confirm: "Disconnect", danger: true });
+                if (ok) await run(async () => { await api(`/connections/${c.id}`, { method: "DELETE" }); toast("good", `${c.name} disconnected.`); });
+              })()}>Disconnect</button>
             )}
-            {c.docsUrl && <a className="btn ghost small" href={c.docsUrl} target="_blank" rel="noreferrer">Docs</a>}
+            {c.docsUrl && <a className="btn ghost small" href={c.docsUrl} target="_blank" rel="noreferrer">Docs<span className="sr-only"> (opens in a new tab)</span></a>}
           </div>
         </div>
       )}
@@ -141,34 +142,51 @@ export function ConnectorCard({ c, onChange }: { c: Connector; onChange: () => v
   );
 }
 
-/** The onboarding step: sources that can feed sourcing, with a feed form for each connected one. */
+const SETUP_GROUPS: { title: string; lead: string; ids: string[] }[] = [
+  { title: "Websites to follow", lead: "Portfolio and cohort pages of accelerators, incubators, venture studios, VCs and CVCs. Add as many as you like; each is checked on its own schedule.", ids: ["websites"] },
+  { title: "Directories and filings", lead: "Public sources of new companies.", ids: ["yc", "sec-edgar"] },
+  { title: "Your pipeline and inbox", lead: "Companies already coming to you.", ids: ["affinity", "gmail", "outlook"] },
+  { title: "Fill in what you find", lead: "Data vendors that enrich companies your feeds found. Needs your own account.", ids: ["harmonic", "pitchbook", "crunchbase", "dealroom"] },
+];
+
+/** The setup step: sources grouped by what they're for, each with its feeds. */
 export function SourcesSetup() {
-  const { data, reload } = useApi<Connector[]>("/connections");
-  const { data: feeds, reload: reloadFeeds } = useApi<{ connector_id: string; name: string; cadence: string }[]>("/feeds");
+  const { data, error, reload } = useApi<Connector[]>("/connections");
+  const { data: feeds, reload: reloadFeeds } = useApi<{ id: string; connector_id: string; name: string; cadence: string }[]>("/feeds");
   const [adding, setAdding] = useState<string | null>(null);
+  if (error) return <ErrorState error={error} retry={() => void reload()} />;
   if (!data) return <Loading />;
-  const sourcing = data.filter((c) => c.sourcing);
   return (
-    <div className="section">
-      {feeds && feeds.length > 0 && (
-        <Notice tone="good">
-          {feeds.length} feed{feeds.length === 1 ? "" : "s"} set up: {feeds.map((f) => `${f.name} (${f.cadence})`).join("; ")}
-        </Notice>
-      )}
-      <div className="cards">
-        {sourcing.map((c) => (
-          <div key={c.id} className="section" style={{ gap: 6 }}>
-            <ConnectorCard c={c} onChange={reload} />
-            {(c.status === "connected" || c.status === "available") && (
-              adding === c.id
-                ? <div className="panel panel-pad"><FeedForm connector={c} onDone={() => { setAdding(null); void reloadFeeds(); }} /></div>
-                : <button type="button" className="btn small" onClick={() => setAdding(c.id)}>
-                    {c.sourcing!.mode === "enrich" ? "Enrich sourced companies" : `Add a ${c.name} feed`}
-                  </button>
-            )}
-          </div>
-        ))}
-      </div>
+    <div className="section" style={{ gap: 24 }}>
+      {SETUP_GROUPS.map((g) => {
+        const list = g.ids.map((id) => data.find((c) => c.id === id)).filter((c): c is Connector => Boolean(c?.sourcing));
+        return (
+          <section key={g.title} className="section" aria-label={g.title}>
+            <div><h2>{g.title}</h2><p className="muted small" style={{ margin: "4px 0 0" }}>{g.lead}</p></div>
+            <div className="cards">
+              {list.map((c) => {
+                const mine = (feeds ?? []).filter((f) => f.connector_id === c.id);
+                const ready = c.status === "connected" || c.status === "available";
+                return (
+                  <div key={c.id} className="section" style={{ gap: 6 }}>
+                    <ConnectorCard c={c} onChange={reload} />
+                    {mine.length > 0 && (
+                      <ul className="small" style={{ margin: 0, paddingLeft: 18 }} aria-label={`${c.name} feeds`}>
+                        {mine.map((f) => <li key={f.id}>{f.name} <span className="muted">({f.cadence})</span></li>)}
+                      </ul>
+                    )}
+                    {ready && (adding === c.id
+                      ? <div className="panel panel-pad"><FeedForm connector={c} onDone={() => { setAdding(null); void reloadFeeds(); }} /></div>
+                      : <button type="button" className="btn small" onClick={() => setAdding(c.id)}>
+                          {c.id === "websites" ? (mine.length ? "Add another website" : "Add a website") : c.sourcing!.mode === "enrich" ? "Enrich sourced companies" : `Add a ${c.name} feed`}
+                        </button>)}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }

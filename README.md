@@ -11,11 +11,13 @@ its source, date, confidence and the exact characters it came from. Scores,
 diligence flags, memos and LP letters are all queries over that ledger. Each
 firm's data is isolated by Postgres row-level security.
 
-**Built so far:** the ledger, entity resolver and cited extractor; 15
+**Built so far:** the ledger, entity resolver and cited extractor; 16
 connectors; multi-firm workspaces with Google, Microsoft and email sign-in;
-onboarding (firm, fund, mandate, sectors, scoring); connections; the
-Sourcing module with scheduled feeds and thesis fit; company pages with
-highlighted sources; and an approval queue for anything outbound.
+onboarding (firm, fund, mandate, sectors, scoring) with live portfolio
+construction math; connections; the Sourcing module with scheduled feeds,
+portfolio websites (accelerators, incubators, studios, VCs, CVCs) and
+thesis fit; company pages with readable, highlighted sources; and an
+approval queue for anything outbound.
 **Next:** Diligence.
 
 ## Run the web app
@@ -54,7 +56,7 @@ encrypted and used only for that firm.
 
 ```bash
 pnpm demo        # offline walk-through on fictional data, no keys needed
-pnpm test        # 130 tests on in-process Postgres
+pnpm test        # 147 tests on in-process Postgres
 ```
 
 The demo ingests a company from Harmonic, an SEC Form D, a press article and
@@ -110,6 +112,10 @@ For production, `docker compose up -d` and set
 | `agents/resolver/` | Entity resolution: hard identifiers first, then Fellegi-Sunter scoring on name, domain, founders and city. Ambiguous cases become merge proposals; Claude can suggest a pick, a human accepts. |
 | `agents/extractor/` | Claim extraction with the Claude Citations API. Every claim carries the exact quote and character offsets. Lines without a valid citation are rejected. |
 | `connectors/` | Harmonic, PitchBook, Crunchbase, Dealroom, SEC EDGAR Form D, the YC directory, web pages, Affinity, Gmail, Outlook, Google Drive, DocSend and local files, transcripts (files or Granola MCP). All flow through one `ingest()` pipeline; `registry.ts` lists each one's keys and scope. |
+| `ledger/labels.ts` | Readable names for everything the app shows: predicates ("Team headcount"), source types ("Self-reported"), scopes, evidence kinds, identifiers and enum values. Served at `/api/vocabulary`; the CLI uses the same labels. |
+| `engines/portfolio-construction.ts` | Fund math from the profile: fees over the fund's life, investable capital, reserves, new-to-reserve ratio, implied number of companies, average check and entry ownership. Unit-tested; the setup wizard shows it live. |
+| `connectors/portfolio-pages.ts` | Follow any public portfolio page. Reads outbound company links and JSON-LD, respects robots.txt, refuses private addresses, and records each company as a claim citing the page. |
+| `modules/firm/` | The firm profile: firm, fund (size, structure, closes, term, fees, carry, reserves, target count, checks, LPs, IC), mandate, sectors and scoring weights, validated across fields and saved as versions. |
 | `modules/outbox/` | The approval queue for anything that leaves VC OS. Agents queue; a person approves; then it runs once. |
 | `evals/resolver/` | Resolver eval and the Phase 0 gate. |
 | `evals/extraction/` | Extraction eval: precision, recall, citation validity, pass^k. |

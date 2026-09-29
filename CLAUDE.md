@@ -76,6 +76,14 @@ session. It overrides your defaults.
   module functions, and modules call `ledger/`.
 - Read models (`companyProfile` is the first) live in `ledger/` and return
   plain objects: no printing, no HTML.
+- Never show a raw identifier to a person. Predicates, source types, scopes,
+  evidence kinds and enum values get a label in `ledger/predicates.ts` or
+  `ledger/labels.ts`; the web app reads them from `/api/vocabulary`. A new
+  predicate needs a label too.
+- UI basics: every page sets its title with `PageHead`, every form field has
+  a label, destructive actions use `useConfirm`, results use `useToast`,
+  every fetch has loading, empty and error states, and the layout works at
+  phone width.
 - Scope is a query parameter (`SHAREABLE_SCOPES`), filtered in SQL. A UI
   toggle must re-query, never hide rows it already fetched.
 - Principle 3 holds in the UI: a button can queue a draft or record a
@@ -88,7 +96,7 @@ ledger/      predicates, repository, read models, platform (firms, users,
              sessions) and workspace (thesis, connections, feeds): the only SQL
 connectors/  one adapter per source, plus registry.ts (auth, scope, sourcing)
 agents/      one folder per agent: prompt, tool definitions, logic
-engines/     deterministic math (empty so far)
+engines/     deterministic math (portfolio construction so far)
 modules/     workflows as plain functions: auth, firm, connections, sourcing,
              companies, outbox; catalog.ts lists the five product modules
 server/      Hono API: thin routes over modules (session, role, JSON)

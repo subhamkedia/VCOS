@@ -1,11 +1,17 @@
-import { useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
+// ---------------------------------------------------------------------------
+// Page structure
+// ---------------------------------------------------------------------------
+
+/** Page header. Also sets the browser tab title, so history and tabs are readable. */
 export function PageHead({ eyebrow, title, lead, actions }: { eyebrow?: ReactNode; title: string; lead?: ReactNode; actions?: ReactNode }) {
+  usePageTitle(title);
   return (
     <header className="page-head">
       <div>
         {eyebrow && <div className="eyebrow">{eyebrow}</div>}
-        <h1>{title}</h1>
+        <h1 tabIndex={-1} id="page-title">{title}</h1>
         {lead && <p>{lead}</p>}
       </div>
       {actions && <div className="row">{actions}</div>}
@@ -13,45 +19,78 @@ export function PageHead({ eyebrow, title, lead, actions }: { eyebrow?: ReactNod
   );
 }
 
-export function Field({ label, hint, error, children }: { label: string; hint?: ReactNode; error?: string; children: ReactNode }) {
+export function usePageTitle(title: string) {
+  useEffect(() => {
+    document.title = `${title} · VC OS`;
+  }, [title]);
+}
+
+/** A labelled group of related fields. */
+export function Group({ title, hint, children }: { title: string; hint?: ReactNode; children: ReactNode }) {
   return (
-    <label className="field">
-      <span>{label}</span>
+    <fieldset className="group">
+      <legend>{title}</legend>
+      {hint && <p className="muted small group-hint">{hint}</p>}
       {children}
-      {error ? <span className="err">{error}</span> : hint ? <small>{hint}</small> : null}
+    </fieldset>
+  );
+}
+
+export function Field({ label, hint, error, required, children }: { label: string; hint?: ReactNode; error?: string; required?: boolean; children: ReactNode }) {
+  return (
+    <label className={`field ${error ? "has-error" : ""}`}>
+      <span>
+        {label}
+        {required && <span className="req" aria-hidden="true"> *</span>}
+        {required && <span className="sr-only"> (required)</span>}
+      </span>
+      {children}
+      {error ? <span className="err" role="alert">{error}</span> : hint ? <small>{hint}</small> : null}
     </label>
   );
 }
 
-/** A list of short strings: type and press Enter or comma. */
-export function TagInput({ value, onChange, placeholder, id }: { value: string[]; onChange: (v: string[]) => void; placeholder?: string; id?: string }) {
+// ---------------------------------------------------------------------------
+// Inputs
+// ---------------------------------------------------------------------------
+
+/** A list of short strings: type and press Enter or comma. `suggestions` are one click away. */
+export function TagInput({ value, onChange, placeholder, id, suggestions }: { value: string[]; onChange: (v: string[]) => void; placeholder?: string; id?: string; suggestions?: string[] }) {
   const [draft, setDraft] = useState("");
   const add = (raw: string) => {
     const parts = raw.split(",").map((s) => s.trim()).filter(Boolean).filter((s) => !value.includes(s));
     if (parts.length) onChange([...value, ...parts]);
     setDraft("");
   };
+  const open = (suggestions ?? []).filter((s) => !value.includes(s));
   return (
-    <div className="tags">
-      {value.map((t) => (
-        <span className="tag" key={t}>
-          {t}
-          <button type="button" aria-label={`Remove ${t}`} onClick={() => onChange(value.filter((x) => x !== t))}>×</button>
-        </span>
-      ))}
-      <input
-        id={id}
-        value={draft}
-        placeholder={value.length ? "" : placeholder}
-        onChange={(e) => (e.target.value.endsWith(",") ? add(e.target.value) : setDraft(e.target.value))}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            add(draft);
-          } else if (e.key === "Backspace" && !draft && value.length) onChange(value.slice(0, -1));
-        }}
-        onBlur={() => draft && add(draft)}
-      />
+    <div className="section" style={{ gap: 6 }}>
+      <div className="tags">
+        {value.map((t) => (
+          <span className="tag" key={t}>
+            {t}
+            <button type="button" aria-label={`Remove ${t}`} onClick={() => onChange(value.filter((x) => x !== t))}>×</button>
+          </span>
+        ))}
+        <input
+          id={id}
+          value={draft}
+          placeholder={value.length ? "" : placeholder}
+          onChange={(e) => (e.target.value.endsWith(",") ? add(e.target.value) : setDraft(e.target.value))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add(draft);
+            } else if (e.key === "Backspace" && !draft && value.length) onChange(value.slice(0, -1));
+          }}
+          onBlur={() => draft && add(draft)}
+        />
+      </div>
+      {open.length > 0 && (
+        <div className="chips suggest" aria-label="Suggestions">
+          {open.map((s) => <button type="button" key={s} className="chip ghost" onClick={() => onChange([...value, s])}>+ {s}</button>)}
+        </div>
+      )}
     </div>
   );
 }
@@ -71,9 +110,9 @@ export function Chips<T extends string>({ options, value, onChange }: { options:
   );
 }
 
-export function Seg<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+export function Seg<T extends string>({ options, value, onChange, label }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void; label?: string }) {
   return (
-    <span className="seg" role="group">
+    <span className="seg" role="group" aria-label={label}>
       {options.map((o) => (
         <button type="button" key={o.id} aria-pressed={o.id === value} onClick={() => onChange(o.id)}>{o.label}</button>
       ))}
@@ -81,16 +120,155 @@ export function Seg<T extends string>({ options, value, onChange }: { options: {
   );
 }
 
+export function Select<T extends string>({ id, value, options, onChange, placeholder }: { id: string; value: T | undefined; options: { id: T; label: string }[]; onChange: (v: T | undefined) => void; placeholder?: string }) {
+  return (
+    <select className="input" id={id} value={value ?? ""} onChange={(e) => onChange((e.target.value || undefined) as T | undefined)}>
+      <option value="">{placeholder ?? "Choose…"}</option>
+      {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+    </select>
+  );
+}
+
+const parseNum = (v: string) => (v.trim() === "" ? undefined : Number(v.replace(/,/g, "")));
+
+/** A number field that stores `undefined` when empty. `suffix` shows the unit. */
+export function NumberInput({ id, value, onChange, suffix, prefix, step, placeholder }: { id: string; value: number | undefined; onChange: (v: number | undefined) => void; suffix?: string; prefix?: string; step?: string; placeholder?: string }) {
+  const [text, setText] = useState(value === undefined ? "" : String(value));
+  useEffect(() => {
+    if (parseNum(text) !== value) setText(value === undefined ? "" : String(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <span className="affix">
+      {prefix && <span className="affix-part" aria-hidden="true">{prefix}</span>}
+      <input className="input num" id={id} inputMode="decimal" step={step} placeholder={placeholder} value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          const n = parseNum(e.target.value);
+          if (n === undefined || Number.isFinite(n)) onChange(n);
+        }} />
+      {suffix && <span className="affix-part" aria-hidden="true">{suffix}</span>}
+    </span>
+  );
+}
+
+/** Money entered in millions ("12.5" = 12,500,000), shown with the fund's currency. */
+export function MoneyInput({ id, value, onChange, currency = "USD" }: { id: string; value: number | undefined; onChange: (v: number | undefined) => void; currency?: string }) {
+  return <NumberInput id={id} value={value === undefined ? undefined : value / 1e6} onChange={(m) => onChange(m === undefined ? undefined : Math.round(m * 1e6))} prefix={currencySymbol(currency)} suffix="M" />;
+}
+
+export const currencySymbol = (c = "USD") =>
+  ({ USD: "$", EUR: "€", GBP: "£", CAD: "C$", INR: "₹", SGD: "S$", AUD: "A$", CHF: "CHF ", ILS: "₪", JPY: "¥" })[c] ?? `${c} `;
+
+// ---------------------------------------------------------------------------
+// Feedback
+// ---------------------------------------------------------------------------
+
 export function Notice({ tone = "info", children }: { tone?: "info" | "good" | "bad" | "warn"; children: ReactNode }) {
   return <div className={`notice ${tone === "info" ? "" : tone}`} role={tone === "bad" ? "alert" : "status"}>{children}</div>;
 }
 
 export function Loading({ what = "Loading" }: { what?: string }) {
-  return <p className="muted">{what}…</p>;
+  return <p className="muted" role="status" aria-live="polite">{what}…</p>;
 }
 
-export const usd = (n: number | undefined | null) =>
-  n === undefined || n === null ? "—" : n >= 1e9 ? `$${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(n % 1e6 ? 1 : 0)}M` : n >= 1e3 ? `$${Math.round(n / 1e3)}K` : `$${n}`;
+/** What went wrong, and a way to try again. */
+export function ErrorState({ error, retry }: { error: { message: string; status?: number }; retry?: () => void }) {
+  const msg = error.status === 403 ? "Your role doesn't include this." : error.status === 404 ? "This doesn't exist, or belongs to another firm." : error.message;
+  return (
+    <div className="notice bad" role="alert">
+      <div className="spread">
+        <span>{msg}</span>
+        {retry && <button type="button" className="btn small" onClick={retry}>Try again</button>}
+      </div>
+    </div>
+  );
+}
+
+type Toast = { id: number; tone: "good" | "bad" | "info"; text: string };
+const ToastCtx = createContext<(tone: Toast["tone"], text: string) => void>(() => {});
+export const useToast = () => useContext(ToastCtx);
+
+/** Short confirmations after an action, announced to screen readers, gone after a few seconds. */
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const push = useCallback((tone: Toast["tone"], text: string) => {
+    const id = Date.now() + Math.random();
+    setToasts((t) => [...t, { id, tone, text }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), tone === "bad" ? 8000 : 4000);
+  }, []);
+  return (
+    <ToastCtx.Provider value={push}>
+      {children}
+      <div className="toasts" aria-live="polite" role="status">
+        {toasts.map((t) => (
+          <div key={t.id} className={`toast ${t.tone}`}>
+            <span>{t.text}</span>
+            <button type="button" aria-label="Dismiss" onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}>×</button>
+          </div>
+        ))}
+      </div>
+    </ToastCtx.Provider>
+  );
+}
+
+interface ConfirmOptions {
+  title: string;
+  body: ReactNode;
+  confirm: string;
+  danger?: boolean;
+}
+const ConfirmCtx = createContext<(o: ConfirmOptions) => Promise<boolean>>(async () => false);
+export const useConfirm = () => useContext(ConfirmCtx);
+
+/** A real modal dialog (native <dialog>: focus is trapped, Escape cancels, focus returns). */
+export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [opts, setOpts] = useState<ConfirmOptions | null>(null);
+  const resolver = useRef<(v: boolean) => void>(() => {});
+  const titleId = useId();
+  const ask = useCallback((o: ConfirmOptions) => {
+    setOpts(o);
+    return new Promise<boolean>((resolve) => {
+      resolver.current = resolve;
+      requestAnimationFrame(() => ref.current?.showModal());
+    });
+  }, []);
+  const close = (v: boolean) => {
+    ref.current?.close();
+    resolver.current(v);
+  };
+  return (
+    <ConfirmCtx.Provider value={ask}>
+      {children}
+      <dialog ref={ref} className="dialog" aria-labelledby={titleId} onCancel={() => resolver.current(false)}>
+        {opts && (
+          <form method="dialog" className="section" onSubmit={(e) => { e.preventDefault(); close(true); }}>
+            <h2 id={titleId}>{opts.title}</h2>
+            <div>{opts.body}</div>
+            <div className="row" style={{ justifyContent: "flex-end" }}>
+              <button type="button" className="btn" onClick={() => close(false)} autoFocus>Cancel</button>
+              <button type="submit" className={`btn ${opts.danger ? "danger-solid" : "primary"}`}>{opts.confirm}</button>
+            </div>
+          </form>
+        )}
+      </dialog>
+    </ConfirmCtx.Provider>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Formatting
+// ---------------------------------------------------------------------------
+
+export const money = (n: number | undefined | null, currency = "USD") => {
+  if (n === undefined || n === null) return "—";
+  const s = currencySymbol(currency);
+  const a = Math.abs(n);
+  const v = a >= 1e9 ? `${(n / 1e9).toFixed(1)}B` : a >= 1e6 ? `${(n / 1e6).toFixed(a % 1e6 ? 1 : 0)}M` : a >= 1e3 ? `${Math.round(n / 1e3)}K` : `${Math.round(n)}`;
+  return `${s}${v}`;
+};
+export const usd = (n: number | undefined | null) => money(n, "USD");
 
 export const when = (s: string | null | undefined) => {
   if (!s) return "—";
@@ -104,16 +282,24 @@ export const when = (s: string | null | undefined) => {
   return d.toLocaleDateString();
 };
 
+/** A relative time with the exact time on hover and for assistive tech. */
+export function Time({ at }: { at: string | null | undefined }) {
+  if (!at) return <span className="muted">—</span>;
+  const d = new Date(at);
+  return <time dateTime={d.toISOString()} title={d.toLocaleString()}>{when(at)}</time>;
+}
+
 export const dateOnly = (s: string | null | undefined) =>
   s ? new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "—";
 
 export function FitBadge({ score, verdict }: { score: number | null; verdict: string | null }) {
-  if (score === null || verdict === null) return <span className="pill quiet">not scored</span>;
+  if (score === null || verdict === null) return <span className="pill quiet">Not scored</span>;
   const tone = verdict === "strong" ? "good" : verdict === "possible" ? "info" : verdict === "excluded" ? "bad" : "quiet";
+  const label = verdict.charAt(0).toUpperCase() + verdict.slice(1);
   return (
-    <span className="fitbar">
-      <span className="track"><span className="fill" style={{ width: `${score}%` }} /></span>
-      <span className={`pill ${tone}`}>{score} · {verdict}</span>
+    <span className="fitbar" title={`Thesis fit ${score} out of 100`}>
+      <span className="track" aria-hidden="true"><span className="fill" style={{ width: `${score}%` }} /></span>
+      <span className={`pill ${tone}`}>{score} · {label}</span>
     </span>
   );
 }

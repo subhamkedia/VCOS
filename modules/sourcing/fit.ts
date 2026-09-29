@@ -1,5 +1,6 @@
 import type { ClaimRow } from "../../ledger/contradictions.js";
 import type { FirmProfile } from "../firm/profile.js";
+import { ENUM_VALUE_LABELS } from "../../ledger/labels.js";
 
 /**
  * Thesis fit, v0: a transparent first pass that compares what the ledger
@@ -149,7 +150,7 @@ export function thesisFit(profile: FirmProfile, claims: ClaimRow[]): Fit {
   } else {
     const ok = (profile.mandate.stages as string[]).includes(String(stage.value));
     stageScore = ok ? 1 : 0;
-    reasons.push({ criterion: "stage", result: ok ? "pass" : "fail", detail: `Last round: ${String(stage.value).replace(/_/g, " ")}`, claimIds: [stage.id] });
+    reasons.push({ criterion: "stage", result: ok ? "pass" : "fail", detail: `Last round: ${ENUM_VALUE_LABELS[String(stage.value)] ?? String(stage.value).replace(/_/g, " ")}`, claimIds: [stage.id] });
   }
 
   const score = Math.round(100 * (WEIGHTS.sector * sectorScore + WEIGHTS.geography * geoScore + WEIGHTS.stage * stageScore));
