@@ -31,6 +31,7 @@ export interface CatalogEntry {
   research?: { summary: string; needsDomain: boolean };
   /** A meeting tool that syncs on its own. */
   meetings?: { summary: string; defaultCadence: Cadence };
+  execution?: { summary: string };
   status: "available" | "connected" | "error" | "not_configured";
   accountLabel: string | null;
   connectedBy: string | null;
@@ -64,6 +65,7 @@ export async function catalog(db: Db): Promise<CatalogEntry[]> {
       sourcing: c.sourcing ? { mode: c.sourcing.mode, summary: c.sourcing.summary, params: c.sourcing.params, defaultCadence: c.sourcing.defaultCadence } : undefined,
       research: c.research ? { summary: c.research.summary, needsDomain: Boolean(c.research.needsDomain) } : undefined,
       meetings: c.meetings ? { summary: c.meetings.summary, defaultCadence: c.meetings.defaultCadence } : undefined,
+      execution: c.execution,
       status, accountLabel: r?.account_label ?? null, connectedBy: r?.connected_by ?? null, connectedAt: r?.connected_at ?? null,
       lastCheckedAt: r?.last_checked_at ?? null, lastError: r?.last_error ?? null,
     };

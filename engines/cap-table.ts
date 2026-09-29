@@ -222,12 +222,17 @@ export function proForma(existing: Holding[], safes: Safe[], notes: Note[], r: R
 }
 
 /** Holdings after a round, for the next round or a waterfall. Pure. */
+/** The class a converting SAFE or note lands in: a shadow of the new series. */
+export const shadowSeries = (seriesName: string, c: Pick<Conversion, "holder" | "instrument">) => `${seriesName} (shadow, ${c.instrument}: ${c.holder})`;
+
 export function holdingsAfter(p: ProForma, existing: Holding[], seriesName: string): Holding[] {
   const out: Holding[] = existing.map((h) => ({ ...h }));
   const pool = out.find((h) => h.kind === "pool");
   if (pool) pool.shares += p.pool.increase;
   else if (p.pool.increase) out.push({ holder: "Option pool", className: "Unissued pool", shares: p.pool.increase, kind: "pool" });
-  for (const c of p.conversions) out.push({ holder: c.holder, className: seriesName, shares: c.shares, kind: "preferred" });
+  // SAFE and note holders get a shadow series: the new series' rights, with a
+  // liquidation preference at their own conversion price (YC post-money SAFE).
+  for (const c of p.conversions) out.push({ holder: c.holder, className: shadowSeries(seriesName, c), shares: c.shares, kind: "preferred" });
   for (const n of p.newShares) out.push({ holder: n.holder, className: seriesName, shares: n.shares, kind: "preferred" });
   return out;
 }

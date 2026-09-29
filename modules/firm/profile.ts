@@ -238,7 +238,7 @@ export function construction(input: unknown): Construction | null {
 export function profileOptions() {
   const pairs = (o: { ids: readonly string[]; labels: Record<string, string> }) => o.ids.map((id) => ({ id, label: o.labels[id]! }));
   const { suggestions, ...lists } = PROFILE_OPTIONS;
-  return { ...Object.fromEntries(Object.entries(lists).map(([k, v]) => [k, pairs(v)])), suggestions };
+  return { ...Object.fromEntries(Object.entries(lists).map(([k, v]) => [k, pairs(v)])), suggestions, houseTermDefaults: HOUSE_DEFAULTS };
 }
 
 export interface ProfileError {

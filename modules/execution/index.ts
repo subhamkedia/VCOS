@@ -8,7 +8,7 @@ import {
   type ClosingStatus, type IcMeetingRow, type TermSheetStatus,
 } from "../../ledger/execution.js";
 import { formatValue, predicateLabel } from "../../ledger/labels.js";
-import { proForma, holdingsAfter, type Holding, type Note, type ProForma, type Safe } from "../../engines/cap-table.js";
+import { proForma, holdingsAfter, shadowSeries, type Holding, type Note, type ProForma, type Safe } from "../../engines/cap-table.js";
 import { exitScenarios, type CommonClass, type PreferredSeries } from "../../engines/waterfall.js";
 import { capTableFromCsv, cartaCapTableHoldings } from "../../connectors/carta.js";
 import { closingStatusFor, docusignEnvelopes } from "../../connectors/docusign.js";
@@ -196,6 +196,8 @@ export async function model(db: Db, dealId: string): Promise<Model> {
     const prefs: PreferredSeries[] = [
       ...seriesTerms.map((s) => ({ name: s.name, shares: after.filter((h) => h.kind === "preferred" && h.className === s.name).reduce((a, h) => a + h.shares, 0), issuePrice: s.issuePrice, multiple: s.multiple, participating: s.participating, capMultiple: s.capMultiple, seniority: s.seniority })),
       { name: t.seriesName, shares: after.filter((h) => h.className === t.seriesName).reduce((a, h) => a + h.shares, 0), issuePrice: p.pricePerShare, multiple: t.liquidation.multiple, participating: t.liquidation.participation !== "none", capMultiple: t.liquidation.participation === "capped" ? t.liquidation.capMultiple : undefined, seniority: newRank },
+      // Converted SAFEs and notes: same rights, preference at their conversion price.
+      ...p.conversions.map((c) => ({ name: shadowSeries(t.seriesName, c), shares: c.shares, issuePrice: c.price, multiple: t.liquidation.multiple, participating: t.liquidation.participation !== "none", capMultiple: t.liquidation.participation === "capped" ? t.liquidation.capMultiple : undefined, seniority: newRank })),
     ].filter((s) => s.shares > 0);
     const known = new Set(prefs.map((s) => s.name));
     const commons: CommonClass[] = [{
@@ -348,12 +350,25 @@ export async function startClosing(db: Db, dealId: string, by: string) {
   if (d.stage === "approved") await updateDeal(db, dealId, { stage: "closing" }, by);
 }
 
-async function refreshChecklist(db: Db, d: DealRow, by: string) {
+async function checklistTemplate(db: Db, d: DealRow) {
   const ts = (await termSheets(db, d.id)).find((x) => x.status === "signed") ?? (await termSheets(db, d.id))[0];
   const t = ts ? TermSheet.parse(ts.terms) : TermSheet.parse({ security: "preferred" });
   const f = await flags(db, d);
-  await seedClosingItems(db, d.id, closingTemplate(t, { sensitiveTech: f.sensitiveTech, erisaLps: f.erisaLps }), by);
-  if (ts?.status === "signed") await updateClosingItem(db, d.id, "term_sheet_signed", { status: "signed" }, by).catch(() => undefined);
+  return { template: closingTemplate(t, { sensitiveTech: f.sensitiveTech, erisaLps: f.erisaLps }), signed: ts?.status === "signed" };
+}
+
+async function refreshChecklist(db: Db, d: DealRow, by: string) {
+  const { template, signed } = await checklistTemplate(db, d);
+  await seedClosingItems(db, d.id, template, by);
+  if (signed) await updateClosingItem(db, d.id, "term_sheet_signed", { status: "signed" }, by).catch(() => undefined);
+}
+
+/** Checklist items in working order (the template's), with items people added last. */
+async function orderedItems(db: Db, d: DealRow) {
+  const items = await closingItems(db, d.id);
+  const { template } = await checklistTemplate(db, d);
+  const rank = new Map(template.map((t, i) => [t.key, i]));
+  return items.sort((a, b) => (rank.get(a.key) ?? 1e6) - (rank.get(b.key) ?? 1e6) || a.updated_at.localeCompare(b.updated_at));
 }
 
 const CLOSING_STATUSES: ClosingStatus[] = ["open", "requested", "received", "signed", "filed", "done", "waived", "na", "red_flag"];
@@ -585,7 +600,7 @@ export async function executionView(db: Db, dealId: string, viewer: string) {
   const checks: Record<number, TermCheck[]> = {};
   for (const s of sheets) checks[s.version] = checkTerms(TermSheet.parse(s.terms), house, { erisaLps: f.erisaLps, sensitiveTech: f.sensitiveTech });
   const meetings = await Promise.all((await icMeetings(db, dealId)).map((m) => meetingView(db, m, viewer)));
-  const items = await closingItems(db, dealId);
+  const items = await orderedItems(db, d);
   return {
     deal: d,
     termSheets: sheets.map((s) => ({ ...s, checks: checks[s.version] })),
@@ -613,6 +628,8 @@ export async function pipeline(db: Db) {
     const inv = d.stage === "closed" ? (await listInvestments(db, { dealId: d.id }))[0] : undefined;
     out.push({
       ...d,
+      // The check on the latest term sheet, else the one set in diligence.
+      our_check_usd: (ts?.terms as { ourAllocationUsd?: number } | undefined)?.ourAllocationUsd ?? d.our_check_usd,
       termSheet: ts ? { version: ts.version, status: ts.status } : null,
       ic: meetings[0] ? { phase: meetings[0].phase, outcome: meetings[0].outcome } : null,
       closing: items.length ? { done: items.filter((i) => ["done", "signed", "filed", "received", "waived", "na"].includes(i.status)).length, total: items.length, redFlags: items.filter((i) => i.status === "red_flag").length } : null,

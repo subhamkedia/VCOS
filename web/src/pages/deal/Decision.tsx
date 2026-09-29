@@ -1,10 +1,11 @@
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import { api } from "../../api";
 import { useSession } from "../../app";
 import { Field, Notice, Select, dateOnly, useConfirm, useToast } from "../../ui";
 import type { TabProps } from "../Deal";
 
-const REASON_LABELS: Record<string, string> = {
+export const REASON_LABELS: Record<string, string> = {
   team: "Team", market_size: "Market size", timing: "Timing", competition: "Competition", technology_risk: "Technology risk",
   traction: "Traction", valuation: "Valuation", capital_intensity: "Capital intensity", thesis_fit: "Thesis fit", deal_dynamics: "Deal dynamics", other: "Other",
 };
@@ -48,7 +49,7 @@ export default function Decision({ data, onChange }: TabProps) {
           </ul>
         </section>
       )}
-      {decided ? <Notice>This deal has a decision. To look again later, start a new deal on the company from Diligence.</Notice> : !can("decide_deals") ? <Notice>Partners and admins make the call. You can see the readiness and the history here.</Notice> : (
+      {decided ? <Notice>{data.deal.stage === "passed" ? "This deal has a decision. To look again later, start a new deal on the company from Diligence." : <>The IC vote, terms and closing are in <Link to={`/execution/${data.deal.id}`}>Investment Execution</Link>.</>}</Notice> : !can("decide_deals") ? <Notice>Partners and admins make the call. You can see the readiness and the history here.</Notice> : (
         <div className="grid-2">
           <form className="panel panel-pad section" onSubmit={(e) => { e.preventDefault(); void decide({ kind: "advance", rationale: icWhy || undefined }, `Send ${data.deal.company_name} to IC?`, "Send to IC"); }} aria-labelledby="ic-h">
             <h2 id="ic-h">Send to IC</h2>

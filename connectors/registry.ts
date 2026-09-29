@@ -111,6 +111,8 @@ export interface ConnectorInfo {
   sourcing?: SourcingSpec;
   research?: ResearchSpec;
   meetings?: MeetingsSpec;
+  /** Used by Investment Execution (signatures, cap tables, screening). */
+  execution?: { summary: string };
   /** OAuth products that share one account consent (Gmail, Drive, Calendar, Meet). */
   product?: string;
   ingest: string;
@@ -436,6 +438,7 @@ export const CONNECTORS: ConnectorInfo[] = [
     auth: { kind: "oauth", provider: "docusign", scopes: ["signature", "extended"], refreshKey: "docusignRefreshToken" },
     docsUrl: "https://developers.docusign.com/docs/esign-rest-api/", writes: "draft envelopes (never sent)",
     ingest: "Used on the Closing tab", check: () => docusignCheck(),
+    execution: { summary: "Signature status on closing documents; draft envelopes after approval" },
   },
   {
     id: "carta", name: "Carta", category: "closing", scope: "vendor",
@@ -443,6 +446,7 @@ export const CONNECTORS: ConnectorInfo[] = [
     auth: { kind: "api_key", fields: [key("cartaClientId", "Client id", "Carta developer portal → your app"), key("cartaClientSecret", "Client secret")] },
     docsUrl: "https://docs.carta.com/api-platform/docs/introduction",
     ingest: "Used on the Cap table tab", check: () => cartaCheck(),
+    execution: { summary: "Cap tables companies share with your fund" },
     notes: "Carta API access is invite-only; cap table files work without it.",
   },
   {
@@ -450,6 +454,7 @@ export const CONNECTORS: ConnectorInfo[] = [
     description: "Screens the company, its founders and co-investors against the US Treasury's SDN and Consolidated sanctions lists before closing.",
     auth: { kind: "none" }, docsUrl: "https://ofac.treasury.gov/sanctions-list-service",
     ingest: "Used on the Closing tab", check: () => ofacCheck(),
+    execution: { summary: "Sanctions screening before closing" },
   },
 ];
 

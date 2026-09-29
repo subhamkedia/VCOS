@@ -21,9 +21,13 @@ Fireflies, each call matched to the right company); the **Diligence**
 module (research across every connected and public source, a checklist
 that fills in from the ledger, founder questions, a contradiction board,
 reference and customer call notes, round math against the fund, pass and
-IC decisions, and an IC memo whose citations are checked in code); and an
-approval queue for anything outbound.
-**Next:** Investment Execution.
+IC decisions, and an IC memo whose citations are checked in code); the
+**Investment Execution** module (IC votes before and after discussion under
+the firm's approval rule, term sheets checked against NVCA and house terms,
+pro-forma cap tables with SAFE and note conversion, returns through the
+waterfall, a closing checklist with DocuSign, Carta and OFAC, wire controls,
+and the investment record); and an approval queue for anything outbound.
+**Next:** Portfolio Management & Value Creation.
 
 ### How Diligence works
 
@@ -67,6 +71,61 @@ approval queue for anything outbound.
 7. **Decide.** Pass with a reason code and a sentence, or send to IC
    (with a written reason if diligence isn't complete). Both are recorded
    as decisions with the state of diligence at that moment.
+
+### How Investment Execution works
+
+1. **IC meeting.** A partner sets up the meeting with its voting members
+   and a chair. Each member votes yes, no or abstain with a conviction from
+   1 to 5 and a reason, **before discussion and without seeing anyone
+   else's vote**; the chair opens discussion only when everyone has voted
+   or recused. Members vote again after discussion. The firm's rule
+   (simple majority, two thirds, unanimous, a champion with full conviction
+   and no veto, or the managing partner) is applied to the final votes in
+   code (`modules/execution/ic.ts`), with a quorum of more than half.
+   Both rounds are kept as decisions, and the page shows who moved. A
+   decline needs a pass reason, like any pass.
+2. **Term sheet.** Terms are entered as structured fields and kept as
+   versions. Each term is compared with the NVCA model (October 2025
+   update) and market norms, and with the firm's **house terms** (Firm
+   settings → House terms): liquidation preference and participation,
+   dividends, anti-dilution, redemption, pay-to-play, the option pool,
+   board, protective provisions, pro rata and information rights, the
+   management rights letter (required when the fund has ERISA investors),
+   founder vesting, no-shop, OISP representations for AI, semiconductor and
+   quantum companies, and QSBS. Marking a version signed records the round
+   as facts cited to it.
+3. **Cap table and returns.** Import the company's cap table (a Carta,
+   Pulley or spreadsheet CSV, or Carta's investor API) and add SAFEs, notes
+   and earlier series. `engines/cap-table.ts` computes the pro forma:
+   price per share with the option pool in the pre-money, post-money SAFEs
+   at their cap over company capitalization (excluding the round's pool
+   increase, as the YC SAFE defines it), pre-money SAFEs and notes with
+   simple interest, discounts and MFN. `engines/waterfall.ts` runs each
+   exit through seniority, participation caps and each class's convert
+   decision, with converted SAFEs in a shadow series preferred at their own
+   price. `engines/anti-dilution.ts` does broad- and narrow-based weighted
+   average and full ratchet.
+4. **Closing.** The checklist is built from the signed terms: the NVCA
+   document set for a priced round (SPA and disclosure schedule, charter,
+   IRA, voting and ROFR/co-sale agreements, consents, the charter filing,
+   a certified cap table) or the SAFE or note; compliance (OFAC sanctions
+   screening of the company, founders, legal name and lead against the SDN
+   and Consolidated lists, KYC, conflicts, the OISP determination, export
+   controls and CFIUS); funding; and after closing (closing set, shares
+   issued, Form D within 15 days, QSBS statement, OISP notice within 30
+   days, board onboarding). DocuSign status syncs onto the items; a
+   DocuSign envelope is only ever created as a **draft**, through the
+   approval queue, and a person sends it from DocuSign.
+5. **Wire and close.** Following the FBI's guidance on business email
+   compromise: instructions come through a secure channel, someone calls
+   the company back at a number they already had (not one from the
+   instructions), and two people approve; the person who entered and
+   confirmed the instructions can't approve first, and new instructions
+   start over. VC OS keeps only the account's last four digits and never
+   moves money: a partner sends the wire and records the bank's reference.
+   Once every required item is done, a partner records the close: the
+   investment (amount, shares, price, ownership, rights) becomes the record
+   Portfolio starts from.
 
 ## Run the web app
 
@@ -172,6 +231,9 @@ For production, `docker compose up -d` and set
 | `modules/diligence/` | Deals, the checklist (`checklist.ts`), founder questions (`questions.ts`), research runs (`gather.ts`), the contradiction board, decisions, and the IC memo with its citation check (`memo.ts`, `memo-check.ts`). |
 | `agents/memo-writer/` | Claude drafts memo prose from claims only (never raw evidence); the same citation check applies. Beta until it has 20 real cases in `evals/memo-writer/`. |
 | `engines/round-math.ts` | Post-money, entry ownership, check plus reserves as a share of the fund, and checks against the mandate. |
+| `engines/cap-table.ts`, `waterfall.ts`, `anti-dilution.ts` | The pro-forma cap table (option pool shuffle, SAFE and note conversion), exit waterfalls and anti-dilution adjustments. Unit-tested against worked examples. |
+| `modules/execution/` | IC meetings and the approval rules (`ic.ts`), term sheets and house terms (`terms.ts`), the closing checklist (`closing.ts`), wire controls and the close. |
+| `connectors/docusign.ts`, `carta.ts`, `ofac.ts` | Signature status and draft envelopes, cap tables from Carta or any export, and Treasury's sanctions lists. |
 | `modules/outbox/` | The approval queue for anything that leaves VC OS. Agents queue; a person approves; then it runs once. |
 | `evals/resolver/` | Resolver eval and the Phase 0 gate. |
 | `evals/extraction/` | Extraction eval: precision, recall, citation validity, pass^k. |
@@ -207,5 +269,11 @@ but it was written alongside the resolver, so treat it as a smoke test.
 - Thesis fit is v0: sector keywords (stemmed), geography and stage, with
   every reason cited. The weighted dimensions (team, moat, GTM) are scored
   in Diligence from evidence.
-- Diligence, Execution, Portfolio and LP Reporting have their pages and
-  scope in the app; their workflows are the next phases.
+- Portfolio and LP Reporting have their pages and scope in the app; their
+  workflows are the next phases.
+- Term sheets are entered as fields; reading one from a PDF is not built.
+  Carta's API is partner-only (invite): without access, import the export.
+  DocuSign status and drafts follow DocuSign's eSignature REST docs and are
+  tested against fixtures. OFAC screening is name matching: a potential
+  match needs a person to clear it, and it doesn't replace counsel's
+  review.

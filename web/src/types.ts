@@ -39,12 +39,14 @@ export interface Profile {
     traction?: string; minArrUsd?: number; maxCompanyAgeYears?: number; impact?: string; exclusions: string[]; thesis: string;
   };
   scoring: { dimensions: Dimension[] };
+  terms?: HouseTerms;
 }
 
 export interface ProfileOptions {
   stages: Opt[]; structures: Opt[]; firmTypes: Opt[]; currencies: Opt[]; feeBasis: Opt[]; waterfall: Opt[]; followOn: Opt[];
   icApproval: Opt[]; lead: Opt[]; board: Opt[]; traction: Opt[]; impact: Opt[];
   suggestions: { lpTypes: string[]; businessModels: string[]; customerTypes: string[]; geographies: string[] };
+  houseTermDefaults: HouseTerms;
 }
 
 export interface Construction {
@@ -73,6 +75,7 @@ export interface Connector {
   sourcing?: { mode: "discover" | "enrich"; summary: string; params: ParamSpec[]; defaultCadence: Cadence };
   research?: { summary: string; needsDomain: boolean };
   meetings?: { summary: string; defaultCadence: Cadence };
+  execution?: { summary: string };
   status: "available" | "connected" | "error" | "not_configured";
   accountLabel: string | null; connectedBy: string | null; connectedAt: string | null; lastCheckedAt: string | null; lastError: string | null;
 }
@@ -142,7 +145,7 @@ export interface Meeting {
 // Diligence
 // ---------------------------------------------------------------------------
 
-export type DealStage = "screening" | "diligence" | "ic" | "approved" | "passed" | "closed";
+export type DealStage = "screening" | "diligence" | "ic" | "approved" | "closing" | "passed" | "closed";
 export type ItemStatus = "open" | "in_progress" | "done" | "na" | "red_flag";
 export type Workstream = "team" | "market" | "product" | "traction" | "economics" | "financing" | "legal" | "fit";
 export interface DealFlags { hardware?: boolean; regulated?: boolean; sensitive_tech?: boolean }
@@ -222,3 +225,82 @@ export interface Memo extends MemoVersion {
 }
 
 export interface ResearchSource { id: string; name: string; category: string; summary: string; needsDomain: boolean; ready: boolean; reason?: string }
+
+// Investment Execution
+
+export type Security = "preferred" | "safe_post" | "safe_pre" | "note";
+export interface TermSheetTerms {
+  security: Security; seriesName: string; preMoneyUsd?: number; raiseUsd?: number; ourAllocationUsd?: number; leadInvestor?: string; poolTopUpPostPct?: number;
+  valuationCapUsd?: number; discountPct?: number; noteRatePct?: number; noteMaturityMonths?: number;
+  liquidation: { multiple: number; participation: "none" | "full" | "capped"; capMultiple?: number; seniority: "pari_passu" | "senior" | "stacked" };
+  dividends: { kind: "none" | "non_cumulative" | "cumulative"; ratePct?: number };
+  antiDilution: "broad_wa" | "narrow_wa" | "full_ratchet" | "none"; redemption: boolean; payToPlay: boolean;
+  board: { size?: number; investorSeats?: number; commonSeats?: number; independentSeats?: number; ours: "seat" | "observer" | "none" };
+  protectiveProvisions: "standard" | "expanded" | "limited"; dragAlong: boolean;
+  proRata: "major_investors" | "all" | "super" | "none"; informationRights: boolean; managementRightsLetter: boolean; mfn: boolean;
+  founderVesting: { years: number; cliffMonths: number; acceleration: "none" | "single" | "double" };
+  noShopDays?: number; investorCounselCapUsd?: number; oispRepresentation: boolean; qsbsRepresentation: boolean; tranched: boolean; otherTerms?: string;
+}
+export type Standing = "standard" | "investor_friendly" | "founder_friendly" | "off_market";
+export interface TermCheck { key: string; label: string; value: string; nvca: Standing; reference: string; house: "ok" | "outside" | "n/a"; note?: string }
+export type TermSheetStatus = "draft" | "proposed" | "negotiating" | "signed" | "superseded";
+export interface TermSheetVersion { id: string; version: number; status: TermSheetStatus; terms: TermSheetTerms; source: string; note: string | null; created_by: string; created_at: string; checks: TermCheck[] }
+export interface HouseTerms {
+  maxLiquidationMultiple: number; acceptParticipation: "never" | "capped" | "any"; acceptAntiDilution: TermSheetTerms["antiDilution"][];
+  acceptCumulativeDividends: boolean; acceptRedemption: boolean; requireProRata: boolean; requireInformationRights: boolean; requireManagementRightsLetter: boolean;
+  maxPoolTopUpPostPct: number; requireFounderVesting: boolean; maxNoShopDays: number; requireOisp: boolean;
+}
+
+export interface Holding { holder: string; className: string; shares: number; kind: "common" | "preferred" | "options" | "pool" }
+export interface SafeRow { holder: string; amount: number; kind: "post" | "pre" | "mfn"; cap?: number; discountPct?: number }
+export interface NoteRow { holder: string; principal: number; ratePct: number; issueDate: string; cap?: number; discountPct?: number }
+export interface SeriesTerms { name: string; issuePrice: number; multiple: number; participating: boolean; capMultiple?: number; seniority: number }
+export interface CapTable { id: string; version: number; holdings: Holding[]; safes: SafeRow[]; notes: NoteRow[]; series_terms: SeriesTerms[]; source: "entered" | "csv" | "carta"; created_by: string; created_at: string }
+export interface ProForma {
+  pricePerShare: number; preMoneyFullyDiluted: number; postMoneyFullyDiluted: number; newMoney: number; postMoneyImplied: number; headlinePostMoney: number;
+  pool: { before: number; increase: number; after: number; afterPct: number };
+  conversions: { holder: string; instrument: string; converting: number; interest: number; price: number; basis: "cap" | "discount" | "round"; shares: number }[];
+  rows: { holder: string; className: string; preShares: number; postShares: number; prePct: number; postPct: number }[];
+  newShares: { holder: string; amount: number; shares: number }[];
+  conventions: string[];
+}
+export interface ExecModel {
+  proForma: ProForma | null; ours: { holder: string; amount: number; shares: number; postPct: number } | null;
+  scenarios: { exit: number; proceeds: number; multiple: number; converted: boolean }[]; error: string | null;
+  basedOn: { termSheetVersion: number | null; capTableVersion: number | null };
+}
+
+export type IcPhase = "pre_vote" | "discussion" | "post_vote" | "decided" | "cancelled";
+export interface IcVote { member: string; vote: "yes" | "no" | "abstain" | "recused"; conviction: number | null; note: string | null; at: string }
+export interface IcTally { outcome: "approved" | "declined" | "no_quorum"; yes: number; no: number; abstain: number; recused: number; notVoted: string[]; detail: string }
+export interface IcMeeting {
+  id: string; deal_id: string; scheduled_for: string | null; members: string[]; chair: string; rule: string; ruleLabel: string; memo_version: number | null;
+  phase: IcPhase; outcome: "approved" | "declined" | null; notes: string | null; created_at: string; decided_at: string | null;
+  voted: { pre: string[]; post: string[] }; preVotes: IcVote[]; postVotes: IcVote[]; preTally: IcTally | null; postTally: IcTally | null;
+  shifts: { member: string; from: string; to: string; conviction: [number | null, number | null] }[]; isMember: boolean; isChair: boolean;
+}
+
+export type ClosingStatus = "open" | "requested" | "received" | "signed" | "filed" | "done" | "waived" | "na" | "red_flag";
+export interface ClosingItem {
+  id: string; key: string; category: string; title: string; required: boolean; status: ClosingStatus; owner: string | null; due_date: string | null;
+  evidence_id: string | null; envelope_id: string | null; note: string | null; custom: boolean; updated_by: string; updated_at: string;
+}
+export type WireStatus = "received" | "verified" | "approved" | "sent" | "confirmed" | "cancelled";
+export interface Wire {
+  id: string; amount_usd: number; beneficiary: string; bank_name: string; account_last4: string; instructions_received_at: string;
+  callback_by: string | null; callback_number_source: string | null; callback_at: string | null; approvals: string[]; status: WireStatus;
+  bank_reference: string | null; sent_at: string | null; confirmed_at: string | null; created_by: string; created_at: string;
+}
+export interface Investment {
+  id: string; deal_id: string; company_id: string; company_name?: string; fund_name: string; security: Security; series_name: string | null; close_date: string;
+  amount_usd: number; shares: number | null; price_per_share: number | null; post_money_usd: number | null; ownership_fd_pct: number | null; board_role: string | null; created_by: string; created_at: string;
+}
+export interface ExecutionView {
+  deal: Deal; termSheets: TermSheetVersion[]; house: HouseTerms; capTable: CapTable | null; model: ExecModel; meetings: IcMeeting[]; icRule: string;
+  closing: { items: ClosingItem[]; categories: Record<string, string>; ready: { ready: boolean; open: string[] } };
+  wires: Wire[]; investments: Investment[]; passReasons: string[];
+}
+export interface ExecutionRow extends Deal {
+  termSheet: { version: number; status: TermSheetStatus } | null; ic: { phase: IcPhase; outcome: "approved" | "declined" | null } | null;
+  closing: { done: number; total: number; redFlags: number } | null; investment: { amount: number; closeDate: string } | null;
+}

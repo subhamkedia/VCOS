@@ -49,6 +49,7 @@ export default function Deal() {
           <div className="row">
             <span className={`pill ${STAGE_TONE[d.stage]}`}>{STAGE_LABELS[d.stage]}</span>
             {data.fit && <FitBadge score={data.fit.fit_score} verdict={data.fit.fit_verdict} />}
+            {["ic", "approved", "closing", "closed"].includes(d.stage) && <Link className="btn small primary" to={`/execution/${d.id}`}>Open in Execution</Link>}
             <Link className="btn small" to={`/companies/${data.company.id}`}>All facts</Link>
             {domain && <a className="btn small ghost" href={`https://${domain}`} target="_blank" rel="noreferrer">{domain}<span className="sr-only"> (opens in a new tab)</span></a>}
           </div>

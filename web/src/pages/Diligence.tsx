@@ -6,16 +6,16 @@ import type { CompanyRow, DealListRow, DealStage } from "../types";
 import { ErrorState, Field, Loading, Notice, PageHead, Seg, Time, useToast } from "../ui";
 
 export const STAGE_LABELS: Record<DealStage, string> = {
-  screening: "Screening", diligence: "In diligence", ic: "At IC", approved: "Approved", passed: "Passed", closed: "Closed",
+  screening: "Screening", diligence: "In diligence", ic: "At IC", approved: "Approved", closing: "Closing", passed: "Passed", closed: "Closed",
 };
-export const STAGE_TONE: Record<DealStage, string> = { screening: "quiet", diligence: "info", ic: "warn", approved: "good", passed: "quiet", closed: "good" };
+export const STAGE_TONE: Record<DealStage, string> = { screening: "quiet", diligence: "info", ic: "warn", approved: "good", closing: "info", passed: "quiet", closed: "good" };
 
 /** The deals the firm is looking at, most advanced first, with how far diligence has got. */
 export default function Diligence() {
   const { can } = useSession();
   const nav = useNavigate();
   const [view, setView] = useState<"active" | "decided">("active");
-  const stages = view === "active" ? "screening,diligence,ic" : "approved,passed,closed";
+  const stages = view === "active" ? "screening,diligence,ic" : "approved,closing,passed,closed";
   const { data, error, reload } = useApi<DealListRow[]>(`/deals?stages=${stages}`);
   const [starting, setStarting] = useState(false);
   return (

@@ -7,9 +7,9 @@ import { ErrorState, Field, Loading, Notice, PageHead, Time, useConfirm, useToas
 import { useVocab } from "../vocab";
 import { FeedForm } from "./Sourcing";
 
-const CATEGORY_ORDER = ["data vendor", "public", "crm", "email", "documents", "meetings"];
+const CATEGORY_ORDER = ["data vendor", "public", "crm", "email", "documents", "meetings", "closing"];
 const CATEGORY_LABEL: Record<string, string> = {
-  "data vendor": "Data vendors", public: "Public sources", crm: "CRM", email: "Email", documents: "Documents", meetings: "Meetings and notetakers",
+  "data vendor": "Data vendors", public: "Public sources", crm: "CRM", email: "Email", documents: "Documents", meetings: "Meetings and notetakers", closing: "Signatures, cap tables and compliance",
 };
 
 export default function Connections() {
@@ -102,12 +102,13 @@ export function ConnectorCard({ c, all = [], onChange }: { c: Connector; all?: C
         <span className={`pill ${s.tone}`}>{s.label}</span>
       </div>
       <p className="small" style={{ margin: 0 }}>{c.description}</p>
-      {(c.sourcing || c.research || c.meetings) && (
+      {(c.sourcing || c.research || c.meetings || c.execution) && (
         <div className="row small" aria-label="Used in">
           <span className="muted">Used in</span>
           {c.sourcing && <span className="pill quiet">Sourcing</span>}
           {(c.research || c.meetings) && <span className="pill quiet">Diligence</span>}
           {c.meetings && <span className="pill quiet">Meetings</span>}
+          {c.execution && <span className="pill quiet">Execution</span>}
         </div>
       )}
       <div className="row small muted">

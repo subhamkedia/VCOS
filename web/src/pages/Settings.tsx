@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { api, ApiError, useApi } from "../api";
 import { ROLE_LABELS, useSession } from "../app";
-import { FundMath, SECTIONS, errorsFrom, type Errors } from "../profile-form";
+import { FundMath, SECTIONS, TERMS_SECTION, errorsFrom, type Errors } from "../profile-form";
+
+const ALL = [...SECTIONS, TERMS_SECTION];
 import type { Profile, ProfileResponse, Role } from "../types";
 import { ErrorState, Field, Loading, Notice, PageHead, Time, useConfirm, useToast } from "../ui";
 import { useLiveCheck } from "./Onboarding";
@@ -13,13 +15,13 @@ export default function Settings() {
     <>
       <PageHead eyebrow="Workspace" title="Firm settings" lead="Your fund, mandate and thesis drive sourcing and scoring. Every save is kept as a version, so each score records the thesis it was measured against." />
       <nav className="row" aria-label="Settings sections">
-        {SECTIONS.map((s) => <span key={s.id}>{tab(`/settings/${s.id}`, s.label)}</span>)}
+        {ALL.map((s) => <span key={s.id}>{tab(`/settings/${s.id}`, s.label)}</span>)}
         {tab("/settings/team", "Team")}
         {tab("/settings/history", "History")}
       </nav>
       <Routes>
         <Route index element={<Navigate to="firm" replace />} />
-        {SECTIONS.map((s) => <Route key={s.id} path={s.id} element={<ProfileTab section={s.id} />} />)}
+        {ALL.map((s) => <Route key={s.id} path={s.id} element={<ProfileTab section={s.id} />} />)}
         <Route path="team" element={<Team />} />
         <Route path="history" element={<History />} />
       </Routes>
@@ -49,7 +51,7 @@ function ProfileTab({ section }: { section: string }) {
 
   if (error) return <ErrorState error={error} retry={() => void reload()} />;
   if (!data || !p) return <Loading />;
-  const s = SECTIONS.find((x) => x.id === section)!;
+  const s = ALL.find((x) => x.id === section)!;
   const save = async () => {
     setBusy(true);
     try {
@@ -74,7 +76,7 @@ function ProfileTab({ section }: { section: string }) {
       </div>
       {!editable && <Notice>Partners and admins can edit the profile. You can see it.</Notice>}
       <div className={s.math ? "setup-grid" : ""}>
-        <fieldset disabled={!editable} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }} className="panel panel-pad">
+        <fieldset disabled={!editable} style={{ margin: 0, minWidth: 0 }} className="panel panel-pad">
           <s.C p={p} set={setP} errors={errors} options={data.options} />
         </fieldset>
         {s.math && <FundMath c={check?.construction ?? data.construction} currency={p.fund.currency} />}

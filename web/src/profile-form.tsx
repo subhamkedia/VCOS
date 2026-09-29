@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import type { Construction, Dimension, Profile, ProfileOptions, Sector } from "./types";
+import type { Construction, Dimension, HouseTerms, Profile, ProfileOptions, Sector } from "./types";
 import { Chips, Field, Group, MoneyInput, NumberInput, Seg, Select, TagInput, currencySymbol, money } from "./ui";
 
 /**
@@ -438,6 +438,55 @@ export function Review({ p, options, onEdit }: { p: Profile; options: ProfileOpt
   );
 }
 
+const ANTI_DILUTION: { id: HouseTerms["acceptAntiDilution"][number]; label: string }[] = [
+  { id: "broad_wa", label: "Broad-based weighted average (NVCA)" }, { id: "narrow_wa", label: "Narrow-based weighted average" },
+  { id: "full_ratchet", label: "Full ratchet" }, { id: "none", label: "None" },
+];
+
+/** The firm's standards for term sheets. Execution flags any term outside them; the defaults follow the NVCA model. */
+export function TermsSection({ p, set, options }: Props) {
+  const t: HouseTerms = { ...options.houseTermDefaults, ...p.terms };
+  const upd = (patch: Partial<HouseTerms>) => set({ ...p, terms: { ...t, ...patch } });
+  const box = (key: keyof HouseTerms, label: string, hint?: string) => (
+    <label className="check-row">
+      <input type="checkbox" checked={Boolean(t[key])} onChange={(e) => upd({ [key]: e.target.checked } as Partial<HouseTerms>)} />
+      <span>{label}{hint && <span className="muted small"> {hint}</span>}</span>
+    </label>
+  );
+  return (
+    <div className="section">
+      <p className="muted small" style={{ margin: 0 }}>
+        What you accept in a term sheet. Each term sheet in Execution is compared with the NVCA model and with these, term by term.
+      </p>
+      <Group title="Economics">
+        <div className="grid-2">
+          <Field label="Highest liquidation preference you accept"><NumberInput id="t-liq" value={t.maxLiquidationMultiple} onChange={(v) => upd({ maxLiquidationMultiple: v ?? 1 })} suffix="x" step="0.25" /></Field>
+          <Field label="Participating preferred">
+            <Select id="t-part" value={t.acceptParticipation} onChange={(v) => upd({ acceptParticipation: v ?? "capped" })} options={[
+              { id: "never", label: "Never (non-participating only)" }, { id: "capped", label: "Only with a cap" }, { id: "any", label: "Any" },
+            ]} />
+          </Field>
+          <Field label="Largest option pool in the pre-money" hint="As a share of the post-money."><NumberInput id="t-pool" value={t.maxPoolTopUpPostPct} onChange={(v) => upd({ maxPoolTopUpPostPct: v ?? 15 })} suffix="%" /></Field>
+          <Field label="Longest no-shop"><NumberInput id="t-noshop" value={t.maxNoShopDays} onChange={(v) => upd({ maxNoShopDays: v ?? 45 })} suffix="days" /></Field>
+        </div>
+        <fieldset className="section" style={{ border: 0, padding: 0, margin: 0, gap: 6 }}>
+          <legend className="small"><strong>Anti-dilution you accept</strong></legend>
+          <Chips options={ANTI_DILUTION} value={t.acceptAntiDilution} onChange={(v) => upd({ acceptAntiDilution: v })} />
+        </fieldset>
+        {box("acceptCumulativeDividends", "Accept cumulative dividends")}
+        {box("acceptRedemption", "Accept redemption rights")}
+      </Group>
+      <Group title="Rights you require">
+        {box("requireProRata", "Pro rata rights")}
+        {box("requireInformationRights", "Information rights")}
+        {box("requireManagementRightsLetter", "A management rights letter on every deal", "(always required when the fund has pension or other ERISA investors)")}
+        {box("requireFounderVesting", "Founder vesting")}
+        {box("requireOisp", "Outbound investment (OISP) representations for AI, semiconductor and quantum companies")}
+      </Group>
+    </div>
+  );
+}
+
 export const SECTIONS = [
   { id: "firm", paths: ["firm."], label: "Firm", title: "Your firm", lead: "Who you are. Used across drafts, reports and your team's workspace.", C: FirmSection, math: false },
   { id: "fund", paths: ["fund."], label: "Fund", title: "The fund you're investing", lead: "Size, structure, economics and how it turns into checks.", C: FundSection, math: true },
@@ -445,6 +494,9 @@ export const SECTIONS = [
   { id: "sectors", paths: ["mandate.sectors", "mandate.exclusions"], label: "Sectors", title: "Sectors and exclusions", lead: "The sectors sourcing looks for, and what you never do.", C: SectorsSection, math: false },
   { id: "scoring", paths: ["scoring."], label: "Scoring", title: "How you score companies", lead: "Weights for the dimensions diligence assesses.", C: ScoringSection, math: false },
 ] as const;
+
+/** Settings only; setup doesn't ask for it (the NVCA defaults apply until a partner changes them). */
+export const TERMS_SECTION = { id: "terms", paths: ["terms."], label: "House terms", title: "House terms", lead: "Your standards for term sheets, used in Investment Execution.", C: TermsSection, math: false } as const;
 
 /** Errors that belong to one section. */
 export function errorsIn(errors: Errors, paths: readonly string[]): Errors {

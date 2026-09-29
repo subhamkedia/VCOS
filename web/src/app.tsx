@@ -17,6 +17,8 @@ import ModulePage from "./pages/ModulePage";
 import Diligence from "./pages/Diligence";
 import Deal from "./pages/Deal";
 import Meetings from "./pages/Meetings";
+import Execution from "./pages/Execution";
+import ExecutionDeal from "./pages/ExecutionDeal";
 
 interface Session {
   me: Me;
@@ -140,6 +142,8 @@ function Shell() {
           <Route path="/companies/:id" element={<Company />} />
           <Route path="/diligence" element={<Diligence />} />
           <Route path="/diligence/:id" element={<Deal />} />
+          <Route path="/execution" element={<Execution />} />
+          <Route path="/execution/:id" element={<ExecutionDeal />} />
           <Route path="/meetings" element={<Meetings />} />
           <Route path="/connections" element={<Connections />} />
           <Route path="/approvals" element={<Approvals />} />

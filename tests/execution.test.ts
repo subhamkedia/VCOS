@@ -117,6 +117,23 @@ describe("cap table and the model", () => {
     const at = (x: number) => m.scenarios.find((s) => Math.abs(s.exit / p.postMoneyImplied - x) < 0.01)!;
     expect(at(0.5).multiple).toBeCloseTo(1, 2);
     expect(at(10).converted).toBe(true);
+
+    // A post-money SAFE converts into a shadow series whose preference is its
+    // own conversion price, so its claim in a downside is what it paid ($1M), not
+    // its shares times the new round's price.
+    await saveCapTable(db, id, {
+      holdings: ct.holdings, safes: [{ holder: "Angel SAFE", amount: 1e6, kind: "post", cap: 10e6 }],
+      seriesTerms: [{ name: "Series Seed Preferred", issuePrice: 1, multiple: 1, participating: false, seniority: 2 }],
+    }, PAT);
+    const withSafe = await model(db, id);
+    const conv = withSafe.proForma!.conversions[0]!;
+    expect(conv.price).toBeLessThan(withSafe.proForma!.pricePerShare);
+    const seedPref = 1_500_000; // 1.5M seed shares at $1.00
+    const newMoney = 8e6;
+    const safePref = conv.shares * conv.price; // about $1M
+    expect(Math.abs(safePref - 1e6)).toBeLessThan(5);
+    const low = withSafe.scenarios[0]!; // 0.25x post-money: below the preference stack
+    expect(low.proceeds).toBeCloseTo((low.exit * 3e6) / (seedPref + newMoney + safePref), -2);
     expect(at(10).multiple).toBeGreaterThan(9);
   });
 });

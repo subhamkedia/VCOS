@@ -16,7 +16,11 @@ import { saveProfile, starterProfile } from "../modules/firm/profile.js";
 import { createFeed, runFeed } from "../modules/sourcing/index.js";
 import { queue } from "../modules/outbox/index.js";
 import { ensureSync, syncMeetings } from "../modules/meetings/index.js";
-import { addNote, draftMemoFor, gather, recordRound, setItem, startDeal, updateDealInfo } from "../modules/diligence/index.js";
+import { addNote, decide, draftMemoFor, gather, recordRound, setItem, startDeal, updateDealInfo } from "../modules/diligence/index.js";
+import {
+  advanceIc, castVote, importCapTableCsv, recordWireInstructions, saveCapTable, saveTermSheet, scheduleIc, screenSanctions, setTermStatus,
+  startClosing, updateItem, verifyWire,
+} from "../modules/execution/index.js";
 import { parseArgs, run } from "./common.js";
 
 /**
@@ -182,6 +186,52 @@ run(async () => {
   await addNote(db, deal.id, { kind: "customer_call", title: "Customer call: state DOT pilot lead (demo)", with: "Bridge program manager", date: "2026-10-10", text: "Pilot is paid, two decks so far. They want crew-hour savings proven over a full season before a production contract." }, by);
   await setItem(db, deal.id, "legal.corporate", { status: "done" }, by);
   await draftMemoFor(db, deal.id, {}, by);
+
+  // Investment Execution. A second partner (fictional) so IC votes and wire approvals have two people.
+  const lee = await upsertUser(root, { email: `lee.partner@${email.split("@")[1]}`, name: "Lee Park (demo)" });
+  await addMembership(root, firm.id, lee.id, "partner");
+  const LEE = `human:${lee.email}`;
+  const priced = (over: object) => ({
+    security: "preferred", seriesName: "Series A Preferred", preMoneyUsd: 48_000_000, raiseUsd: 12_000_000, ourAllocationUsd: 1_500_000, leadInvestor: "Ironbridge Ventures",
+    poolTopUpPostPct: 10, noShopDays: 30, board: { size: 5, investorSeats: 2, commonSeats: 2, independentSeats: 1, ours: "observer" }, ...over,
+  });
+  const capCsv = "Stakeholder,Share Class,Shares\nMaya Lindqvist,Common,4000000\nRaj Patel,Common,3000000\nSeed investors,Series Seed Preferred,1500000\nEmployees,Options outstanding,500000\nAvailable pool,Unissued pool,1000000\nTotal,,10000000\n";
+  // Kestrel goes to IC: two term sheet versions, the cap table with a SAFE, and Lee's independent vote in; yours is waiting.
+  await decide(db, deal.id, { kind: "advance", rationale: "Two paid DOT pilots and a strong field team; the round is competitive." }, by);
+  await saveTermSheet(db, deal.id, { terms: priced({ liquidation: { multiple: 1, participation: "full", seniority: "senior" }, noShopDays: 60 }), status: "proposed", note: "Lead's first draft" }, by);
+  await saveTermSheet(db, deal.id, { terms: priced({ oispRepresentation: true, managementRightsLetter: true }), status: "negotiating", note: "Company's markup: non-participating, pari passu, 30-day no-shop" }, by);
+  await importCapTableCsv(db, deal.id, { name: "kestrel-cap-table.csv", text: capCsv }, by, {
+    safes: [{ holder: "Angel SAFE holders", amount: 1_000_000, kind: "post", cap: 20_000_000 }],
+    seriesTerms: [{ name: "Series Seed Preferred", issuePrice: 1.2, multiple: 1, participating: false, seniority: 2 }],
+  });
+  const kic = await scheduleIc(db, deal.id, { members: [user.email, lee.email!], chair: user.email }, by);
+  await castVote(db, kic.id, { vote: "yes", conviction: 4, note: "Pilot data is strong; deck-count ramp is the risk." }, LEE);
+
+  // Girderline is approved and closing: a signed seed round, most documents in, the wire confirmed by phone and waiting for two approvals.
+  const g = await startDeal(db, { company: { name: "Girderline", domain: "girderline.example" } }, by);
+  await decide(db, g.id, { kind: "advance", rationale: "Inspection data moat with three state DOTs." }, by);
+  const gts = await saveTermSheet(db, g.id, { terms: priced({ seriesName: "Seed Preferred", preMoneyUsd: 14_000_000, raiseUsd: 4_000_000, ourAllocationUsd: 1_000_000, leadInvestor: "Demo Fund", board: { size: 3, investorSeats: 1, commonSeats: 2, ours: "seat" }, managementRightsLetter: true }), status: "negotiating" }, by);
+  await saveCapTable(db, g.id, { holdings: [
+    { holder: "Ines Okafor", className: "Common", shares: 5_000_000, kind: "common" }, { holder: "Tomasz Wierzba", className: "Common", shares: 3_500_000, kind: "common" },
+    { holder: "Option pool", className: "Unissued pool", shares: 1_500_000, kind: "pool" },
+  ], safes: [{ holder: "Pre-seed SAFE", amount: 750_000, kind: "post", cap: 10_000_000 }] }, by);
+  const gic = await scheduleIc(db, g.id, { members: [user.email, lee.email!], chair: user.email }, by);
+  await castVote(db, gic.id, { vote: "yes", conviction: 5, note: "Best inspection data set we've seen." }, by);
+  await castVote(db, gic.id, { vote: "yes", conviction: 3, note: "Sales cycle with DOTs is long." }, LEE);
+  await advanceIc(db, gic.id, {}, by);
+  await advanceIc(db, gic.id, {}, by);
+  await castVote(db, gic.id, { vote: "yes", conviction: 5 }, by);
+  await castVote(db, gic.id, { vote: "yes", conviction: 4 }, LEE);
+  await advanceIc(db, gic.id, { notes: "Approved; Lee to join the board call with the DOT program lead." }, by);
+  await setTermStatus(db, g.id, gts.version, "signed", by);
+  await startClosing(db, g.id, by);
+  await screenSanctions(db, g.id, by, { lists: async () => ({ entries: [], fetchedAt: new Date().toISOString() }) }).catch(() => undefined);
+  for (const key of ["counsel_engaged", "confirmatory_diligence", "spa", "charter", "ira", "voting_agreement", "rofr_cosale", "board_consent", "stockholder_consent", "kyc", "conflicts", "management_rights_letter"]) {
+    await updateItem(db, g.id, key, { status: ["spa", "charter", "ira", "voting_agreement", "rofr_cosale", "board_consent", "stockholder_consent", "management_rights_letter"].includes(key) ? "signed" : "done" }, by).catch(() => undefined);
+  }
+  await updateItem(db, g.id, "charter_filed", { status: "requested", owner: LEE, dueDate: "2026-10-20", note: "Company counsel filing with Delaware" }, by);
+  const wire = await recordWireInstructions(db, g.id, { amountUsd: 1_000_000, beneficiary: "Girderline, Inc.", bankName: "First Demo Bank", accountLast4: "4821" }, LEE);
+  await verifyWire(db, wire.id, { numberSource: "Ines's mobile, saved from our first meeting in March", confirmed: true }, LEE);
 
   console.log(`\nSeeded "${firm.name}" for ${user.email}.`);
   console.log("Start the app with `pnpm web` and sign in with that email; the sign-in link is printed in the server log.");
