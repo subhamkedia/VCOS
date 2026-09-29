@@ -225,7 +225,7 @@ describe("contradictions", () => {
     const created = await detectContradictions(db, acme.id);
     expect(created).toHaveLength(1);
     expect(created[0]?.severity).toBe("high");
-    expect(created[0]?.detail).toMatch(/production_contract/);
+    expect(created[0]?.detail).toMatch(/Pilot or deployment with Turner: production contract \(self-reported\) vs unpaid trial \(third party\)/);
   });
 });
 
@@ -242,5 +242,24 @@ describe("decisions", () => {
     await expect(
       db.query("insert into decisions(entity_id, kind, actor, value) values ($1,'ic_vote_pre','x','{}')", [acme.id]),
     ).rejects.toThrow();
+  });
+});
+
+describe("labels", () => {
+  it("gives every predicate, source type and scope a readable name", async () => {
+    const { PREDICATE_LABELS, PREDICATE_GROUPS, PREDICATES: ALL } = await import("../ledger/predicates.js");
+    const { SOURCE_TYPE_LABELS, SCOPE_LABELS, formatValue } = await import("../ledger/labels.js");
+    for (const id of ALL.keys()) {
+      expect(PREDICATE_LABELS[id], id).toBeTruthy();
+      expect(PREDICATE_GROUPS.some((g) => g.prefixes.some((p) => id.startsWith(p))), `${id} has a group`).toBe(true);
+    }
+    expect(PREDICATE_LABELS["team.headcount"]).toBe("Team headcount");
+    expect(PREDICATE_LABELS["company.founded_year"]).toBe("Founded year");
+    expect(SOURCE_TYPE_LABELS.self_reported).toBe("Self-reported");
+    for (const s of ["public", "internal", "confidential", "nda", "vendor"]) expect(SCOPE_LABELS[s]).toBeTruthy();
+    expect(formatValue("company.founded_year", 2023)).toBe("2023");
+    expect(formatValue("funding.round.amount", 9_000_000)).toBe("$9,000,000");
+    expect(formatValue("funding.round.stage", "series_a")).toBe("Series A");
+    expect(formatValue("pilot.status", { customer: "Turner", rung: "paid_pilot" })).toBe("Turner: paid pilot");
   });
 });

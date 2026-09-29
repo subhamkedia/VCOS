@@ -298,7 +298,8 @@ describe("registry", () => {
     const { readdir } = await import("node:fs/promises");
     for (const f of (await readdir("connectors")).filter((f) => f.endsWith(".ts"))) {
       const src = await readFile(`connectors/${f}`, "utf8");
-      expect(src, f).not.toMatch(/\/send(Mail)?\b|messages\/send|drafts\/send|whatsapp|imessage/i);
+      // Send endpoints of email APIs, and any messaging API (WhatsApp Business, iMessage via AppleScript).
+      expect(src, f).not.toMatch(/\/send(Mail)?\b|messages\/send|drafts\/send|graph\.facebook\.com|whatsapp\.net|api\.whatsapp|imessage|osascript/i);
     }
   });
 

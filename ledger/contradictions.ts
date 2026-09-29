@@ -1,4 +1,5 @@
-import { getPredicate, PILOT_LADDER, type PredicateDef } from "./predicates.js";
+import { getPredicate, PILOT_LADDER, predicateLabel, type PredicateDef } from "./predicates.js";
+import { ENUM_VALUE_LABELS, formatValue, sourceTypeLabel } from "./labels.js";
 
 export type SourceType = "primary" | "third_party" | "self_reported" | "inference" | "internal";
 
@@ -60,9 +61,11 @@ export function stringsCompatible(def: PredicateDef, a: string, b: string): bool
   return na.includes(nb) || nb.includes(na);
 }
 
-function fmt(v: unknown): string {
-  return typeof v === "number" ? v.toLocaleString("en-US") : JSON.stringify(v);
-}
+const rung = (c: ClaimRow) => {
+  const r = (c.value as { rung: string }).rung;
+  return `${(ENUM_VALUE_LABELS[r] ?? r).toLowerCase()} (${sourceTypeLabel(c.source_type).toLowerCase()})`;
+};
+const side = (c: ClaimRow) => `${formatValue(c.predicate, c.value)} (${sourceTypeLabel(c.source_type).toLowerCase()})`;
 
 /**
  * Find pairs of current claims about the same subject and predicate that
@@ -113,7 +116,7 @@ function compare(def: PredicateDef, a: ClaimRow, b: ClaimRow): Conflict | null {
       predicate: def.id,
       claimIds: [a.id, b.id],
       severity: severityFor(a, b, magnitude),
-      detail: `${def.id}: ${fmt(a.value)} (${a.source_type}) vs ${fmt(b.value)} (${b.source_type}), ${Math.round(d * 100)}% apart`,
+      detail: `${predicateLabel(def.id)}: ${side(a)} vs ${side(b)}, ${Math.round(d * 100)}% apart`,
     };
   }
 
@@ -122,7 +125,7 @@ function compare(def: PredicateDef, a: ClaimRow, b: ClaimRow): Conflict | null {
     predicate: def.id,
     claimIds: [a.id, b.id],
     severity: severityFor(a, b, def.kind === "enum" ? "large" : "small"),
-    detail: `${def.id}: ${fmt(a.value)} (${a.source_type}) vs ${fmt(b.value)} (${b.source_type})`,
+    detail: `${predicateLabel(def.id)}: ${side(a)} vs ${side(b)}`,
   };
 }
 
@@ -156,7 +159,7 @@ function pilotConflicts(list: ClaimRow[]): Conflict[] {
           predicate: def.id,
           claimIds: [a.id, b.id],
           severity: overclaim ? "high" : severityFor(a, b, "small"),
-          detail: `pilot.status for ${customer}: ${(hi.value as { rung: string }).rung} (${hi.source_type}) vs ${(lo.value as { rung: string }).rung} (${lo.source_type})`,
+          detail: `${predicateLabel("pilot.status")} with ${customer}: ${rung(hi)} vs ${rung(lo)}`,
         });
       }
     }

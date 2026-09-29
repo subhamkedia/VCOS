@@ -45,6 +45,16 @@ export function cleanParams(specs: ParamSpec[], input: Params): Params {
     if (s.kind === "list" && typeof v === "string") v = v.split(",").map((x) => x.trim()).filter(Boolean);
     if (s.kind === "number" && v !== undefined && v !== "") v = Number(v);
     if (s.kind === "boolean" && typeof v === "string") v = v === "true";
+    if ((s.kind === "text" || s.kind === "url" || s.kind === "select") && typeof v === "string") v = v.trim();
+    if (s.kind === "select" && v !== undefined && v !== "" && !s.options?.some((o) => o.id === v)) throw new FeedInvalid(`${s.label}: pick one of the options.`);
+    if (s.kind === "url" && typeof v === "string" && v) {
+      try {
+        const u = new URL(v);
+        if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error();
+      } catch {
+        throw new FeedInvalid(`${s.label} must be a full web address, starting with https://`);
+      }
+    }
     const empty = v === undefined || v === "" || (Array.isArray(v) && v.length === 0) || (s.kind === "number" && !Number.isFinite(v));
     if (empty) {
       if (s.required) throw new FeedInvalid(`${s.label} is required.`);

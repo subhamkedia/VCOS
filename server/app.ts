@@ -10,8 +10,10 @@ import * as connections from "../modules/connections/index.js";
 import * as sourcing from "../modules/sourcing/index.js";
 import * as companies from "../modules/companies/index.js";
 import * as outbox from "../modules/outbox/index.js";
-import { checkProfile, getProfile, profileHistory, saveProfile, ProfileInvalid, FUND_STRUCTURES, FUND_STRUCTURE_LABELS, STAGES, STAGE_LABELS } from "../modules/firm/profile.js";
+import { checkProfile, construction, getProfile, profileHistory, profileOptions, saveProfile, ProfileInvalid } from "../modules/firm/profile.js";
 import { MODULES } from "../modules/catalog.js";
+import { vocabulary } from "../ledger/labels.js";
+import { CONNECTORS } from "../connectors/registry.js";
 import type { Cadence } from "../ledger/workspace.js";
 
 /**
@@ -180,15 +182,15 @@ export function createApp(deps: AppDeps) {
   firm.use("*", signedIn, inFirm);
 
   firm.get("/modules", (c) => c.json(MODULES));
+  // Labels for every id the ledger stores: predicates, source types, scopes, sources...
+  const vocab = vocabulary(Object.fromEntries(CONNECTORS.map((x) => [x.id, x.name])));
+  firm.get("/vocabulary", (c) => c.json(vocab));
 
   // Firm profile and thesis
-  firm.get("/profile", async (c) => c.json({
-    current: await getProfile(c.get("db")),
-    options: {
-      stages: STAGES.map((id) => ({ id, label: STAGE_LABELS[id] })),
-      structures: FUND_STRUCTURES.map((id) => ({ id, label: FUND_STRUCTURE_LABELS[id] })),
-    },
-  }));
+  firm.get("/profile", async (c) => {
+    const current = await getProfile(c.get("db"));
+    return c.json({ current, options: profileOptions(), construction: current ? construction(current.profile) : null });
+  });
   firm.post("/profile/check", async (c) => c.json(checkProfile(await c.req.json())));
   firm.put("/profile", allow("edit_thesis"), async (c) => {
     const body = await c.req.json();

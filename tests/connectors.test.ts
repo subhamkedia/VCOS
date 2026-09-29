@@ -152,7 +152,7 @@ describe("end to end: three sources, one company, one contradiction", () => {
     expect(t.extraction?.claimIds).toHaveLength(2);
     const open = await openContradictions(db, id);
     expect(open).toHaveLength(1);
-    expect(open[0]?.detail).toMatch(/team.headcount: 21 \(third_party\) vs 34 \(self_reported\)/);
+    expect(open[0]?.detail).toMatch(/Team headcount: 21 \(third party\) vs 34 \(self-reported\)/);
 
     // Re-ingesting the same Harmonic payload is a no-op.
     const again = await ingest(db, harmonicToRecord(JSON.parse(await fx("harmonic-company.json")), "2026-09-20T00:00:00Z"));

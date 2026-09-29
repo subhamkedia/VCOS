@@ -60,6 +60,8 @@ const defs: PredicateDef[] = [
     description: "Headquarters city and country." },
   { id: "company.website", kind: "string", cardinality: "one", timeVarying: true, appliesTo: C,
     description: "Primary website domain." },
+  { id: "company.program", kind: "string", cardinality: "many", timeVarying: false, appliesTo: C,
+    description: "An accelerator, incubator, venture studio or university program the company went through." },
   { id: "company.sector", kind: "string", cardinality: "many", timeVarying: true, appliesTo: C,
     description: "Sector tag from thesis.yaml sector ids." },
   { id: "company.stage", kind: "enum", enumValues: ROUND_STAGES, cardinality: "one", timeVarying: true, appliesTo: C,
@@ -149,6 +151,66 @@ const defs: PredicateDef[] = [
 ];
 
 export const PREDICATES: ReadonlyMap<string, PredicateDef> = new Map(defs.map((d) => [d.id, d]));
+
+/** What people see instead of predicate ids. Every predicate needs one (tested). */
+export const PREDICATE_LABELS: Record<string, string> = {
+  "company.description": "Company description",
+  "company.founded_year": "Founded year",
+  "company.hq_location": "Headquarters",
+  "company.website": "Website",
+  "company.program": "Program",
+  "company.sector": "Sector",
+  "company.stage": "Company stage",
+  "company.status": "Operating status",
+  "team.headcount": "Team headcount",
+  "team.founder": "Founder",
+  "team.key_hire": "Key hire",
+  "person.role": "Role",
+  "person.education": "Education",
+  "person.prior_exit": "Prior exit",
+  "funding.round.amount": "Last round amount",
+  "funding.round.stage": "Last round stage",
+  "funding.round.post_money": "Post-money valuation",
+  "funding.total_raised": "Total raised",
+  "funding.investor": "Investor",
+  "revenue.arr": "Annual recurring revenue (ARR)",
+  "revenue.annual": "Annual revenue",
+  "revenue.growth_yoy": "Revenue growth (year over year)",
+  "revenue.contracted_backlog": "Contracted backlog",
+  "customers.paying.count": "Paying customers",
+  "customers.named": "Named customer",
+  "customers.logo_on_site": "Customer logo on website",
+  "pilot.status": "Pilot or deployment",
+  "pilot.site_count": "Deployment sites",
+  "product.stage": "Product stage",
+  "unit_economics.gross_margin": "Gross margin",
+  "unit_economics.bom_cost": "Bill of materials cost",
+  "unit_economics.asp": "Average selling price",
+  "burn.monthly": "Monthly burn",
+  "cash.balance": "Cash balance",
+  "runway.months": "Runway (months)",
+  "ip.patent": "Patent",
+  "ip.patent_count": "Patent count",
+  "tech.benchmark": "Technical benchmark",
+  "grant.award": "Grant or award",
+  "market.tam": "Total addressable market",
+  "competition.competitor": "Competitor",
+};
+
+/** Sections of a company page, in order. A predicate belongs to the first group whose prefix it starts with. */
+export const PREDICATE_GROUPS: { id: string; label: string; prefixes: string[] }[] = [
+  { id: "company", label: "Company", prefixes: ["company."] },
+  { id: "team", label: "Team", prefixes: ["team.", "person."] },
+  { id: "funding", label: "Funding", prefixes: ["funding."] },
+  { id: "traction", label: "Revenue and customers", prefixes: ["revenue.", "customers.", "pilot."] },
+  { id: "product", label: "Product and technology", prefixes: ["product.", "tech.", "ip."] },
+  { id: "economics", label: "Unit economics and cash", prefixes: ["unit_economics.", "burn.", "cash.", "runway."] },
+  { id: "market", label: "Market", prefixes: ["market.", "competition.", "grant."] },
+];
+
+export function predicateLabel(id: string): string {
+  return PREDICATE_LABELS[id] ?? id.split(".").pop()!.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
 
 export function getPredicate(id: string): PredicateDef {
   const def = PREDICATES.get(id);

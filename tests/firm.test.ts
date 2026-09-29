@@ -104,3 +104,45 @@ describe("stemming", () => {
     expect(stem("AI")).toBe("ai");
   });
 });
+
+describe("the full firm profile", () => {
+  it("fills defaults so earlier, shorter profiles still load", async () => {
+    const r = checkProfile(await starterProfile("Alpha"));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.profile.firm.type).toBe("independent_vc");
+    expect(r.profile.fund.currency).toBe("USD");
+    expect(r.profile.fund.lpTypes).toEqual([]);
+    expect(r.construction).toBeNull(); // no fund size yet
+  });
+
+  it("checks fields against each other", async () => {
+    const p = await starterProfile("Alpha");
+    const r = checkProfile({
+      ...p,
+      fund: { ...p.fund, targetSizeUsd: 50e6, hardCapUsd: 40e6, committedUsd: 45e6, firstCloseDate: "2026-06-01", finalCloseDate: "2026-01-01", investmentPeriodYears: 5, termYears: 4 },
+      mandate: { ...p.mandate, followOnCheckUsd: { min: 3e6, max: 1e6 }, targetOwnershipPct: { min: 20, max: 10 } },
+    });
+    expect(r.ok).toBe(false);
+    const paths = r.ok ? [] : r.errors.map((e) => e.path);
+    expect(paths).toEqual(expect.arrayContaining(["fund.hardCapUsd", "fund.committedUsd", "fund.finalCloseDate", "fund.termYears", "mandate.followOnCheckUsd", "mandate.targetOwnershipPct"]));
+  });
+
+  it("returns the portfolio math with every check, even for a draft", async () => {
+    const p = await starterProfile("Alpha");
+    const r = checkProfile({ ...p, fund: { ...p.fund, targetSizeUsd: 50e6, managementFeePct: 2, investmentPeriodYears: 5, termYears: 10, reservesPct: 50, avgInitialCheckUsd: 1e6 } });
+    expect(r.construction?.initialCapitalUsd).toBe(20_000_000);
+    expect(r.construction?.reserveRatio).toBeCloseTo(1);
+    // Committed capital wins over the target when both are known.
+    const c = checkProfile({ ...p, fund: { ...p.fund, targetSizeUsd: 50e6, committedUsd: 30e6 } });
+    expect(c.construction?.sizeUsd).toBe(30_000_000);
+  });
+
+  it("offers labelled choices", async () => {
+    const { profileOptions } = await import("../modules/firm/profile.js");
+    const o = profileOptions() as unknown as Record<string, { id: string; label: string }[]> & { suggestions: Record<string, string[]> };
+    expect(o.firmTypes!.find((x) => x.id === "cvc")?.label).toBe("Corporate VC");
+    expect(o.stages!.map((x) => x.label)).toContain("Series A");
+    expect(o.suggestions.lpTypes?.length).toBeGreaterThan(3);
+  });
+});

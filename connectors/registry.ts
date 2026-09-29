@@ -14,6 +14,7 @@ import { pitchbookByDomain, pitchbookCheck } from "./pitchbook.js";
 import { dealroomByDomain, dealroomCheck } from "./dealroom.js";
 import { harmonicEnrichByDomain } from "./harmonic.js";
 import type { Provider } from "./oauth.js";
+import { discoverFromPortfolioPage, ORG_TYPES, type OrgType } from "./portfolio-pages.js";
 
 /**
  * Every source VC OS can read: how a firm connects it, what scope its
@@ -41,7 +42,8 @@ export type ConnectorAuth =
 export interface ParamSpec {
   name: string;
   label: string;
-  kind: "text" | "list" | "number" | "boolean";
+  kind: "text" | "list" | "number" | "boolean" | "select" | "url";
+  options?: readonly { id: string; label: string }[];
   placeholder?: string;
   help?: string;
   required?: boolean;
@@ -157,6 +159,21 @@ export const CONNECTORS: ConnectorInfo[] = [
       },
     },
     ingest: 'pnpm ingest formd "<company>"', check: async () => `${(await searchFormD("robotics")).length} filings found`,
+  },
+  {
+    id: "websites", name: "Portfolio websites", category: "public", scope: "public",
+    description: "Portfolio and cohort pages of accelerators, incubators, venture studios, VCs and CVCs. Each run lists the companies on the page, so new cohorts and new investments show up here.",
+    auth: { kind: "none" },
+    sourcing: {
+      mode: "discover", summary: "Companies listed on a portfolio page", defaultCadence: "weekly",
+      params: [
+        { name: "orgName", label: "Organization", kind: "text", required: true, placeholder: "Techstars", help: "Recorded on each company as its program or investor." },
+        { name: "orgType", label: "Type", kind: "select", required: true, options: ORG_TYPES, default: "accelerator" },
+        { name: "url", label: "Portfolio page", kind: "url", required: true, placeholder: "https://example.org/portfolio", help: "The page that lists their companies. robots.txt is respected." },
+      ],
+      discover: (p) => discoverFromPortfolioPage({ orgName: String(p.orgName), orgType: String(p.orgType) as OrgType, url: String(p.url) }),
+    },
+    ingest: "Add it as a feed in Sourcing",
   },
   {
     id: "web", name: "Web pages", category: "public", scope: "public", manual: true,
