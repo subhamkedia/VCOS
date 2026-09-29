@@ -1,6 +1,9 @@
 import { normalizeDomain } from "../lib/text.js";
 import { fetchPublic, type Resolver } from "./http.js";
 import { htmlToText } from "./web.js";
+import { robotsAllows } from "./polite.js";
+
+export { robotsAllows };
 import type { FetchLike, SourceRecord, StructuredClaim } from "./types.js";
 
 /**
@@ -137,44 +140,6 @@ export function extractPortfolio(html: string, pageUrl: string): ListedCompany[]
     add(attr(open, "href"), name);
   }
   return [...found.values()];
-}
-
-// ---------------------------------------------------------------------------
-// robots.txt
-// ---------------------------------------------------------------------------
-
-/** Is `path` allowed for us? Reads the `*` group and any group naming VC-OS; longest match wins, Allow breaks ties. */
-export function robotsAllows(robots: string, path: string): boolean {
-  const groups: { agents: string[]; rules: { allow: boolean; path: string }[] }[] = [];
-  let current: (typeof groups)[number] | null = null;
-  let lastWasAgent = false;
-  for (const raw of robots.split(/\r?\n/)) {
-    const line = raw.replace(/#.*$/, "").trim();
-    const m = line.match(/^([A-Za-z-]+)\s*:\s*(.*)$/);
-    if (!m) continue;
-    const key = m[1]!.toLowerCase();
-    const value = m[2]!.trim();
-    if (key === "user-agent") {
-      if (!current || !lastWasAgent) groups.push((current = { agents: [], rules: [] }));
-      current.agents.push(value.toLowerCase());
-      lastWasAgent = true;
-    } else {
-      lastWasAgent = false;
-      if (current && (key === "allow" || key === "disallow") && value) current.rules.push({ allow: key === "allow", path: value });
-    }
-  }
-  const mine = groups.filter((g) => g.agents.some((a) => a !== "*" && "vc-os-portfolio-reader".startsWith(a)));
-  const rules = (mine.length ? mine : groups.filter((g) => g.agents.includes("*"))).flatMap((g) => g.rules);
-  const matches = (rule: string) => {
-    const re = new RegExp(`^${rule.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\\\$$/, "$")}`);
-    return re.test(path);
-  };
-  let best: { allow: boolean; len: number } | null = null;
-  for (const r of rules) {
-    if (!matches(r.path)) continue;
-    if (!best || r.path.length > best.len || (r.path.length === best.len && r.allow)) best = { allow: r.allow, len: r.path.length };
-  }
-  return best ? best.allow : true;
 }
 
 export async function fetchPortfolioPage(

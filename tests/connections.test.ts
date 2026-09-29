@@ -102,6 +102,16 @@ describe("connections", () => {
     expect((await catalog(a)).find((c) => c.id === "gmail")?.accountLabel).toBeTruthy();
   });
 
+  it("saves a refresh token the provider rotated, for that firm only", async () => {
+    await connectWithOAuth(a, "zoom", "zr-1", "pat@alpha.example", "human:pat").catch(() => undefined);
+    await connectWithOAuth(b, "zoom", "zr-beta", "sam@beta.example", "human:sam").catch(() => undefined);
+    Object.assign(config, { zoomClientId: "zid", zoomClientSecret: "zsec" });
+    const rotating = async () => new Response(JSON.stringify({ access_token: "zat", expires_in: 3600, refresh_token: "zr-2" }));
+    await withFirmCredentials(a, ["zoom"], () => accessToken("zoom", rotating));
+    expect(await withFirmCredentials(a, ["zoom"], async () => setting("zoomRefreshToken"))).toBe("zr-2");
+    expect(await withFirmCredentials(b, ["zoom"], async () => setting("zoomRefreshToken"))).toBe("zr-beta");
+  });
+
   it("builds a PKCE consent URL that asks for offline access", () => {
     const { challenge } = pkcePair();
     const u = new URL(authorizeUrl("google", { scopes: ["openid", "email"], state: "s1", challenge, redirectUri: "https://app.example/cb", offline: true }));

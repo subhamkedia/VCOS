@@ -249,11 +249,12 @@ export async function consumeLoginToken(root: Db, token: string): Promise<string
 }
 
 export interface OAuthState {
-  provider: "google" | "microsoft";
+  provider: "google" | "microsoft" | "zoom";
   purpose: "signin" | "connect";
   codeVerifier: string;
   userId?: string;
   firmId?: string;
+  /** One connector id, or several joined by commas when one consent covers several products. */
   connectorId?: string;
 }
 

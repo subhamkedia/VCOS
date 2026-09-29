@@ -1,0 +1,39 @@
+{
+  "about": "Labeled meetings for the meeting-to-company matcher. Fictional firm Northbeam (northbeam.vc); fictional companies. 'expect.company' is the company a person would file the call under, or null. The gate: zero wrong automatic matches (a founder's words filed under the wrong company) and at least 95% of cases handled as a person would.",
+  "firmDomains": ["northbeam.vc"],
+  "companies": [
+    { "id": "kestrel", "name": "Kestrel Robotics", "domains": ["kestrelrobotics.com"], "aliases": ["Kestrel Robotics", "Kestrel"] },
+    { "id": "girderline", "name": "Girderline", "domains": ["girderline.io"], "aliases": ["Girderline"] },
+    { "id": "arc", "name": "Arc Labs", "domains": ["arclabs.ai"], "aliases": ["Arc Labs", "Arc"] },
+    { "id": "loop", "name": "Loop", "domains": ["loop.dev"], "aliases": ["Loop"] },
+    { "id": "tessel", "name": "Tessel Build", "domains": ["tessel.co.uk"], "aliases": ["Tessel Build", "Tessel"] },
+    { "id": "ferro", "name": "Ferro Systems", "domains": ["ferrosystems.com"], "aliases": ["Ferro Systems", "Ferro"] }
+  ],
+  "contacts": { "maya.lindqvist@gmail.com": "kestrel" },
+  "cases": [
+    { "id": "domain-simple", "meeting": { "title": "Northbeam <> Kestrel", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "maya@kestrelrobotics.com" }] }, "expect": { "status": "matched", "company": "kestrel" } },
+    { "id": "domain-no-title", "meeting": { "title": "Intro call", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "ines@girderline.io" }] }, "expect": { "status": "matched", "company": "girderline" } },
+    { "id": "subdomain", "meeting": { "title": "Catch up", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "ops@eu.girderline.io" }] }, "expect": { "status": "matched", "company": "girderline" } },
+    { "id": "co-uk", "meeting": { "title": "Tessel follow-up", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "sam@mail.tessel.co.uk" }] }, "expect": { "status": "matched", "company": "tessel" } },
+    { "id": "known-personal-address", "meeting": { "title": "Coffee", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "maya.lindqvist@gmail.com" }] }, "expect": { "status": "matched", "company": "kestrel" } },
+    { "id": "unknown-personal-address", "meeting": { "title": "Coffee with Sam", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "sam.founder@gmail.com" }] }, "expect": { "status": "needs_review", "company": null } },
+    { "id": "internal-partner-meeting", "meeting": { "title": "Monday partner meeting", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "lee@northbeam.vc" }] }, "expect": { "status": "internal", "company": null } },
+    { "id": "internal-prep-names-company", "meeting": { "title": "Kestrel IC prep", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "lee@northbeam.vc" }] }, "expect": { "status": "internal", "company": null } },
+    { "id": "title-only-no-emails", "meeting": { "title": "Girderline diligence call", "attendees": [{ "name": "Pat Chen" }, { "name": "Ines Okafor" }] }, "expect": { "status": "needs_review", "company": null } },
+    { "id": "two-companies", "meeting": { "title": "Customer reference", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "maya@kestrelrobotics.com" }, { "email": "cto@girderline.io" }] }, "expect": { "status": "needs_review", "company": null } },
+    { "id": "title-conflicts-domain", "meeting": { "title": "Arc Labs reference check", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "ines@girderline.io" }] }, "expect": { "status": "needs_review", "company": null } },
+    { "id": "new-company-domain", "meeting": { "title": "Intro: Brightforge", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "ceo@brightforge.com" }] }, "expect": { "status": "needs_review", "company": null, "newDomain": "brightforge.com" } },
+    { "id": "portfolio-founder-sits-in", "meeting": { "title": "Pitch", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "maya@kestrelrobotics.com" }, { "email": "ceo@brightforge.com" }] }, "expect": { "status": "needs_review", "company": null } },
+    { "id": "co-investor-on-call-title-agrees", "meeting": { "title": "Kestrel Robotics with Summit Partners", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "maya@kestrelrobotics.com" }, { "email": "jo@summitpartners.com" }] }, "expect": { "status": "matched", "company": "kestrel" } },
+    { "id": "short-name-in-title", "meeting": { "title": "Arc welding demo", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "sales@weldco.com" }] }, "expect": { "status": "needs_review", "company": null } },
+    { "id": "loop-word-in-title", "meeting": { "title": "Loop in legal on the SAFE", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "counsel@lawfirm.com" }] }, "expect": { "status": "needs_review", "company": null } },
+    { "id": "room-resource-ignored", "meeting": { "title": "Ferro onsite", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "c_1886@resource.calendar.google.com" }, { "email": "dan@ferrosystems.com" }] }, "expect": { "status": "matched", "company": "ferro" } },
+    { "id": "organizer-external", "meeting": { "title": "Series A update", "organizer": { "email": "ceo@arclabs.ai" }, "attendees": [{ "email": "pat@northbeam.vc", "self": true }] }, "expect": { "status": "matched", "company": "arc" } },
+    { "id": "firm-subdomain", "meeting": { "title": "Ops sync", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "it@mail.northbeam.vc" }] }, "expect": { "status": "internal", "company": null } },
+    { "id": "several-people-same-company", "meeting": { "title": "Technical deep dive", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "maya@kestrelrobotics.com" }, { "email": "raj@kestrelrobotics.com" }, { "email": "lee@northbeam.vc" }] }, "expect": { "status": "matched", "company": "kestrel" } },
+    { "id": "self-only", "meeting": { "title": "Focus time", "attendees": [{ "email": "pat@northbeam.vc", "self": true }] }, "expect": { "status": "internal", "company": null } },
+    { "id": "known-contact-plus-domain-agree", "meeting": { "title": "Board prep", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "maya.lindqvist@gmail.com" }, { "email": "raj@kestrelrobotics.com" }] }, "expect": { "status": "matched", "company": "kestrel" } },
+    { "id": "noreply-sender", "meeting": { "title": "Webinar: Future of construction", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "noreply@events.example" }] }, "expect": { "status": "internal", "company": null } },
+    { "id": "mixed-personal-and-unknown", "meeting": { "title": "Founder chat", "attendees": [{ "email": "pat@northbeam.vc", "self": true }, { "email": "sam@gmail.com" }, { "email": "sam@newco.io" }] }, "expect": { "status": "needs_review", "company": null, "newDomain": "newco.io" } }
+  ]
+}

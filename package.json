@@ -20,7 +20,9 @@
     "web": "tsx server/index.ts",
     "dev": "WEB_PORT=5173 tsx watch server/index.ts & vite --config web/vite.config.ts",
     "build:web": "vite build --config web/vite.config.ts",
-    "seed:demo": "tsx cli/seed-demo.ts"
+    "seed:demo": "tsx cli/seed-demo.ts",
+    "eval:meetings": "tsx evals/meeting-matcher/run.ts",
+    "eval:memo": "tsx evals/memo-writer/run.ts"
   },
   "packageManager": "pnpm@10.28.0",
   "dependencies": {

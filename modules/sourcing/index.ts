@@ -97,8 +97,11 @@ export async function updateFeed(db: Db, id: string, patch: { name?: string; par
 
 export const deleteFeed = removeFeed;
 
-export async function feeds(db: Db) {
-  return (await listFeeds(db)).map((f) => ({ ...f, connector: getConnector(f.connector_id).name }));
+/** Sourcing feeds. Meeting-tool syncs share the scheduler but are listed on the Meetings screen. */
+export async function feeds(db: Db, opts: { includeMeetings?: boolean } = {}) {
+  return (await listFeeds(db))
+    .filter((f) => opts.includeMeetings || !getConnector(f.connector_id).meetings)
+    .map((f) => ({ ...f, connector: getConnector(f.connector_id).name }));
 }
 
 export interface RunStats {
@@ -130,6 +133,12 @@ export async function runFeed(db: Db, feedId: string, triggeredBy: string, deps:
   const feed = await getFeed(db, feedId);
   if (!feed) throw new FeedInvalid("No such feed.");
   const c = getConnector(feed.connector_id);
+  if (c.meetings) {
+    const { syncMeetings } = await import("../meetings/index.js");
+    const r = await syncMeetings(db, feedId, triggeredBy, { llm: deps.llm });
+    const empty: RunStats = { records: r.stats.meetings, newCompanies: 0, knownCompanies: r.stats.matched, unchanged: 0, skipped: 0, errors: r.stats.errors, errorSamples: r.stats.errorSamples, strongFits: 0 };
+    return { runId: r.runId, ok: r.ok, stats: empty, error: r.error };
+  }
   if (!c.sourcing) throw new FeedInvalid(`${c.name} can't be used for sourcing.`);
   const runId = await startRun(db, { feedId, kind: `sourcing:${c.sourcing.mode}`, triggeredBy });
   const stats: RunStats = { records: 0, newCompanies: 0, knownCompanies: 0, unchanged: 0, skipped: 0, errors: 0, errorSamples: [], strongFits: 0 };

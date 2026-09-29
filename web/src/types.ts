@@ -20,7 +20,7 @@ export type Opt = { id: string; label: string };
 
 export interface Profile {
   firm: {
-    name: string; legalName?: string; type: string; website?: string; linkedin?: string; hq?: string; offices: string[];
+    name: string; legalName?: string; type: string; website?: string; linkedin?: string; emailDomains?: string[]; hq?: string; offices: string[];
     foundedYear?: number; aumUsd?: number; fundsRaised?: number; teamSize?: number; investmentTeamSize?: number; description?: string;
   };
   fund: {

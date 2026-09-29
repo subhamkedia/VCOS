@@ -89,6 +89,8 @@ export const FirmProfile = z
       type: z.enum(firmType.ids).default("independent_vc"),
       website: z.string().optional(),
       linkedin: z.string().optional(),
+      /** Domains your team's email addresses use. Meetings with only these people are internal. */
+      emailDomains: z.array(z.string().min(1)).default([]),
       hq: z.string().optional(),
       offices: z.array(z.string().min(1)).default([]),
       foundedYear: year.optional(),

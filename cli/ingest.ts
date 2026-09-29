@@ -5,7 +5,9 @@ import type { SourceRecord } from "../connectors/types.js";
 import { harmonicEnrichByDomain } from "../connectors/harmonic.js";
 import { searchFormD, fetchFormD } from "../connectors/edgar.js";
 import { fetchWebPage } from "../connectors/web.js";
-import { transcriptFromFile, granolaTranscript, listGranolaTools } from "../connectors/transcripts.js";
+import { transcriptFromFile } from "../connectors/transcripts.js";
+import { granolaNote } from "../connectors/granola.js";
+import { meetingSourceRecord } from "../connectors/meetings.js";
 import { fetchYcBatch, fetchYcFounders, ycToRecord } from "../connectors/yc.js";
 import { pitchbookByDomain } from "../connectors/pitchbook.js";
 import { crunchbaseByDomain } from "../connectors/crunchbase.js";
@@ -45,8 +47,9 @@ Documents (confidential)
 
 Meetings (confidential)
   pnpm ingest transcript <file> --company "<name>" [--domain d] [--date YYYY-MM-DD]
-  pnpm ingest granola <meeting-id> --company "<name>" [--domain d] [--date YYYY-MM-DD]
-  pnpm ingest granola-tools
+  pnpm ingest granola <note id, not_...> --company "<name>" [--domain d]
+  In the web app, connected meeting tools sync on their own and each
+  meeting is matched to a company (Meetings screen).
 
 Add --dry-run to see what would be written without touching the database.
 Run \`pnpm connectors\` to see which sources have keys.
@@ -70,11 +73,6 @@ run(async () => {
   const { positional, str, flags } = parseArgs();
   const [kind, target] = positional;
   if (!kind || flags.help) return console.log(USAGE);
-
-  if (kind === "granola-tools") {
-    for (const t of await listGranolaTools()) console.log(`${t.name}: ${t.description ?? ""}`);
-    return;
-  }
 
   if (kind === "drive-search") {
     if (!target) throw new Error(USAGE);
@@ -101,7 +99,7 @@ run(async () => {
   else if (kind === "dealroom") records.push(await dealroomByDomain(target));
   else if (kind === "web") records.push(await fetchWebPage(target, { company, companyDomain: domain }));
   else if (kind === "transcript") records.push(await transcriptFromFile(target, { company: company!, companyDomain: domain, date: str("date") }));
-  else if (kind === "granola") records.push(await granolaTranscript(target, { company: company!, companyDomain: domain, date: str("date") }));
+  else if (kind === "granola") records.push(meetingSourceRecord(await granolaNote(target), { name: company!, domain }));
   else if (kind === "document") records.push(await documentFromFile(target, { company: company!, companyDomain: domain, date: str("date"), url: str("url") }));
   else if (kind === "drive") records.push(await driveRecord(target, { company: company!, companyDomain: domain }));
   else if (kind === "gmail" || kind === "outlook") {

@@ -89,6 +89,11 @@ export async function recordConnectionCheck(db: Db, connectorId: string, outcome
   );
 }
 
+/** Replace a connection's (encrypted) credentials in place: a rotated refresh token, or a wider grant from a new consent. */
+export async function updateConnectionCredentials(db: Db, connectorId: string, credentials: string): Promise<void> {
+  await db.query("update connections set credentials=$2 where connector_id=$1 and status <> 'disconnected'", [connectorId, credentials]);
+}
+
 /** Forget the credentials. The row stays, marked disconnected, for the audit trail. */
 export async function disconnect(db: Db, connectorId: string, by: string): Promise<void> {
   await db.query("update connections set status='disconnected', credentials=null where connector_id=$1", [connectorId]);
@@ -252,4 +257,18 @@ export async function listCompanies(db: Db, opts: { search?: string; limit?: num
       order by updated_at desc limit $1`,
     params,
   )).rows;
+}
+
+export async function feedsForConnector(db: Db, connectorId: string): Promise<FeedRow[]> {
+  return (await db.query<FeedRow>("select * from sourcing_feeds where connector_id=$1 order by created_at", [connectorId])).rows;
+}
+
+/** When the last successful run of a feed started: the next sync reads from a little before then. */
+export async function lastSuccessfulRunAt(db: Db, feedId: string): Promise<Date | null> {
+  const { rows } = await db.query<{ started_at: unknown }>(
+    "select started_at from job_runs where feed_id=$1 and status='done' order by started_at desc limit 1",
+    [feedId],
+  );
+  const v = rows[0]?.started_at;
+  return v ? new Date(v instanceof Date ? v : String(v)) : null;
 }

@@ -16,6 +16,8 @@ export const config = {
 
   // Public sources
   secUserAgent: env("SEC_USER_AGENT"),
+  // USPTO PatentsView PatentSearch API (free key from patentsview.org).
+  patentsviewApiKey: env("PATENTSVIEW_API_KEY"),
 
   // CRM
   affinityApiKey: env("AFFINITY_API_KEY"),
@@ -31,9 +33,14 @@ export const config = {
   msRefreshToken: env("MS_REFRESH_TOKEN"),
   msTenant: env("MS_TENANT", "common"),
 
-  // Meeting notes
-  granolaMcpUrl: env("GRANOLA_MCP_URL", "https://mcp.granola.ai/mcp"),
-  granolaToken: env("GRANOLA_TOKEN"),
+  // Zoom (one OAuth app for every firm; each firm's consent gives it a refresh token)
+  zoomClientId: env("ZOOM_CLIENT_ID"),
+  zoomClientSecret: env("ZOOM_CLIENT_SECRET"),
+  zoomRefreshToken: env("ZOOM_REFRESH_TOKEN"),
+
+  // Meeting notetakers (API keys belong to one firm)
+  granolaApiKey: env("GRANOLA_API_KEY"),
+  firefliesApiKey: env("FIREFLIES_API_KEY"),
 };
 
 export type ConfigKey = keyof typeof config;
@@ -45,25 +52,40 @@ export type ConfigKey = keyof typeof config;
  */
 export const PLATFORM_KEYS: ReadonlySet<ConfigKey> = new Set<ConfigKey>([
   "anthropicApiKey", "extractionModel", "reasoningModel", "secUserAgent",
-  "googleClientId", "googleClientSecret", "msClientId", "msClientSecret", "msTenant", "granolaMcpUrl",
+  "googleClientId", "googleClientSecret", "msClientId", "msClientSecret", "msTenant",
+  "zoomClientId", "zoomClientSecret", "patentsviewApiKey",
 ]);
 
-const firmCredentials = new AsyncLocalStorage<Partial<Record<ConfigKey, string>>>();
+type Creds = Partial<Record<ConfigKey, string>>;
+type Rotate = (key: ConfigKey, value: string) => Promise<void>;
+const firmCredentials = new AsyncLocalStorage<{ creds: Creds; rotate?: Rotate }>();
 
 /**
  * Run `fn` with one firm's credentials. Inside, connectors see that firm's
  * keys and the platform keys, and never another firm's or the operator's
  * vendor keys from .env. Outside any firm (the local CLI), .env is used.
+ * `rotate` saves a credential the provider replaced (a rotated refresh token).
  */
-export function withCredentials<T>(creds: Partial<Record<ConfigKey, string>>, fn: () => Promise<T>): Promise<T> {
-  return firmCredentials.run({ ...creds }, fn);
+export function withCredentials<T>(creds: Creds, fn: () => Promise<T>, rotate?: Rotate): Promise<T> {
+  return firmCredentials.run({ creds: { ...creds }, rotate }, fn);
 }
 
 export function setting(name: ConfigKey): string {
   const firm = firmCredentials.getStore();
   if (!firm) return config[name];
-  if (firm[name]) return firm[name]!;
+  if (firm.creds[name]) return firm.creds[name]!;
   return PLATFORM_KEYS.has(name) ? config[name] : "";
+}
+
+/** A provider issued a new credential (Zoom and Microsoft rotate refresh tokens): use it now and save it for the firm. */
+export async function rotateCredential(name: ConfigKey, value: string): Promise<void> {
+  const firm = firmCredentials.getStore();
+  if (!firm) {
+    config[name] = value; // the local CLI: this process only
+    return;
+  }
+  firm.creds[name] = value;
+  await firm.rotate?.(name, value);
 }
 
 export function requireKey(name: ConfigKey): string {

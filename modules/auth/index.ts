@@ -6,10 +6,12 @@ import {
   type Firm, type Role, type SessionInfo, type User,
 } from "../../ledger/platform.js";
 import { audit } from "../../ledger/repository.js";
-import { authorizeUrl, exchangeCode, identity, pkcePair, providerConfigured, SCOPES, type Provider } from "../../connectors/oauth.js";
-import { getConnector } from "../../connectors/registry.js";
+import { authorizeUrl, exchangeCode, identity, missingScopes, pkcePair, PROVIDER_NAMES, providerConfigured, SCOPES, type Provider } from "../../connectors/oauth.js";
+import { getConnector, type ConnectorInfo } from "../../connectors/registry.js";
 import type { FetchLike } from "../../connectors/types.js";
 import { connectWithOAuth } from "../connections/index.js";
+
+export type SignInProvider = "google" | "microsoft";
 import { saveProfile, starterProfile } from "../firm/profile.js";
 
 /**
@@ -50,7 +52,7 @@ export const actor = (u: User) => `human:${u.email}`;
 
 export const providers = () => ({ google: providerConfigured("google"), microsoft: providerConfigured("microsoft") });
 
-export async function beginSignIn(root: Db, provider: Provider, redirectUri: string): Promise<string> {
+export async function beginSignIn(root: Db, provider: SignInProvider, redirectUri: string): Promise<string> {
   if (!providerConfigured(provider)) throw new Error(`${provider === "google" ? "Google" : "Microsoft"} sign-in isn't set up on this server.`);
   const { verifier, challenge } = pkcePair();
   const state = await saveOAuthState(root, { provider, purpose: "signin", codeVerifier: verifier });
@@ -75,6 +77,7 @@ export async function completeOAuth(
   const st = await takeOAuthState(root, q.state);
   if (!st) throw new Error("That sign-in link has expired. Start again.");
   if (st.purpose === "signin") {
+    if (st.provider === "zoom") throw new Error("Zoom can't be used to sign in.");
     const scopes = SCOPES.signin[st.provider];
     const ex = await exchangeCode(st.provider, { code: q.code, verifier: st.codeVerifier, redirectUri: q.redirectUri, scopes }, fetchImpl);
     const who = await identity(st.provider, ex.accessToken, fetchImpl);
@@ -84,30 +87,61 @@ export async function completeOAuth(
     return { kind: "signin", token, user };
   }
 
-  // Connecting a mailbox or Drive for a firm.
+  // Connecting one or more of a firm's tools with one consent.
   if (!st.firmId || !st.userId || !st.connectorId) throw new Error("Incomplete connect request.");
   const role = await membership(root, st.firmId, st.userId);
   requireAction(role ?? undefined, "manage_connections");
-  const c = getConnector(st.connectorId);
-  if (c.auth.kind !== "oauth") throw new Error(`${c.name} doesn't connect with OAuth.`);
-  const ex = await exchangeCode(st.provider, { code: q.code, verifier: st.codeVerifier, redirectUri: q.redirectUri, scopes: c.auth.scopes }, fetchImpl);
-  if (!ex.refreshToken) throw new Error(`${c.name} didn't grant offline access. Remove VC OS from your account's connected apps and try again.`);
+  const targets = oauthTargets(st.connectorId.split(","), st.provider);
+  const scopes = unionScopes(targets);
+  const ex = await exchangeCode(st.provider, { code: q.code, verifier: st.codeVerifier, redirectUri: q.redirectUri, scopes }, fetchImpl);
+  if (!ex.refreshToken) throw new Error(`${PROVIDER_NAMES[st.provider]} didn't grant offline access. Remove VC OS from your account's connected apps and try again.`);
   const who = await identity(st.provider, ex.accessToken, fetchImpl);
   const db = scopedDb(root, st.firmId);
-  const outcome = await connectWithOAuth(db, c.id, ex.refreshToken, who.email, `human:${who.email}`);
-  return { kind: "connect", firmId: st.firmId, connectorId: c.id, account: who.email, ...outcome };
+  const results: { connectorId: string; ok: boolean; detail: string }[] = [];
+  for (const c of targets) {
+    const missing = c.auth.kind === "oauth" ? missingScopes(c.auth.scopes, ex.scope) : [];
+    if (missing.length) {
+      results.push({ connectorId: c.id, ok: false, detail: `${c.name}: permission not granted (${missing.join(", ")}). Connect again and leave its box ticked.` });
+      continue;
+    }
+    results.push({ connectorId: c.id, ...(await connectWithOAuth(db, c.id, ex.refreshToken, who.email, `human:${who.email}`)) });
+  }
+  const failed = results.filter((r) => !r.ok);
+  return {
+    kind: "connect", firmId: st.firmId, connectorId: results.map((r) => r.connectorId).join(","), account: who.email,
+    ok: failed.length === 0, detail: failed.length ? failed.map((f) => f.detail).join(" ") : `Connected ${targets.map((t) => t.name).join(", ")}.`,
+  };
 }
 
-/** Start connecting Gmail, Outlook or Drive for the signed-in person's firm. */
-export async function beginConnect(root: Db, s: SessionInfo, connectorId: string, redirectUri: string): Promise<string> {
+/** The connectors one consent covers: all must use the same provider. */
+function oauthTargets(ids: string[], provider?: Provider): (ConnectorInfo & { auth: { kind: "oauth" } })[] {
+  const out = [...new Set(ids.filter(Boolean))].map(getConnector);
+  if (!out.length) throw new Error("Pick something to connect.");
+  const p = provider ?? (out[0]!.auth.kind === "oauth" ? out[0]!.auth.provider : undefined);
+  for (const c of out) {
+    if (c.auth.kind !== "oauth") throw new Error(`${c.name} doesn't connect with OAuth.`);
+    if (c.auth.provider !== p) throw new Error(`${c.name} uses a different account provider; connect it separately.`);
+  }
+  return out as (ConnectorInfo & { auth: { kind: "oauth" } })[];
+}
+
+function unionScopes(cs: { auth: { kind: "oauth"; scopes: readonly string[] } }[]): string[] {
+  return [...new Set(cs.flatMap((c) => c.auth.scopes))];
+}
+
+/**
+ * Start connecting one or more products from the same provider (Gmail,
+ * Drive, Calendar and Meet are all Google) with a single consent screen.
+ */
+export async function beginConnect(root: Db, s: SessionInfo, connectorIds: string | string[], redirectUri: string): Promise<string> {
   if (!s.firm) throw new Error("Create or join a firm first.");
   requireAction(s.firm.role, "manage_connections");
-  const c = getConnector(connectorId);
-  if (c.auth.kind !== "oauth") throw new Error(`${c.name} doesn't connect with OAuth.`);
-  if (!providerConfigured(c.auth.provider)) throw new Error(`This server has no ${c.auth.provider === "google" ? "Google" : "Microsoft"} app configured.`);
+  const targets = oauthTargets(Array.isArray(connectorIds) ? connectorIds : [connectorIds]);
+  const provider = targets[0]!.auth.provider;
+  if (!providerConfigured(provider)) throw new Error(`This server has no ${PROVIDER_NAMES[provider]} app configured.`);
   const { verifier, challenge } = pkcePair();
-  const state = await saveOAuthState(root, { provider: c.auth.provider, purpose: "connect", codeVerifier: verifier, userId: s.user.id, firmId: s.firm.id, connectorId });
-  return authorizeUrl(c.auth.provider, { scopes: c.auth.scopes, state, challenge, redirectUri, offline: true, loginHint: s.user.email });
+  const state = await saveOAuthState(root, { provider, purpose: "connect", codeVerifier: verifier, userId: s.user.id, firmId: s.firm.id, connectorId: targets.map((t) => t.id).join(",") });
+  return authorizeUrl(provider, { scopes: unionScopes(targets), state, challenge, redirectUri, offline: true, loginHint: s.user.email });
 }
 
 /** Email a one-time sign-in link. Always looks the same to the caller, whether or not the address is known. */

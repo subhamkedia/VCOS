@@ -127,4 +127,47 @@ describe("workspaces and roles", () => {
     await expect(beginConnect(root, (await readSession(root, at))!, "gmail", cb)).rejects.toThrow(Forbidden);
     await expect(inviteTeammate(root, (await readSession(root, at))!, "x@alpha.example", "analyst", "https://app.example", mailbox())).rejects.toThrow(Forbidden);
   });
+
+  it("connects several Google products with one consent, and reports permissions the person unticked", async () => {
+    const u = await upsertUser(root, { email: "pat@alpha.example" });
+    const { createSession } = await import("../ledger/platform.js");
+    const token = await createSession(root, u.id, null);
+    const firm = await createWorkspace(root, token, "Alpha Ventures");
+    const s = (await readSession(root, token))!;
+    const url = new URL(await beginConnect(root, s, ["gmail", "google-calendar", "google-meet"], cb));
+    const scope = url.searchParams.get("scope")!;
+    expect(scope).toContain("gmail.readonly");
+    expect(scope).toContain("calendar.events.readonly");
+    expect(scope).toContain("meetings.space.readonly");
+    expect(url.searchParams.get("include_granted_scopes")).toBe("true");
+    await expect(beginConnect(root, s, ["gmail", "outlook"], cb)).rejects.toThrow(/different account provider/);
+    // The person unticked Meet on Google's consent screen.
+    const granted = "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/calendar.events.readonly";
+    const r = await completeOAuth(root, { state: stateOf(url.toString()), code: "c", redirectUri: cb },
+      provider({ sub: "g-1", email: "pat@alpha.example", email_verified: true }, { access_token: "at", refresh_token: "rt-1", scope: granted }));
+    expect(r).toMatchObject({ kind: "connect", ok: false });
+    expect((r as { detail: string }).detail).toMatch(/Google Meet: permission not granted/);
+    const cat = await catalog(scopedDb(root, firm.id));
+    const status = (id: string) => cat.find((c) => c.id === id)!.status;
+    expect(status("gmail")).not.toBe("not_configured");
+    expect(status("google-calendar")).not.toBe("not_configured");
+    expect(status("google-meet")).toBe("not_configured");
+  });
+
+  it("gives every Google product the newest token after an incremental consent", async () => {
+    const u = await upsertUser(root, { email: "pat@alpha.example" });
+    const { createSession } = await import("../ledger/platform.js");
+    const token = await createSession(root, u.id, null);
+    const firm = await createWorkspace(root, token, "Alpha Ventures");
+    const s = (await readSession(root, token))!;
+    const db = scopedDb(root, firm.id);
+    const first = await beginConnect(root, s, "gmail", cb);
+    await completeOAuth(root, { state: stateOf(first), code: "c", redirectUri: cb }, provider({ sub: "g-1", email: "pat@alpha.example", email_verified: true }, { access_token: "a", refresh_token: "rt-1" }));
+    const second = await beginConnect(root, s, "google-calendar", cb);
+    await completeOAuth(root, { state: stateOf(second), code: "c", redirectUri: cb }, provider({ sub: "g-1", email: "pat@alpha.example", email_verified: true }, { access_token: "b", refresh_token: "rt-2" }));
+    const { withFirmCredentials } = await import("../modules/connections/index.js");
+    const { setting } = await import("../lib/config.js");
+    expect(await withFirmCredentials(db, ["gmail"], async () => setting("googleRefreshToken"))).toBe("rt-2");
+  });
 });
+

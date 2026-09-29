@@ -1,0 +1,39 @@
+{
+  "about": "Citation-check cases for IC memo sentences (principle 2). Each sentence is judged against the claims it cites. A drafter, human or model, may only state what the cited claims say, at the precision they say it. Add real memo sentences from live deals here (at least 20 real cases before the Claude drafter is used on live deals, per CLAUDE.md).",
+  "claims": {
+    "arr": { "label": "ARR", "values": [4120000], "dates": ["2026-09-01"] },
+    "headcount": { "label": "Team headcount", "values": [34], "dates": ["2026-10-02"] },
+    "raise": { "label": "Raising now", "values": [12000000], "dates": [] },
+    "premoney": { "label": "Pre-money", "values": [48000000], "dates": [] },
+    "margin": { "label": "Gross margin", "values": [41], "dates": [] },
+    "patent": { "label": "Patent", "values": [11999001], "dates": ["2025-06-03"] },
+    "pilot": { "label": "Pilot", "values": [], "dates": ["2026-08-15"] },
+    "calc:round": { "label": "Round math", "values": [3000000, 60000000, 5], "dates": [] }
+  },
+  "cases": [
+    { "text": "ARR is $4.1M.", "cites": ["arr"], "kind": "fact", "ok": true },
+    { "text": "ARR is $4M.", "cites": ["arr"], "kind": "fact", "ok": true },
+    { "text": "ARR is $4,120,000 as of 2026-09-01.", "cites": ["arr"], "kind": "fact", "ok": true },
+    { "text": "ARR is $4.3M.", "cites": ["arr"], "kind": "fact", "ok": false, "why": "number not in the claim" },
+    { "text": "ARR is $4.12M.", "cites": ["headcount"], "kind": "fact", "ok": false, "why": "cites the wrong claim" },
+    { "text": "ARR is growing quickly.", "cites": [], "kind": "fact", "ok": false, "why": "uncited fact" },
+    { "text": "The team is 34 people.", "cites": ["headcount"], "kind": "fact", "ok": true },
+    { "text": "The team is 35 people.", "cites": ["headcount"], "kind": "fact", "ok": false, "why": "off by one" },
+    { "text": "The team is 34 people as of 2026-09-01.", "cites": ["headcount"], "kind": "fact", "ok": false, "why": "wrong date" },
+    { "text": "Raising $12M at a $48M pre-money valuation.", "cites": ["raise", "premoney"], "kind": "fact", "ok": true },
+    { "text": "Raising $12M at a $50M pre-money valuation.", "cites": ["raise", "premoney"], "kind": "fact", "ok": false, "why": "rounded differently" },
+    { "text": "Post-money would be $60M.", "cites": ["raise", "premoney"], "kind": "fact", "ok": false, "why": "arithmetic by the writer; must cite the code's calculation" },
+    { "text": "At our $3M check we'd own 5.0% at a $60M post-money valuation.", "cites": ["calc:round"], "kind": "fact", "ok": true },
+    { "text": "Gross margin is 41%.", "cites": ["margin"], "kind": "fact", "ok": true },
+    { "text": "Gross margin is 45%.", "cites": ["margin"], "kind": "fact", "ok": false, "why": "made-up number" },
+    { "text": "Patent US 11999001 was granted in 2025.", "cites": ["patent"], "kind": "fact", "ok": true },
+    { "text": "The pilot started in 2026.", "cites": ["pilot"], "kind": "fact", "ok": true },
+    { "text": "The pilot started in 2025.", "cites": ["pilot"], "kind": "fact", "ok": false, "why": "wrong year" },
+    { "text": "We think the market is underestimated.", "cites": [], "kind": "view", "ok": true },
+    { "text": "We think this could be a 10x outcome.", "cites": [], "kind": "view", "ok": false, "why": "uncited number in a view" },
+    { "text": "Headcount grew from 34.", "cites": ["unknown-claim"], "kind": "fact", "ok": false, "why": "cites a claim the memo can't use" },
+    { "text": "", "cites": ["arr"], "kind": "fact", "ok": false, "why": "empty" },
+    { "text": "ARR is $4.1M with a team of 34.", "cites": ["arr", "headcount"], "kind": "fact", "ok": true },
+    { "text": "Gross margin is 41% on $4.1M of ARR, 3x last year.", "cites": ["arr", "margin"], "kind": "fact", "ok": false, "why": "growth multiple not in any claim" }
+  ]
+}

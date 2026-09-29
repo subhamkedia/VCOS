@@ -36,6 +36,9 @@ export function FirmSection({ p, set, errors, options }: Props) {
           <Field label="LinkedIn page">
             <input className="input" id="firm-linkedin" value={f.linkedin ?? ""} placeholder="linkedin.com/company/yourfirm" onChange={(e) => up({ linkedin: text(e.target.value) })} />
           </Field>
+          <Field label="Your team's email domains" hint="Meetings where everyone is from these domains are internal. The rest are matched to companies.">
+            <TagInput id="firm-email-domains" value={f.emailDomains ?? []} onChange={(emailDomains) => up({ emailDomains: emailDomains.map((d) => d.toLowerCase().replace(/^.*@/, "")) })} placeholder="yourfirm.com" />
+          </Field>
         </div>
       </Group>
       <Group title="Where you are">
