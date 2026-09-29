@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
+import { HouseTerms, HOUSE_DEFAULTS } from "../execution/terms.js";
 import type { Db } from "../../lib/db.js";
 import { insertThesisVersion, latestThesis, thesisHistory } from "../../ledger/workspace.js";
 import { construct, type Construction } from "../../engines/portfolio-construction.js";
@@ -39,7 +40,7 @@ const currency = labelled([["USD", "US dollar"], ["EUR", "Euro"], ["GBP", "Briti
 const feeBasis = labelled([["committed", "Committed capital"], ["invested", "Invested capital"]]);
 const waterfall = labelled([["european", "European (whole fund)"], ["american", "American (deal by deal)"]]);
 const followOn = labelled([["pro_rata", "Pro rata"], ["super_pro_rata", "Super pro rata in winners"], ["selective", "Selective"], ["none", "No follow-ons"]]);
-const icApproval = labelled([["unanimous", "Unanimous"], ["supermajority", "Supermajority"], ["majority", "Simple majority"], ["managing_partner", "Managing partner decides"]]);
+const icApproval = labelled([["unanimous", "Unanimous"], ["supermajority", "Supermajority (two thirds)"], ["majority", "Simple majority"], ["champion", "One champion with full conviction, no veto"], ["managing_partner", "Managing partner decides"]]);
 const lead = labelled([["lead", "Lead"], ["co_lead", "Co-lead"], ["follow", "Follow"], ["any", "Any"]]);
 const board = labelled([["required", "Board seat required"], ["preferred", "Board seat preferred"], ["observer", "Observer seat"], ["none", "No board role"]]);
 const traction = labelled([["pre_product", "Pre-product is fine"], ["pre_revenue", "Product, pre-revenue"], ["early_revenue", "Early revenue"], ["scaling", "Scaling revenue"]]);
@@ -153,6 +154,8 @@ export const FirmProfile = z
       thesis: z.string().default(""),
     }),
     scoring: z.object({ dimensions: z.array(dimension).min(1) }),
+    /** House terms for term sheets; defaults follow the NVCA model. */
+    terms: HouseTerms.default(HOUSE_DEFAULTS),
   })
   .superRefine((p, ctx) => {
     const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: "custom", path, message });

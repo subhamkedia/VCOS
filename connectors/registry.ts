@@ -21,6 +21,9 @@ import { companySbir } from "./sbir.js";
 import { companyFederalAwards } from "./usaspending.js";
 import { companyJobs } from "./jobs.js";
 import { sameCompanyName, type CompanyRef } from "./research.js";
+import { docusignCheck } from "./docusign.js";
+import { cartaCheck } from "./carta.js";
+import { ofacCheck } from "./ofac.js";
 import { outlookCheck, outlookSearch } from "./outlook.js";
 import { emailToRecord } from "./email.js";
 import { driveCheck } from "./gdrive.js";
@@ -37,7 +40,7 @@ import { discoverFromPortfolioPage, ORG_TYPES, type OrgType } from "./portfolio-
  * the Sourcing screen and `pnpm connectors` all render from this list.
  */
 
-export type Category = "data vendor" | "public" | "crm" | "email" | "documents" | "meetings";
+export type Category = "data vendor" | "public" | "crm" | "email" | "documents" | "meetings" | "closing";
 
 /** What diligence knows about the company it's researching. */
 export interface ResearchTarget extends CompanyRef {
@@ -424,6 +427,30 @@ export const CONNECTORS: ConnectorInfo[] = [
     description: "Upload transcripts exported from any tool, including Otter (.vtt, .txt, .md).",
     auth: { kind: "none" }, ingest: "pnpm ingest transcript <file> --company <name>",
   },
+
+  // --- Closing -----------------------------------------------------------------
+  // Used by Investment Execution: signatures, cap tables, sanctions screening.
+  {
+    id: "docusign", name: "DocuSign", category: "closing", scope: "confidential",
+    description: "Tracks signatures on closing documents, and can prepare draft envelopes you review and send yourself. VC OS never sends one.",
+    auth: { kind: "oauth", provider: "docusign", scopes: ["signature", "extended"], refreshKey: "docusignRefreshToken" },
+    docsUrl: "https://developers.docusign.com/docs/esign-rest-api/", writes: "draft envelopes (never sent)",
+    ingest: "Used on the Closing tab", check: () => docusignCheck(),
+  },
+  {
+    id: "carta", name: "Carta", category: "closing", scope: "vendor",
+    description: "Your firm's funds, investments and the cap tables companies share with you, through Carta's API Platform (partner access). Or import any Carta or Pulley export as a file.",
+    auth: { kind: "api_key", fields: [key("cartaClientId", "Client id", "Carta developer portal → your app"), key("cartaClientSecret", "Client secret")] },
+    docsUrl: "https://docs.carta.com/api-platform/docs/introduction",
+    ingest: "Used on the Cap table tab", check: () => cartaCheck(),
+    notes: "Carta API access is invite-only; cap table files work without it.",
+  },
+  {
+    id: "ofac", name: "OFAC sanctions lists", category: "closing", scope: "public",
+    description: "Screens the company, its founders and co-investors against the US Treasury's SDN and Consolidated sanctions lists before closing.",
+    auth: { kind: "none" }, docsUrl: "https://ofac.treasury.gov/sanctions-list-service",
+    ingest: "Used on the Closing tab", check: () => ofacCheck(),
+  },
 ];
 
 export function getConnector(id: string): ConnectorInfo {
@@ -442,6 +469,8 @@ export function requiredKeys(c: ConnectorInfo): ConfigKey[] {
       ? ["googleClientId", "googleClientSecret", c.auth.refreshKey]
       : c.auth.provider === "zoom"
         ? ["zoomClientId", "zoomClientSecret", c.auth.refreshKey]
+        : c.auth.provider === "docusign"
+        ? ["docusignClientId", "docusignClientSecret", c.auth.refreshKey]
         : ["msClientId", "msClientSecret", c.auth.refreshKey];
   }
 }
@@ -459,4 +488,6 @@ export const ENV_NAMES: Record<ConfigKey, string> = {
   msClientId: "MS_CLIENT_ID", msClientSecret: "MS_CLIENT_SECRET", msRefreshToken: "MS_REFRESH_TOKEN", msTenant: "MS_TENANT",
   patentsviewApiKey: "PATENTSVIEW_API_KEY", zoomClientId: "ZOOM_CLIENT_ID", zoomClientSecret: "ZOOM_CLIENT_SECRET",
   zoomRefreshToken: "ZOOM_REFRESH_TOKEN", granolaApiKey: "GRANOLA_API_KEY", firefliesApiKey: "FIREFLIES_API_KEY",
+  docusignClientId: "DOCUSIGN_CLIENT_ID", docusignClientSecret: "DOCUSIGN_CLIENT_SECRET", docusignAuthServer: "DOCUSIGN_AUTH_SERVER",
+  docusignRefreshToken: "DOCUSIGN_REFRESH_TOKEN", cartaClientId: "CARTA_CLIENT_ID", cartaClientSecret: "CARTA_CLIENT_SECRET", cartaApiBase: "CARTA_API_BASE",
 };

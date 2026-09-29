@@ -38,6 +38,17 @@ export const config = {
   zoomClientSecret: env("ZOOM_CLIENT_SECRET"),
   zoomRefreshToken: env("ZOOM_REFRESH_TOKEN"),
 
+  // DocuSign (one OAuth app for every firm; account-d.docusign.com for the developer sandbox)
+  docusignClientId: env("DOCUSIGN_CLIENT_ID"),
+  docusignClientSecret: env("DOCUSIGN_CLIENT_SECRET"),
+  docusignAuthServer: env("DOCUSIGN_AUTH_SERVER", "account.docusign.com"),
+  docusignRefreshToken: env("DOCUSIGN_REFRESH_TOKEN"),
+
+  // Carta API Platform (partner access; a firm's own client credentials)
+  cartaClientId: env("CARTA_CLIENT_ID"),
+  cartaClientSecret: env("CARTA_CLIENT_SECRET"),
+  cartaApiBase: env("CARTA_API_BASE", "https://api.carta.com"),
+
   // Meeting notetakers (API keys belong to one firm)
   granolaApiKey: env("GRANOLA_API_KEY"),
   firefliesApiKey: env("FIREFLIES_API_KEY"),
@@ -53,7 +64,7 @@ export type ConfigKey = keyof typeof config;
 export const PLATFORM_KEYS: ReadonlySet<ConfigKey> = new Set<ConfigKey>([
   "anthropicApiKey", "extractionModel", "reasoningModel", "secUserAgent",
   "googleClientId", "googleClientSecret", "msClientId", "msClientSecret", "msTenant",
-  "zoomClientId", "zoomClientSecret", "patentsviewApiKey",
+  "zoomClientId", "zoomClientSecret", "patentsviewApiKey", "docusignClientId", "docusignClientSecret", "docusignAuthServer", "cartaApiBase",
 ]);
 
 type Creds = Partial<Record<ConfigKey, string>>;

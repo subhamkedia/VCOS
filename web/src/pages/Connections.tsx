@@ -49,7 +49,7 @@ function statusOf(c: Connector): { tone: string; label: string } {
   return { tone: "quiet", label: "Not connected" };
 }
 
-const PROVIDER: Record<string, string> = { google: "Google", microsoft: "Microsoft", zoom: "Zoom" };
+const PROVIDER: Record<string, string> = { google: "Google", microsoft: "Microsoft", zoom: "Zoom", docusign: "DocuSign" };
 
 export function ConnectorCard({ c, all = [], onChange }: { c: Connector; all?: Connector[]; onChange: () => void }) {
   const { can } = useSession();

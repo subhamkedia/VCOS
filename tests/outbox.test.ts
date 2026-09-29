@@ -15,7 +15,7 @@ afterEach(async () => {
 function recorder() {
   const calls: { channel: string; payload: Record<string, unknown> }[] = [];
   const make = (channel: OutboxChannel): Executor => async (payload) => (calls.push({ channel, payload }), { id: `${channel}-1` });
-  const executors = { affinity_note: make("affinity_note"), gmail_draft: make("gmail_draft"), outlook_draft: make("outlook_draft") };
+  const executors = { affinity_note: make("affinity_note"), gmail_draft: make("gmail_draft"), outlook_draft: make("outlook_draft"), docusign_draft: make("docusign_draft") };
   return { calls, executors };
 }
 
@@ -62,6 +62,6 @@ describe("outbox", () => {
   });
 
   it("has no channel that sends a message", () => {
-    expect(Object.keys(EXECUTORS).sort()).toEqual(["affinity_note", "gmail_draft", "outlook_draft"]);
+    expect(Object.keys(EXECUTORS).sort()).toEqual(["affinity_note", "docusign_draft", "gmail_draft", "outlook_draft"]);
   });
 });

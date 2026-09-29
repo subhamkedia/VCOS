@@ -6,6 +6,7 @@ import {
 import { affinityCreateNote } from "../../connectors/affinity.js";
 import { gmailCreateDraft } from "../../connectors/gmail.js";
 import { outlookCreateDraft } from "../../connectors/outlook.js";
+import { docusignCreateDraft } from "../../connectors/docusign.js";
 
 /**
  * The approval outbox. Agents and workflows call `queue*`; nothing leaves
@@ -28,6 +29,14 @@ export const PAYLOADS = {
   affinity_note: z.object({ organizationId: z.number().int().positive(), content: z.string().min(1).max(20_000) }),
   gmail_draft: draft,
   outlook_draft: draft,
+  // A DocuSign envelope saved as a draft ("created"); a person sends it from DocuSign.
+  docusign_draft: z.object({
+    subject: z.string().min(1).max(100),
+    documents: z.array(z.object({ name: z.string().min(1).max(200), base64: z.string().min(1).max(14_000_000) })).min(1).max(5),
+    signers: z.array(z.object({ name: z.string().min(1), email: z.string().email() })).min(1).max(20),
+    dealId: z.string().uuid().optional(),
+    itemKey: z.string().optional(),
+  }),
 } satisfies Record<OutboxChannel, z.ZodType>;
 
 export type Payload<C extends OutboxChannel> = z.infer<(typeof PAYLOADS)[C]>;
@@ -48,6 +57,7 @@ export const EXECUTORS: Record<OutboxChannel, Executor> = {
   affinity_note: (p) => affinityCreateNote(Number(p.organizationId), String(p.content)),
   gmail_draft: (p) => gmailCreateDraft(PAYLOADS.gmail_draft.parse(p)),
   outlook_draft: (p) => outlookCreateDraft(PAYLOADS.outlook_draft.parse(p)),
+  docusign_draft: (p) => docusignCreateDraft(PAYLOADS.docusign_draft.parse(p)),
 };
 
 export const pending = (db: Db, status: OutboxStatus = "pending") => listOutbox(db, status);

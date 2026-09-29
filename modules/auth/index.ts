@@ -85,7 +85,7 @@ export async function completeOAuth(
   const st = await takeOAuthState(root, q.state);
   if (!st) throw new Error("That sign-in link has expired. Start again.");
   if (st.purpose === "signin") {
-    if (st.provider === "zoom") throw new Error("Zoom can't be used to sign in.");
+    if (st.provider === "zoom" || st.provider === "docusign") throw new Error(`${PROVIDER_NAMES[st.provider]} can't be used to sign in.`);
     const scopes = SCOPES.signin[st.provider];
     const ex = await exchangeCode(st.provider, { code: q.code, verifier: st.codeVerifier, redirectUri: q.redirectUri, scopes }, fetchImpl);
     const who = await identity(st.provider, ex.accessToken, fetchImpl);

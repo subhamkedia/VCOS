@@ -69,7 +69,7 @@ export interface Connector {
     | { kind: "none" }
     | { kind: "platform"; note: string; ready: boolean }
     | { kind: "api_key"; fields: { key: string; label: string; secret: boolean; placeholder?: string; help?: string }[] }
-    | { kind: "oauth"; provider: "google" | "microsoft" | "zoom"; available: boolean; product?: string };
+    | { kind: "oauth"; provider: "google" | "microsoft" | "zoom" | "docusign"; available: boolean; product?: string };
   sourcing?: { mode: "discover" | "enrich"; summary: string; params: ParamSpec[]; defaultCadence: Cadence };
   research?: { summary: string; needsDomain: boolean };
   meetings?: { summary: string; defaultCadence: Cadence };

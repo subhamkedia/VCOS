@@ -24,15 +24,17 @@ import type { FetchLike } from "./types.js";
  * Scopes are read-only plus drafts. No connector calls a send endpoint.
  */
 
-export type Provider = "google" | "microsoft" | "zoom";
+export type Provider = "google" | "microsoft" | "zoom" | "docusign";
 
-export const PROVIDER_NAMES: Record<Provider, string> = { google: "Google", microsoft: "Microsoft", zoom: "Zoom" };
+export const PROVIDER_NAMES: Record<Provider, string> = { google: "Google", microsoft: "Microsoft", zoom: "Zoom", docusign: "DocuSign" };
 
 export const SCOPES = {
   signin: { google: ["openid", "email", "profile"], microsoft: ["openid", "email", "profile", "User.Read"] },
 } as const;
 
-export const REFRESH_KEY = { google: "googleRefreshToken", microsoft: "msRefreshToken", zoom: "zoomRefreshToken" } as const satisfies Record<Provider, ConfigKey>;
+export const REFRESH_KEY = { google: "googleRefreshToken", microsoft: "msRefreshToken", zoom: "zoomRefreshToken", docusign: "docusignRefreshToken" } as const satisfies Record<Provider, ConfigKey>;
+
+const docusignServer = () => `https://${(setting("docusignAuthServer") || "account.docusign.com").replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
 
 // Access tokens by provider and refresh token (hashed), so two firms never share one.
 const cache = new Map<string, { token: string; expiresAt: number }>();
@@ -41,19 +43,21 @@ const tenant = () => encodeURIComponent(setting("msTenant") || "common");
 const tokenUrl = (p: Provider) =>
   p === "google" ? "https://oauth2.googleapis.com/token"
   : p === "zoom" ? "https://zoom.us/oauth/token"
+  : p === "docusign" ? `${docusignServer()}/oauth/token`
   : `https://login.microsoftonline.com/${tenant()}/oauth2/v2.0/token`;
 
 function clientParams(p: Provider) {
   if (p === "google") return { client_id: requireKey("googleClientId"), client_secret: requireKey("googleClientSecret") };
   if (p === "zoom") return { client_id: requireKey("zoomClientId"), client_secret: requireKey("zoomClientSecret") };
+  if (p === "docusign") return { client_id: requireKey("docusignClientId"), client_secret: requireKey("docusignClientSecret") };
   return { client_id: requireKey("msClientId"), client_secret: requireKey("msClientSecret") };
 }
 
-/** Zoom wants the client credentials as HTTP Basic auth; Google and Microsoft take them in the body. */
+/** Zoom and DocuSign want the client credentials as HTTP Basic auth; Google and Microsoft take them in the body. */
 function tokenRequest(p: Provider, fields: Record<string, string>): { headers: Record<string, string>; body: URLSearchParams } {
   const { client_id, client_secret } = clientParams(p);
   const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
-  if (p === "zoom") {
+  if (p === "zoom" || p === "docusign") {
     headers.Authorization = `Basic ${Buffer.from(`${client_id}:${client_secret}`).toString("base64")}`;
     return { headers, body: new URLSearchParams(fields) };
   }
@@ -99,6 +103,7 @@ export function pkcePair(): { verifier: string; challenge: string } {
 export function providerConfigured(p: Provider): boolean {
   if (p === "google") return Boolean(config.googleClientId && config.googleClientSecret);
   if (p === "zoom") return Boolean(config.zoomClientId && config.zoomClientSecret);
+  if (p === "docusign") return Boolean(config.docusignClientId && config.docusignClientSecret);
   return Boolean(config.msClientId && config.msClientSecret);
 }
 
@@ -114,8 +119,9 @@ export function authorizeUrl(p: Provider, o: { scopes: readonly string[]; state:
   });
   // Zoom scopes are set on the app registration, not per request.
   if (p !== "zoom") q.set("scope", o.scopes.join(" "));
-  if (o.loginHint && p !== "zoom") q.set("login_hint", o.loginHint);
+  if (o.loginHint && p !== "zoom" && p !== "docusign") q.set("login_hint", o.loginHint);
   if (p === "zoom") return `https://zoom.us/oauth/authorize?${q}`;
+  if (p === "docusign") return `${docusignServer()}/oauth/auth?${q}`;
   if (p === "google") {
     if (o.offline) {
       q.set("access_type", "offline");
@@ -189,6 +195,11 @@ export async function identity(p: Provider, accessTokenValue: string, fetchImpl?
     if (!u.sub || !u.email || u.email_verified !== true) throw new Error("Google did not return a verified email address.");
     return { provider: p, subject: u.sub, email: u.email.toLowerCase(), name: u.name };
   }
+  if (p === "docusign") {
+    const u = await requestJson<{ sub?: string; email?: string; name?: string }>("docusign", `${docusignServer()}/oauth/userinfo`, { headers, fetchImpl });
+    if (!u.sub || !u.email) throw new Error("DocuSign did not return an account email.");
+    return { provider: p, subject: u.sub, email: u.email.toLowerCase(), name: u.name };
+  }
   if (p === "zoom") {
     const z = await requestJson<{ id?: string; email?: string; display_name?: string; first_name?: string; last_name?: string }>(
       "zoom", "https://api.zoom.us/v2/users/me", { headers, fetchImpl },
@@ -206,4 +217,5 @@ export async function identity(p: Provider, accessTokenValue: string, fetchImpl?
 
 export const googleConfigured = () => Boolean(setting("googleClientId") && setting("googleClientSecret") && setting("googleRefreshToken"));
 export const microsoftConfigured = () => Boolean(setting("msClientId") && setting("msClientSecret") && setting("msRefreshToken"));
+export { docusignServer };
 export const zoomConfigured = () => Boolean(setting("zoomClientId") && setting("zoomClientSecret") && setting("zoomRefreshToken"));

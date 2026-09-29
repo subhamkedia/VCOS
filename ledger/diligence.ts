@@ -8,8 +8,8 @@ import { audit } from "./repository.js";
  * tables hold the firm's process and judgment around them.
  */
 
-export type DealStage = "screening" | "diligence" | "ic" | "approved" | "passed" | "closed";
-export const DEAL_STAGES: DealStage[] = ["screening", "diligence", "ic", "approved", "passed", "closed"];
+export type DealStage = "screening" | "diligence" | "ic" | "approved" | "closing" | "passed" | "closed";
+export const DEAL_STAGES: DealStage[] = ["screening", "diligence", "ic", "approved", "closing", "passed", "closed"];
 export type ItemStatus = "open" | "in_progress" | "done" | "na" | "red_flag";
 export type QuestionStatus = "open" | "asked" | "answered" | "dropped";
 export type QuestionOrigin = "gap" | "unverified" | "contradiction" | "pilot" | "risk" | "custom";

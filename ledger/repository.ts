@@ -601,7 +601,7 @@ export type CompanyProfile = Awaited<ReturnType<typeof companyProfile>>;
 // Outbox: outbound actions waiting for a human
 // ---------------------------------------------------------------------------
 
-export type OutboxChannel = "affinity_note" | "gmail_draft" | "outlook_draft";
+export type OutboxChannel = "affinity_note" | "gmail_draft" | "outlook_draft" | "docusign_draft";
 export type OutboxStatus = "pending" | "approved" | "rejected" | "done" | "failed";
 
 export interface OutboxItem {
