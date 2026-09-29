@@ -106,6 +106,51 @@ export async function createPgDb(connectionString: string): Promise<Db> {
   };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * A Db that sees one firm's rows and nothing else. Every statement runs in a
+ * transaction as the role `vcos_app` with `app.firm_id` set, so Postgres
+ * row-level security filters reads and fills in and checks firm_id on
+ * writes (migration 0004). Hand this to modules, agents and connectors;
+ * keep the root Db for platform code (sign-in, the scheduler, migrations).
+ *
+ * `close()` does nothing unless `closeRoot` is set: request handlers share
+ * one root pool.
+ */
+export function scopedDb(root: Db, firmId: string, opts: { closeRoot?: boolean } = {}): Db & { firmId: string } {
+  if (!UUID.test(firmId)) throw new Error(`Not a firm id: ${firmId}`);
+  const enter = async (tx: Db) => {
+    await tx.query("select set_config('app.firm_id', $1, true)", [firmId]);
+    await tx.exec("set local role vcos_app");
+  };
+  const scoped = {
+    firmId,
+    query<T>(sql: string, params?: unknown[]) {
+      return root.transaction(async (tx) => {
+        await enter(tx);
+        return tx.query<T>(sql, params);
+      });
+    },
+    async exec(sql: string) {
+      await root.transaction(async (tx) => {
+        await enter(tx);
+        await tx.exec(sql);
+      });
+    },
+    transaction<T>(fn: (tx: Db) => Promise<T>) {
+      return root.transaction(async (tx) => {
+        await enter(tx);
+        return fn(tx);
+      });
+    },
+    async close() {
+      if (opts.closeRoot) await root.close();
+    },
+  };
+  return scoped;
+}
+
 /** Pick Postgres if DATABASE_URL is set, else an on-disk PGlite in .data/. */
 export async function connect(): Promise<Db> {
   const url = process.env.DATABASE_URL;

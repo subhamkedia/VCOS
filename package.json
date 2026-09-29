@@ -15,7 +15,8 @@
     "demo": "tsx cli/demo.ts",
     "show": "tsx cli/show.ts",
     "connectors": "tsx cli/connectors.ts",
-    "outbox": "tsx cli/outbox.ts"
+    "outbox": "tsx cli/outbox.ts",
+    "worker": "tsx cli/worker.ts"
   },
   "packageManager": "pnpm@10.28.0",
   "dependencies": {

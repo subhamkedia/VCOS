@@ -1,4 +1,5 @@
-import { connect, migrate, type Db } from "../lib/db.js";
+import { connect, migrate, scopedDb, type Db } from "../lib/db.js";
+import { createFirm, getFirmBySlug, listFirms } from "../ledger/platform.js";
 import { companyProfile, findByIdentifier, findEntityByAlias, getEntity, type AccessScope } from "../ledger/repository.js";
 
 export function parseArgs(argv = process.argv.slice(2)) {
@@ -18,10 +19,23 @@ export function parseArgs(argv = process.argv.slice(2)) {
   return { positional, flags, str };
 }
 
+/**
+ * The ledger for one firm. Pick it with `--firm <slug>` or VCOS_FIRM; with a
+ * single firm in the database that one is used, and an empty local database
+ * gets a firm called "My fund".
+ */
 export async function openDb(): Promise<Db> {
-  const db = await connect();
-  await migrate(db);
-  return db;
+  const root = await connect();
+  await migrate(root);
+  const wanted = parseArgs().str("firm") ?? process.env.VCOS_FIRM;
+  let firm = wanted ? await getFirmBySlug(root, wanted) : null;
+  if (wanted && !firm) throw new Error(`No firm with slug "${wanted}".`);
+  if (!firm) {
+    const all = await listFirms(root);
+    if (all.length > 1) throw new Error(`Several firms in this database; pass --firm <slug>: ${all.map((f) => f.slug).join(", ")}`);
+    firm = all[0] ?? (await createFirm(root, { name: "My fund", createdBy: "cli" }));
+  }
+  return scopedDb(root, firm.id, { closeRoot: true });
 }
 
 export async function run(main: () => Promise<void>) {

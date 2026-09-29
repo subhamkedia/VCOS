@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { Db } from "../lib/db.js";
-import { testDb } from "./helpers.js";
+import { testDb, testRootNoReset } from "./helpers.js";
 import {
   createEntity, insertEvidence, insertClaim, currentClaims, detectContradictions, openContradictions,
   findByIdentifier, recordDecision, addIdentifier, companyProfile, SHAREABLE_SCOPES,
@@ -84,10 +84,16 @@ describe("evidence", () => {
 
   it("is append-only", async () => {
     const { evidence } = await insertEvidence(db, { kind: "note", source: "test", content: "x" });
-    await expect(db.query("update evidence set title='y' where id=$1", [evidence.id])).rejects.toThrow(/append-only/);
-    await expect(db.query("delete from evidence where id=$1", [evidence.id])).rejects.toThrow(/append-only/);
-    await expect(db.exec("truncate evidence cascade")).rejects.toThrow(/append-only/);
-    await expect(db.exec("truncate claims")).rejects.toThrow(/append-only/);
+    // The app role may only insert and read...
+    await expect(db.query("update evidence set title='y' where id=$1", [evidence.id])).rejects.toThrow(/permission denied/);
+    await expect(db.query("delete from evidence where id=$1", [evidence.id])).rejects.toThrow(/permission denied/);
+    await expect(db.exec("truncate claims")).rejects.toThrow(/permission denied/);
+    // ...and the triggers stop the owner role too.
+    const root = await testRootNoReset();
+    await expect(root.query("update evidence set title='y' where id=$1", [evidence.id])).rejects.toThrow(/append-only/);
+    await expect(root.query("delete from evidence where id=$1", [evidence.id])).rejects.toThrow(/append-only/);
+    await expect(root.exec("truncate evidence cascade")).rejects.toThrow(/append-only/);
+    await expect(root.exec("truncate claims")).rejects.toThrow(/append-only/);
   });
 });
 
@@ -134,7 +140,7 @@ describe("claims", () => {
       subjectId: acme.id, predicate: "team.headcount", value: 20, evidenceId: evidence.id,
       sourceType: "self_reported", extractedBy: "test",
     });
-    await expect(db.query("update claims set value='21' where id=$1", [first])).rejects.toThrow(/append-only/);
+    await expect(db.query("update claims set value='21' where id=$1", [first])).rejects.toThrow(/permission denied/);
     await insertClaim(db, {
       subjectId: acme.id, predicate: "team.headcount", value: 21, evidenceId: evidence.id,
       sourceType: "self_reported", extractedBy: "human:subham", supersedes: first,

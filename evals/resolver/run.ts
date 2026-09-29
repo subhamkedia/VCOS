@@ -11,7 +11,8 @@
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { createPgliteDb, migrate, type Db } from "../../lib/db.js";
+import type { Db } from "../../lib/db.js";
+import { inMemoryFirm } from "../../ledger/platform.js";
 import { createEntity, insertClaim, insertEvidence, type IdentifierKind } from "../../ledger/repository.js";
 import { resolve, type Candidate } from "../../agents/resolver/resolve.js";
 
@@ -90,8 +91,7 @@ export function judge(c: Case, decision: string, gotKey: string): Verdict {
 export async function runResolverEval(setDir: string): Promise<{ results: CaseResult[]; accuracy: number; falseMerges: number }> {
   const seeds = await readJsonl<SeedEntity>(path.join(setDir, "entities.jsonl"));
   const cases = await readJsonl<Case>(path.join(setDir, "cases.jsonl"));
-  const db = await createPgliteDb();
-  await migrate(db);
+  const { db } = await inMemoryFirm("Eval Fund");
   const keyById = await seed(db, seeds);
 
   const results: CaseResult[] = [];

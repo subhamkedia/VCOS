@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { readFile } from "node:fs/promises";
-import { createPgliteDb, migrate } from "../lib/db.js";
+import { inMemoryFirm } from "../ledger/platform.js";
 import { claude, hasClaude, type Llm } from "../lib/llm.js";
 import { replayLlm } from "../lib/replay-llm.js";
 import { ingest } from "../connectors/ingest.js";
@@ -35,8 +35,7 @@ run(async () => {
 
   const step = (n: number, s: string) => console.log(`\n── ${n}. ${s}`);
   console.log(`VC OS Phase 0 demo — fictional data, in-memory database, extraction: ${live ? "live Claude" : "replay (set ANTHROPIC_API_KEY for live)"}`);
-  const db = await createPgliteDb();
-  await migrate(db);
+  const { db } = await inMemoryFirm("Demo Fund");
   const fx = (f: string) => readFile(`tests/fixtures/${f}`, "utf8");
 
   step(1, "Harmonic enrichment creates the company");

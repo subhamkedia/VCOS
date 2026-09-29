@@ -181,7 +181,7 @@ export async function insertEvidence(db: Db, input: EvidenceInput, actor = input
   const inserted = await db.query<Evidence>(
     `insert into evidence(kind, source, uri, title, content, content_hash, mime_type, occurred_at, access_scope, metadata)
      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-     on conflict (source, content_hash) do nothing
+     on conflict (firm_id, source, content_hash) do nothing
      returning *`,
     [
       input.kind, input.source, input.uri ?? null, input.title ?? null, input.content, hash,

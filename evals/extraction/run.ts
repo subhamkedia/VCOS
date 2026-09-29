@@ -11,7 +11,7 @@
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { createPgliteDb, migrate } from "../../lib/db.js";
+import { inMemoryFirm } from "../../ledger/platform.js";
 import { claude, hasClaude } from "../../lib/llm.js";
 import { claimsForEvidence, createEntity, insertEvidence, type EvidenceKind } from "../../ledger/repository.js";
 import { extractClaims } from "../../agents/extractor/index.js";
@@ -79,8 +79,7 @@ export function score(fx: Fixture, got: Got[]) {
 }
 
 async function runOnce(fx: Fixture) {
-  const db = await createPgliteDb();
-  await migrate(db);
+  const { db } = await inMemoryFirm("Eval Fund");
   const subject = await createEntity(db, { type: "company", name: fx.subject, source: "eval" });
   const { evidence } = await insertEvidence(db, {
     kind: fx.kind, source: "eval", content: fx.document, title: fx.title, occurredAt: fx.date,

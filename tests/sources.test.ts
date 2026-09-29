@@ -17,7 +17,7 @@ import { pitchbookByDomain } from "../connectors/pitchbook.js";
 import { dealroomToRecord } from "../connectors/dealroom.js";
 import { driveRecord } from "../connectors/gdrive.js";
 import { documentFromFile, documentRecord } from "../connectors/documents.js";
-import { CONNECTORS, ENV_NAMES } from "../connectors/registry.js";
+import { CONNECTORS, ENV_NAMES, requiredKeys } from "../connectors/registry.js";
 import { createEntity, currentClaims, findByIdentifier } from "../ledger/repository.js";
 
 // All companies, people and ids below are fictional.
@@ -304,7 +304,7 @@ describe("registry", () => {
 
   it("documents every key each connector needs in .env.example", async () => {
     const example = await readFile(".env.example", "utf8");
-    const keys = new Set(CONNECTORS.flatMap((c) => c.keys));
+    const keys = new Set(CONNECTORS.flatMap((c) => requiredKeys(c)));
     for (const k of keys) expect(example).toContain(`${ENV_NAMES[k as ConfigKey]}=`);
     expect(new Set(CONNECTORS.map((c) => c.id)).size).toBe(CONNECTORS.length);
   });
