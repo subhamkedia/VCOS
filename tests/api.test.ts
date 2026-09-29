@@ -206,5 +206,49 @@ describe("limits", () => {
     expect(await (await ana.get("/api/meetings/counts")).json()).toEqual({ matched: 0, needs_review: 0, internal: 0, ignored: 0 });
     expect((await ana.post("/api/meetings/00000000-0000-0000-0000-000000000000/mark", { status: "ignored" })).status).toBe(404);
   });
-});
+  it("runs execution over HTTP: members vote, partners approve wires and close, analysts can't", async () => {
+    const pat = await signIn("pat@alpha.example");
+    await pat.post("/api/firms", { name: "Alpha Ventures" });
+    const firmId = (await readSession(root, pat.cookie.split("=")[1]))!.firm!.id;
+    const ana = await signIn("ana@alpha.example");
+    await addMembership(root, firmId, (await readSession(root, ana.cookie.split("=")[1]))!.user.id, "analyst");
+    await ana.post("/api/firms/switch", { firmId });
+    const { id } = await (await ana.post("/api/deals", { company: { name: "Girderline", domain: "girderline.example" } })).json();
+    expect((await pat.post(`/api/deals/${id}/decision`, { kind: "advance", rationale: "Strong pilot data; take it to IC." })).status).toBe(200);
 
+    const terms = { security: "preferred", seriesName: "Seed Preferred", preMoneyUsd: 12e6, raiseUsd: 3e6, ourAllocationUsd: 1.5e6, liquidation: { multiple: 1, participation: "none", seniority: "pari_passu" } };
+    expect((await ana.post(`/api/deals/${id}/term-sheets`, { terms })).status).toBe(201);
+    expect((await ana.post(`/api/deals/${id}/term-sheets`, { terms: { ...terms, preMoneyUsd: -1 } })).status).toBe(400);
+    const form = new FormData();
+    form.append("file", new File(["Holder,Class,Shares\nFounder A,Common,6000000\nFounder B,Common,3000000\nPool,Option pool,1000000\n"], "cap.csv", { type: "text/csv" }));
+    const up = await app.request(`/api/deals/${id}/cap-table/uploads`, { method: "POST", headers: { cookie: ana.cookie, "x-vcos": "1" }, body: form });
+    expect(up.status).toBe(201);
+    const view = await (await ana.get(`/api/deals/${id}/execution`)).json();
+    expect(view.termSheets[0].checks.length).toBeGreaterThan(5);
+    expect(view.model.ours.postPct).toBeGreaterThan(9);
+
+    // IC: scheduling is a partner's call; only members vote.
+    expect((await ana.post(`/api/deals/${id}/ic`, { members: ["pat@alpha.example"] })).status).toBe(403);
+    const ic = await (await pat.post(`/api/deals/${id}/ic`, { members: ["pat@alpha.example"] })).json();
+    expect((await ana.post(`/api/ic/${ic.id}/vote`, { vote: "yes", conviction: 5 })).status).toBe(400);
+    expect((await pat.post(`/api/ic/${ic.id}/vote`, { vote: "yes", conviction: 5 })).status).toBe(201);
+    for (let i = 0; i < 2; i++) expect((await pat.post(`/api/ic/${ic.id}/advance`, {})).status).toBe(200);
+    expect((await pat.post(`/api/ic/${ic.id}/vote`, { vote: "yes", conviction: 5 })).status).toBe(201);
+    expect((await pat.post(`/api/ic/${ic.id}/advance`, {})).status).toBe(200);
+
+    // Closing: analysts run the checklist and record instructions; partners approve the wire and close.
+    expect((await ana.post(`/api/deals/${id}/closing`)).status).toBe(201);
+    expect((await ana.patch(`/api/deals/${id}/closing/wire_callback`, { status: "done" })).status).toBe(400);
+    const wire = await (await ana.post(`/api/deals/${id}/wires`, { amountUsd: 1.5e6, beneficiary: "Girderline, Inc.", bankName: "First Bank", accountLast4: "1234" })).json();
+    expect((await ana.post(`/api/wires/${wire.id}/verify`, { numberSource: "CEO's mobile from our first meeting", confirmed: true })).status).toBe(200);
+    expect((await ana.post(`/api/wires/${wire.id}/approve`)).status).toBe(403);
+    expect((await pat.post(`/api/wires/${wire.id}/approve`)).status).toBe(200);
+    expect((await ana.post(`/api/deals/${id}/close`, { closeDate: "2026-09-30" })).status).toBe(403);
+    const early = await pat.post(`/api/deals/${id}/close`, { closeDate: "2026-09-30" });
+    expect(early.status).toBe(400);
+    expect((await early.json()).error).toMatch(/Still open/);
+    expect((await pat.get("/api/wires/00000000-0000-0000-0000-000000000000")).status).toBe(404);
+    expect((await pat.post("/api/wires/00000000-0000-0000-0000-000000000000/approve")).status).toBe(404);
+    expect((await (await pat.get("/api/execution")).json()).map((d: { id: string }) => d.id)).toEqual([id]);
+  });
+});

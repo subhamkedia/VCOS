@@ -39,18 +39,19 @@ export const MODULES: ModuleInfo[] = [
     reads: ["The ledger", "Meetings and notes", "Connected tools", "Your fund model and thesis"],
   },
   {
-    id: "execution", name: "Investment Execution", path: "/execution", status: "next", phase: 2,
-    summary: "From term sheet to close: terms compared with your standards, and the math done in code.",
+    id: "execution", name: "Investment Execution", path: "/execution", status: "live", phase: 2,
+    summary: "From IC to a closed investment: committee votes, terms against your standards, the round modelled in code, and a controlled close.",
     does: [
-      "Parse term sheets and flag departures from NVCA and your house terms",
-      "Pro-forma cap tables and ownership after the round",
-      "Closing checklist with document status",
-      "IC votes recorded before and after discussion",
+      "IC meetings: independent votes before discussion, final votes after, your approval rule applied in code",
+      "Term sheets checked term by term against the NVCA model and your house terms",
+      "Pro-forma cap table with SAFE and note conversion and the option pool, and your returns at each exit",
+      "Closing checklist by security, with DocuSign status, OFAC screening, OISP and QSBS steps",
+      "Wire controls: call-back on a known number and two approvers; VC OS never moves money",
     ],
-    reads: ["Term sheets and legal documents", "Fund size, reserves and ownership targets"],
+    reads: ["The IC memo and diligence", "Cap table (Carta or a CSV export)", "House terms and your fund's LPs"],
   },
   {
-    id: "portfolio", name: "Portfolio & Value Creation", path: "/portfolio", status: "planned", phase: 3,
+    id: "portfolio", name: "Portfolio & Value Creation", path: "/portfolio", status: "next", phase: 3,
     summary: "Tracks every portfolio company's KPIs and flags trouble early; plans and logs the help you give.",
     does: [
       "KPI collection from founder updates, with each number cited",

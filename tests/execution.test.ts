@@ -17,6 +17,7 @@ import { capTableFromCsv } from "../connectors/carta.js";
 import { parseSanctions, screen } from "../connectors/ofac.js";
 import { closingStatusFor, parseEnvelopes } from "../connectors/docusign.js";
 import { pending } from "../modules/outbox/index.js";
+import { insertInvestment, insertWire, seedClosingItems } from "../ledger/execution.js";
 
 // Fictional firm, company and people throughout.
 
@@ -299,6 +300,13 @@ describe("firm isolation", () => {
     await saveTermSheet(db, id, { terms: TERMS }, PAT);
     await importCapTableCsv(db, id, { name: "cap.csv", text: CSV }, PAT);
     await scheduleIc(db, id, { members: ["pat@northbeam.vc"] }, PAT);
+    const deal = (await pipeline(db))[0]!;
+    await seedClosingItems(db, id, [{ key: "sanctions", category: "compliance", title: "Sanctions", required: true }], PAT);
+    await insertWire(db, id, { amountUsd: 3e6, beneficiary: "Kestrel Robotics, Inc.", bankName: "First Bank", accountLast4: "4821" }, PAT);
+    await insertInvestment(db, { dealId: id, companyId: deal.company_id, fundName: "Fund I", security: "preferred", seriesName: "Series A Preferred", closeDate: "2026-09-01", amountUsd: 3e6, shares: null, pricePerShare: null, postMoneyUsd: null, ownershipFdPct: null, boardRole: "seat", rights: {} }, PAT);
+    for (const t of ["term_sheets", "cap_tables", "ic_meetings", "closing_items", "wires", "investments"]) {
+      expect((await db.query<{ n: number }>(`select count(*)::int as n from ${t}`)).rows[0]!.n, t).toBeGreaterThan(0);
+    }
     const other = scopedDb(root, (await createFirm(root, { name: "Other Fund" })).id);
     for (const t of ["term_sheets", "cap_tables", "ic_meetings", "closing_items", "wires", "investments"]) {
       expect((await other.query<{ n: number }>(`select count(*)::int as n from ${t}`)).rows[0]!.n, t).toBe(0);

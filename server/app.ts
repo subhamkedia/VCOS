@@ -12,6 +12,7 @@ import * as companies from "../modules/companies/index.js";
 import * as outbox from "../modules/outbox/index.js";
 import * as meetings from "../modules/meetings/index.js";
 import * as diligence from "../modules/diligence/index.js";
+import * as execution from "../modules/execution/index.js";
 import type { MeetingStatus } from "../ledger/meetings.js";
 import type { DealStage } from "../ledger/diligence.js";
 import { checkProfile, construction, getProfile, profileHistory, profileOptions, saveProfile, ProfileInvalid } from "../modules/firm/profile.js";
@@ -53,7 +54,7 @@ export function createApp(deps: AppDeps) {
   app.onError((err, c) => {
     if (err instanceof ProfileInvalid) return c.json({ error: err.message, errors: err.errors }, 422);
     if (err instanceof auth.Forbidden) return c.json({ error: err.message }, 403);
-    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid) {
+    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid || err instanceof execution.ExecutionInvalid) {
       return c.json({ error: err.message }, /^No such/.test(err.message) ? 404 : 400);
     }
     const msg = err.message || "Something went wrong.";
@@ -355,6 +356,80 @@ export function createApp(deps: AppDeps) {
   });
   firm.post("/deals/:id/decision", allow("decide_deals"), async (c) => c.json(await diligence.decide(c.get("db"), param(c, "id"), await c.req.json(), who(c))));
   firm.get("/diligence/options", (c) => c.json({ checklist: diligence.CHECKLIST.map((i) => ({ key: i.key, workstream: i.workstream, title: i.title })), workstreams: diligence.WORKSTREAMS, noteKinds: diligence.NOTE_KINDS, flags: diligence.FLAG_LABELS, llm: Boolean(llm) }));
+
+  // Investment Execution. Analysts do the work; partners schedule IC, approve wires and close.
+  // IC votes are limited to the meeting's members, and moving a meeting on to its chair, in the module.
+  firm.get("/execution", async (c) => c.json(await execution.pipeline(c.get("db"))));
+  firm.get("/execution/options", (c) => c.json({ rules: execution.RULE_LABELS, categories: execution.CATEGORY_LABELS, standings: execution.STANDING_LABELS }));
+  firm.get("/investments", async (c) => c.json(await execution.investments(c.get("db"))));
+  firm.get("/deals/:id/execution", async (c) => c.json(await execution.executionView(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/deals/:id/term-sheets", allow("work_deals"), async (c) => c.json(await execution.saveTermSheet(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/deals/:id/term-sheets/:version/status", allow("work_deals"), async (c) => {
+    const { status } = await c.req.json<{ status: "draft" | "proposed" | "negotiating" | "signed" }>();
+    if (!["draft", "proposed", "negotiating", "signed"].includes(status)) return c.json({ error: "Unknown status." }, 400);
+    await execution.setTermStatus(c.get("db"), param(c, "id"), Number(param(c, "version")), status, who(c));
+    return c.json({ ok: true });
+  });
+  firm.put("/deals/:id/cap-table", allow("work_deals"), async (c) => c.json(await execution.saveCapTable(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/deals/:id/cap-table/uploads", uploadLimit, allow("work_deals"), async (c) => {
+    const body = await c.req.parseBody();
+    const file = body.file;
+    if (!(file instanceof File)) return c.json({ error: "Attach a CSV file." }, 400);
+    if (!/\.(csv|txt)$/i.test(file.name)) return c.json({ error: "Export the cap table as CSV first." }, 400);
+    return c.json(await execution.importCapTableCsv(c.get("db"), param(c, "id"), { name: file.name, text: await file.text() }, who(c)), 201);
+  });
+  firm.post("/deals/:id/cap-table/carta", allow("work_deals"), async (c) => c.json(await execution.importCartaCapTable(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/deals/:id/ic", allow("decide_deals"), async (c) => c.json(await execution.scheduleIc(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/ic/:id/vote", async (c) => {
+    await execution.castVote(c.get("db"), param(c, "id"), await c.req.json(), who(c));
+    return c.json({ ok: true }, 201);
+  });
+  firm.post("/ic/:id/recuse", async (c) => {
+    const { reason } = await c.req.json<{ reason: string }>();
+    await execution.recuse(c.get("db"), param(c, "id"), reason, who(c));
+    return c.json({ ok: true }, 201);
+  });
+  firm.post("/ic/:id/advance", allow("decide_deals"), async (c) => c.json(await execution.advanceIc(c.get("db"), param(c, "id"), await c.req.json(), who(c))));
+  firm.post("/ic/:id/cancel", allow("decide_deals"), async (c) => {
+    await execution.cancelIc(c.get("db"), param(c, "id"), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/deals/:id/closing", allow("work_deals"), async (c) => {
+    await execution.startClosing(c.get("db"), param(c, "id"), who(c));
+    return c.json({ ok: true }, 201);
+  });
+  firm.patch("/deals/:id/closing/:key", allow("work_deals"), async (c) => {
+    await execution.updateItem(c.get("db"), param(c, "id"), decodeURIComponent(param(c, "key")), await c.req.json(), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/deals/:id/closing/items", allow("work_deals"), async (c) => c.json({ key: await execution.addClosingItem(c.get("db"), param(c, "id"), await c.req.json(), who(c)) }, 201));
+  firm.post("/deals/:id/closing/sanctions", allow("work_deals"), async (c) => c.json(await execution.screenSanctions(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/deals/:id/closing/signatures/sync", allow("work_deals"), async (c) => c.json(await execution.syncSignatures(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/deals/:id/closing/signatures/uploads", uploadLimit, allow("queue"), async (c) => {
+    const body = await c.req.parseBody();
+    const file = body.file;
+    if (!(file instanceof File)) return c.json({ error: "Attach the document to sign." }, 400);
+    if (file.size > 10 * 1024 * 1024) return c.json({ error: "Documents up to 10 MB." }, 400);
+    let signers: { name: string; email: string }[];
+    try { signers = JSON.parse(String(body.signers ?? "[]")); } catch { return c.json({ error: "Signers are invalid." }, 400); }
+    const file64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+    return c.json(await execution.queueSignatureDraft(c.get("db"), param(c, "id"), { itemKey: String(body.itemKey ?? ""), file: { name: file.name, base64: file64 }, signers }, who(c)), 201);
+  });
+  firm.post("/deals/:id/wires", allow("work_deals"), async (c) => c.json(await execution.recordWireInstructions(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/wires/:id/verify", allow("work_deals"), async (c) => {
+    await execution.verifyWire(c.get("db"), param(c, "id"), await c.req.json(), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/wires/:id/approve", allow("approve_outbox"), async (c) => c.json(await execution.approveWire(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/wires/:id/sent", allow("approve_outbox"), async (c) => {
+    await execution.markWireSent(c.get("db"), param(c, "id"), await c.req.json(), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/wires/:id/confirm", allow("work_deals"), async (c) => {
+    await execution.confirmWire(c.get("db"), param(c, "id"), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/deals/:id/close", allow("decide_deals"), async (c) => c.json(await execution.closeDeal(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
 
   // Approvals
   firm.get("/outbox", async (c) => c.json(await outbox.pending(c.get("db"), (c.req.query("status") as never) || "pending")));
