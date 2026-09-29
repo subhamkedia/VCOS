@@ -53,6 +53,8 @@ describe("KPI sources", () => {
     expect(predicateForMetric("Cash on hand")).toBe("cash.balance");
     expect(predicateForMetric("FTEs")).toBe("team.headcount");
     expect(predicateForMetric("Robots deployed")).toBe("fleet.units_deployed");
+    expect(predicateForMetric("Plan revenue")).toBe("plan.revenue.monthly");
+    expect(predicateForMetric("Budgeted burn")).toBe("plan.burn.monthly");
     expect(predicateForMetric("Favourite colour")).toBeNull();
   });
 

@@ -235,6 +235,9 @@ export const DEFAULT_RULES: SignalRules = {
   runwayWatchMonths: 12, runwayRiskMonths: 6, staleMonths: 2, planMissPct: 20, burnMultipleBad: 3, headcountDropPct: 15, nrrFloorPct: 90, uptimeFloorPct: 90,
 };
 
+/** "2026-11" -> "November 2026", for sentences people read. */
+export const monthText = (month: string) => new Date(`${month}-15T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+
 const f1 = (n: number) => (Math.abs(n) >= 10 ? Math.round(n).toString() : n.toFixed(1));
 
 /** Early warnings, each citing the claims it rests on. */
@@ -243,24 +246,24 @@ export function signals(sum: Summary, rules: SignalRules = DEFAULT_RULES): Signa
   if (sum.runwayMonths !== null && Number.isFinite(sum.runwayMonths) && sum.cash) {
     const ids = [sum.cash.claimId, ...sum.burnClaimIds];
     if (sum.runwayMonths < rules.runwayRiskMonths) {
-      out.push({ key: "runway", severity: "high", title: `Runway under ${rules.runwayRiskMonths} months`, detail: `About ${f1(sum.runwayMonths)} months of cash at the recent burn; cash runs out around ${sum.zeroCashMonth}.`, claimIds: ids });
+      out.push({ key: "runway", severity: "high", title: `Runway under ${rules.runwayRiskMonths} months`, detail: `About ${f1(sum.runwayMonths)} months of cash at the recent burn; cash runs out around ${monthText(sum.zeroCashMonth!)}.`, claimIds: ids });
     } else if (sum.runwayMonths < rules.runwayWatchMonths) {
       out.push({ key: "runway", severity: "medium", title: `Runway under ${rules.runwayWatchMonths} months`, detail: `About ${f1(sum.runwayMonths)} months of cash; the next raise should be under way.`, claimIds: ids });
     }
   }
   if (sum.monthsSinceUpdate !== null && sum.monthsSinceUpdate > rules.staleMonths) {
-    out.push({ key: "stale", severity: "medium", title: "No recent numbers", detail: `The latest figures are for ${sum.latestMonth}, ${sum.monthsSinceUpdate} months ago.`, claimIds: [] });
+    out.push({ key: "stale", severity: "medium", title: "No recent numbers", detail: `The latest figures are for ${monthText(sum.latestMonth!)}, ${sum.monthsSinceUpdate} months ago.`, claimIds: [] });
   } else if (sum.monthsSinceUpdate === null) {
     out.push({ key: "stale", severity: "low", title: "No numbers yet", detail: "Request the company's KPIs, or ask the founder to connect their accounting system.", claimIds: [] });
   }
   if (sum.planRevenueVarPct !== null && sum.planRevenueVarPct < -rules.planMissPct && sum.revenue) {
-    out.push({ key: "plan_revenue", severity: "medium", title: "Revenue behind plan", detail: `${sum.revenue.month} revenue is ${f1(-sum.planRevenueVarPct)}% below plan.`, claimIds: [sum.revenue.claimId] });
+    out.push({ key: "plan_revenue", severity: "medium", title: "Revenue behind plan", detail: `${monthText(sum.revenue.month)} revenue is ${f1(-sum.planRevenueVarPct)}% below plan.`, claimIds: [sum.revenue.claimId] });
   }
   if (sum.planBurnVarPct !== null && sum.planBurnVarPct > rules.planMissPct) {
     out.push({ key: "plan_burn", severity: "medium", title: "Burn above plan", detail: `Net burn is ${f1(sum.planBurnVarPct)}% above plan.`, claimIds: sum.burnClaimIds });
   }
   if (sum.revenueMoM !== null && sum.revenueMoM < -15 && sum.revenue) {
-    out.push({ key: "revenue_drop", severity: "medium", title: "Revenue fell", detail: `Revenue fell ${f1(-sum.revenueMoM)}% in ${sum.revenue.month}.`, claimIds: [sum.revenue.claimId] });
+    out.push({ key: "revenue_drop", severity: "medium", title: "Revenue fell", detail: `Revenue fell ${f1(-sum.revenueMoM)}% in ${monthText(sum.revenue.month)}.`, claimIds: [sum.revenue.claimId] });
   }
   if (sum.burnMultiple !== null && sum.burnMultiple > rules.burnMultipleBad && sum.arr) {
     out.push({ key: "burn_multiple", severity: "medium", title: "Growth is expensive", detail: `Burn multiple ${f1(sum.burnMultiple)}: about $${f1(sum.burnMultiple)} burned per $1 of new ARR over three months.`, claimIds: [sum.arr.claimId, ...sum.burnClaimIds] });

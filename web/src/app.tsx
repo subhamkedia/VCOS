@@ -19,6 +19,9 @@ import Deal from "./pages/Deal";
 import Meetings from "./pages/Meetings";
 import Execution from "./pages/Execution";
 import ExecutionDeal from "./pages/ExecutionDeal";
+import Portfolio from "./pages/Portfolio";
+import PortfolioCompany from "./pages/PortfolioCompany";
+import Portal, { PortalConnected } from "./pages/Portal";
 
 interface Session {
   me: Me;
@@ -36,6 +39,8 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/signin" element={<SignIn />} />
+            <Route path="/portal/connected" element={<PortalConnected />} />
+            <Route path="/portal/:token" element={<Portal />} />
             <Route path="*" element={<Gate />} />
           </Routes>
         </BrowserRouter>
@@ -144,6 +149,8 @@ function Shell() {
           <Route path="/diligence/:id" element={<Deal />} />
           <Route path="/execution" element={<Execution />} />
           <Route path="/execution/:id" element={<ExecutionDeal />} />
+          <Route path="/portfolio" element={<Portfolio />} />
+          <Route path="/portfolio/:id" element={<PortfolioCompany />} />
           <Route path="/meetings" element={<Meetings />} />
           <Route path="/connections" element={<Connections />} />
           <Route path="/approvals" element={<Approvals />} />

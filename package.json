@@ -16,6 +16,7 @@
     "show": "tsx cli/show.ts",
     "connectors": "tsx cli/connectors.ts",
     "outbox": "tsx cli/outbox.ts",
+    "portfolio": "tsx cli/portfolio.ts",
     "worker": "tsx cli/worker.ts",
     "web": "tsx server/index.ts",
     "dev": "WEB_PORT=5173 tsx watch server/index.ts & vite --config web/vite.config.ts",

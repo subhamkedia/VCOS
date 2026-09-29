@@ -6,6 +6,8 @@
  */
 
 const RULES: [RegExp, string][] = [
+  [/^(plan(ned)? revenue|budget(ed)? revenue|revenue (plan|budget))$/, "plan.revenue.monthly"],
+  [/^(plan(ned)? (net )?burn|budget(ed)? (net )?burn|burn (plan|budget))$/, "plan.burn.monthly"],
   [/^(annual recurring revenue|arr|annualized run[- ]?rate|run[- ]?rate revenue)$/, "revenue.arr"],
   [/^(mrr|monthly recurring revenue|monthly revenue|revenue|total revenue|net revenue|sales|income|total income)$/, "revenue.monthly"],
   [/^(total expenses|expenses|opex|operating expenses|total operating expenses|total costs?)$/, "expenses.monthly"],

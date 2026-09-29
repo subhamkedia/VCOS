@@ -294,7 +294,7 @@ export interface Wire {
 }
 export interface Investment {
   id: string; deal_id: string; company_id: string; company_name?: string; fund_name: string; security: Security; series_name: string | null; close_date: string;
-  amount_usd: number; shares: number | null; price_per_share: number | null; post_money_usd: number | null; ownership_fd_pct: number | null; board_role: string | null; created_by: string; created_at: string;
+  amount_usd: number; shares: number | null; price_per_share: number | null; post_money_usd: number | null; ownership_fd_pct: number | null; board_role: string | null; round_kind?: "initial" | "follow_on"; created_by: string; created_at: string;
 }
 export interface ExecutionView {
   deal: Deal; termSheets: TermSheetVersion[]; house: HouseTerms; capTable: CapTable | null; model: ExecModel; meetings: IcMeeting[]; icRule: string;
@@ -304,4 +304,71 @@ export interface ExecutionView {
 export interface ExecutionRow extends Deal {
   termSheet: { version: number; status: TermSheetStatus } | null; ic: { phase: IcPhase; outcome: "approved" | "declined" | null } | null;
   closing: { done: number; total: number; redFlags: number } | null; investment: { amount: number; closeDate: string } | null;
+}
+
+// Portfolio
+
+export type Health = "on_track" | "watch" | "at_risk";
+export type Severity = "high" | "medium" | "low";
+export interface KpiPoint { month: string; value: number; claimId: string; sourceType: string }
+export interface Signal { key: string; severity: Severity; title: string; detail: string; claimIds: string[] }
+export interface FundMetrics {
+  asOf: string; invested: number; realized: number; unrealized: number; totalValue: number; moic: number | null; dpi: number | null; rvpi: number | null; tvpi: number | null;
+  irr: number | null; lossRatioPct: number | null; topPositionPct: number | null; basis: string;
+  positions: { company: string; invested: number; realized: number; fairValue: number; totalValue: number; moic: number | null; irr: number | null; shareOfValuePct: number }[];
+}
+export interface ReservePool { budget: number; deployed: number; committedRemaining: number; unallocated: number; overAllocated: boolean; byCompany: { company: string; planned: number; deployed: number; remaining: number }[] }
+export interface PortfolioRow {
+  companyId: string; name: string; dealId: string; firstInvested: string; invested: number; realized: number; fairValue: number; valueBasis: "mark" | "cost" | "exited";
+  moic: number | null; ownershipPct: number | null; boardRole: string | null; status: "active" | "exited";
+  health: { rating: Health; by: string; at: string } | null; suggested: Health; signals: { key: string; severity: Severity; title: string }[];
+  runwayMonths: number | null; notBurning: boolean; cash: number | null; revenue: number | null; revenueMoM: number | null; arr: number | null; latestMonth: string | null;
+  mark: { value: number; asOf: string; method: string } | null; reservePlanned: number | null;
+}
+export interface PortfolioOverview {
+  asOf: string; fund: { name: string; sizeUsd: number; reservesPct: number }; metrics: FundMetrics; reserves: ReservePool; companies: PortfolioRow[];
+  counts: { companies: number; atRisk: number; watch: number; marksToReview: number; openRequests: number; overdueRequests: number };
+  healthLabels: Record<Health, string>;
+}
+export interface Mark {
+  id: string; company_id: string; company_name?: string; as_of: string; method: string; fair_value_usd: number; inputs: Record<string, unknown>; steps: string[]; warnings: string[];
+  rationale: string; status: "proposed" | "approved" | "rejected"; prepared_by: string; reviewed_by: string | null; reviewed_at: string | null; review_note: string | null; created_at: string;
+}
+export interface PortfolioDecision { id: string; entity_id: string; kind: string; actor: string; value: Record<string, unknown>; rationale: string | null; created_at: string }
+export interface KpiRequest { id: string; company_id: string; company_name?: string; period: string; metrics: string[]; due_on: string; recipients: string[]; status: "open" | "received" | "cancelled"; outbox_id: string | null; created_by: string; created_at: string; received_at: string | null }
+export interface BoardMeetingRow { id: string; held_on: string; kind: string; our_role: string; attendees: string[]; agenda: string | null; notes: string | null; resolutions: { title: string; kind: string; outcome: string }[]; conflict_review: string | null; created_by: string; created_at: string }
+export interface InitiativeRow { id: string; company_id: string; company_name?: string; kind: string; title: string; detail: string | null; owner: string | null; status: "proposed" | "in_progress" | "done" | "dropped"; due_on: string | null; outcome: string | null; value_usd: number | null; outbox_id: string | null; created_by: string; updated_at: string }
+export interface PortfolioCompanyView {
+  company: { id: string; name: string; domain: string | null; dealId: string };
+  investments: Investment[];
+  position: FundMetrics["positions"][number] | null;
+  valueBasis: "mark" | "cost" | "exited";
+  series: Partial<Record<string, KpiPoint[]>>;
+  metricLabels: Record<string, string>;
+  burn: { month: string; value: number; basis: string; claimIds: string[] }[];
+  summary: {
+    latestMonth: string | null; monthsSinceUpdate: number | null; cash: KpiPoint | null; avgBurn: number | null; burnBasis: string | null; runwayMonths: number | null; notBurning: boolean;
+    zeroCashMonth: string | null; revenue: KpiPoint | null; revenueMoM: number | null; revenueYoY: number | null; arr: KpiPoint | null; netNewArr3m: number | null; burnMultiple: number | null;
+    planRevenueVarPct: number | null; planBurnVarPct: number | null; headcount: KpiPoint | null; grossMargin: KpiPoint | null; nrr: KpiPoint | null; units: KpiPoint | null; uptime: KpiPoint | null;
+  };
+  signals: Signal[];
+  suggested: Health;
+  rules: Record<string, number>;
+  cites: Record<string, { evidenceId: string; citedText: string | null; sourceType: string }>;
+  health: PortfolioDecision[]; reservePlans: PortfolioDecision[]; followOns: PortfolioDecision[];
+  marks: Mark[]; methods: Record<string, string>;
+  realizations: { id: string; occurred_on: string; amount_usd: number; kind: string; note: string | null; created_by: string }[];
+  board: BoardMeetingRow[]; initiatives: InitiativeRow[];
+  contacts: { id: string; name: string; email: string; role: string | null; reporting: boolean }[];
+  requests: KpiRequest[];
+  accounting: { id: string; provider: "quickbooks" | "xero"; external_name: string | null; status: string; connected_at: string; last_sync_at: string | null; last_error: string | null }[];
+  portalLinks: { id: string; createdAt: string; expiresAt: string; revokedAt: string | null; lastUsedAt: string | null; createdBy: string }[];
+  sources: { id: string; name: string; summary: string; perCompany: boolean; ready: boolean }[];
+  options: { reportable: { id: string; label: string }[]; initiativeKinds: string[]; resolutionKinds: string[]; conflictKinds: string[]; healthLabels: Record<Health, string> };
+}
+export interface PortalInfo {
+  company: string; firm: string;
+  requests: { period: string; dueOn: string; metrics: string[] }[];
+  metrics: { id: string; label: string; percent: boolean; count: boolean; plan: boolean }[];
+  accounting: { provider: "quickbooks" | "xero"; name: string; available: boolean; connected: { status: string; connectedAt: string; lastSyncAt: string | null } | null }[];
 }

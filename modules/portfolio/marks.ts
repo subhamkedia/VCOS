@@ -1,6 +1,6 @@
 import type { Db } from "../../lib/db.js";
 import { getValuation, insertValuation, latestMarks, reviewValuation, valuations } from "../../ledger/portfolio.js";
-import { buildSeries, summarize } from "../../engines/kpi.js";
+import { buildSeries, monthText, summarize } from "../../engines/kpi.js";
 import { mark, METHOD_LABELS, type MarkInput, type Method } from "../../engines/valuation.js";
 import { model } from "../execution/index.js";
 import { holding, isDay, kpiClaims, PortfolioInvalid, today } from "./common.js";
@@ -54,8 +54,8 @@ export async function proposeMark(db: Db, companyId: string, input: Record<strin
       let metricValue = n("metricValue");
       let metricLabel = String(input.metricLabel ?? "ARR");
       if (metricValue === undefined) {
-        if (sum.arr) { metricValue = sum.arr.value; metricLabel = `ARR (${sum.arr.month})`; cites.push(sum.arr.claimId); }
-        else if (sum.revenue) { metricValue = sum.revenue.value * 12; metricLabel = `Monthly revenue x 12 (${sum.revenue.month})`; cites.push(sum.revenue.claimId); }
+        if (sum.arr) { metricValue = sum.arr.value; metricLabel = `ARR (${monthText(sum.arr.month)})`; cites.push(sum.arr.claimId); }
+        else if (sum.revenue) { metricValue = sum.revenue.value * 12; metricLabel = `Monthly revenue x 12 (${monthText(sum.revenue.month)})`; cites.push(sum.revenue.claimId); }
         else throw new PortfolioInvalid("There's no ARR or revenue on record: enter the figure.");
       }
       const cash = n("cash") ?? sum.cash?.value ?? 0;

@@ -21,6 +21,10 @@ import {
   advanceIc, castVote, importCapTableCsv, recordWireInstructions, saveCapTable, saveTermSheet, scheduleIc, screenSanctions, setTermStatus,
   startClosing, updateItem, verifyWire,
 } from "../modules/execution/index.js";
+import { updateDeal } from "../ledger/diligence.js";
+import { monthEnd } from "../engines/kpi.js";
+import { insertInvestment } from "../ledger/execution.js";
+import * as portfolio from "../modules/portfolio/index.js";
 import { parseArgs, run } from "./common.js";
 
 /**
@@ -233,7 +237,61 @@ run(async () => {
   const wire = await recordWireInstructions(db, g.id, { amountUsd: 1_000_000, beneficiary: "Girderline, Inc.", bankName: "First Demo Bank", accountLast4: "4821" }, LEE);
   await verifyWire(db, wire.id, { numberSource: "Ines's mobile, saved from our first meeting in March", confirmed: true }, LEE);
 
+  // Portfolio (all fictional): earlier investments from this fund's first year, with a year of numbers.
+  const closed = async (name: string, domain: string, inv: { date: string; amount: number; shares: number; ownership: number; series: string; board: string }) => {
+    const d = await startDeal(db, { company: { name, domain } }, by);
+    await updateDeal(db, d.id, { stage: "closed" }, by);
+    const companyId = (await db.query<{ company_id: string }>("select company_id from deals where id = $1", [d.id])).rows[0]!.company_id;
+    await insertInvestment(db, {
+      dealId: d.id, companyId, fundName: "Demo Fund II", security: "preferred", seriesName: inv.series, closeDate: inv.date, amountUsd: inv.amount,
+      shares: inv.shares, pricePerShare: inv.amount / inv.shares, ownershipFdPct: inv.ownership, boardRole: inv.board, rights: {},
+    }, by);
+    return companyId;
+  };
+  const lastMonths = (n: number) => {
+    const out: string[] = [];
+    const d = new Date();
+    for (let i = n; i >= 1; i--) out.push(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - i, 1)).toISOString().slice(0, 7));
+    return out;
+  };
+  const year = lastMonths(12);
+  // Weldloop: growing, twenty months of runway, a spreadsheet of monthly KPIs with the plan.
+  const weld = await closed("Weldloop", "weldloop.example", { date: "2025-04-15", amount: 1_200_000, shares: 1_500_000, ownership: 12, series: "Seed Preferred", board: "seat" });
+  const rows = year.map((m, i) => {
+    const revenue = Math.round(60_000 * Math.pow(1.07, i));
+    return `${m},${revenue},${260_000 + i * 4_000},${4_900_000 - i * 150_000},${revenue * 12},${22 + i},${Math.round(65_000 * Math.pow(1.065, i))},${250_000 + i * 3_000},${14 + i * 3}`;
+  });
+  await portfolio.importKpiCsv(db, weld, { name: "weldloop-kpis.csv", text: `Month,Revenue,Expenses,Cash,ARR,Headcount,Plan revenue,Plan burn,Units deployed\n${rows.join("\n")}\n` }, by).catch(() => undefined);
+  await portfolio.addContact(db, weld, { name: "Arjun Mehta", email: "arjun@weldloop.example", role: "CEO", reporting: true }, by);
+  await portfolio.rateHealth(db, weld, { rating: "on_track", rationale: "Growing 7% a month with 20 months of runway; hitting plan." }, by);
+  await portfolio.planReserve(db, weld, { amountUsd: 2_500_000, rationale: "Pro rata plus in a Series A in about a year, if two more auto plants convert." }, by);
+  const wm = await portfolio.proposeMark(db, weld, { method: "revenue_multiple", asOf: monthEnd(year[year.length - 1]!), multiple: 6, discountPct: 20, rationale: "Comparable industrial vision companies near 6x ARR; 20% off for stage and liquidity." }, LEE).catch(() => null);
+  if (wm) await portfolio.reviewMark(db, wm.id, { approve: true }, by).catch(() => undefined);
+  await portfolio.addBoardMeeting(db, weld, { heldOn: `${year[year.length - 2]}-20`, ourRole: "director", attendees: "Arjun Mehta, Clara Holm, Lee Park", resolutions: [{ title: "Approve the 2026 operating plan", kind: "budget", outcome: "approved" }, { title: "Option grants for three field engineers", kind: "option_grants", outcome: "approved" }], notes: "Pipeline strong in Tier 1 auto suppliers; hiring a VP Sales is the top priority." }, by);
+  const hire = await portfolio.addInitiative(db, weld, { kind: "hiring", title: "VP Sales search", owner: "lee.partner", detail: "Three candidates from our network in industrial automation." }, by);
+  await portfolio.setInitiative(db, hire.id, { status: "in_progress" }, by);
+  const intro = await portfolio.addInitiative(db, weld, { kind: "customer_intro", title: "Intro to a Tier 1 auto supplier's quality lead" }, by);
+  await portfolio.setInitiative(db, intro.id, { status: "done", outcome: "Paid pilot on two weld lines signed.", valueUsd: 180_000 }, by);
+
+  // Formwork AI: missing plan and short on cash.
+  const form = await closed("Formwork AI", "formwork-ai.example", { date: "2025-07-01", amount: 1_000_000, shares: 1_250_000, ownership: 10, series: "Seed Preferred", board: "observer" });
+  for (const [i, m] of year.slice(-4).entries()) {
+    await portfolio.recordKpis(db, form, { period: m, values: { "revenue.monthly": 40_000 + i * 1_000, "burn.monthly": 210_000 + i * 5_000, "cash.balance": 1_400_000 - i * 215_000, "plan.revenue.monthly": 60_000 + i * 5_000, "plan.burn.monthly": 180_000, "team.headcount": 18 - (i > 2 ? 3 : 0) } }, by).catch(() => undefined);
+  }
+  await portfolio.addContact(db, form, { name: "Dana Ruiz", email: "dana@formwork-ai.example", role: "CEO", reporting: true }, by);
+  const fm = await portfolio.proposeMark(db, form, { method: "milestone", asOf: monthEnd(year[year.length - 1]!), adjustmentPct: -40, rationale: "Revenue a third behind plan and under six months of cash; bridge terms not yet agreed." }, LEE).catch(() => null);
+  void fm; // left for the partner to review
+  await portfolio.addInitiative(db, form, { kind: "fundraising", title: "Bridge round: line up insiders and two new leads", owner: "lee.partner" }, by);
+
+  // SiteGrid: sold. Coldchain IQ: written off.
+  const siteGrid = await closed("SiteGrid", "sitegrid.example", { date: "2024-02-01", amount: 750_000, shares: 1_000_000, ownership: 9, series: "Seed Preferred", board: "none" });
+  await portfolio.recordRealization(db, siteGrid, { kind: "sale", occurredOn: `${year[year.length - 3]}-15`, amountUsd: 2_600_000, note: "Acquired by a construction software company." }, by);
+  const cold = await closed("Coldchain IQ", "coldchain-iq.example", { date: "2024-05-15", amount: 500_000, shares: 800_000, ownership: 7, series: "Pre-seed SAFE", board: "none" });
+  await portfolio.recordRealization(db, cold, { kind: "write_off", occurredOn: `${year[year.length - 6]}-15`, note: "Wound down after the pilot customer went bankrupt." }, by);
+  const portal = await portfolio.createPortalLink(db, weld, by, process.env.APP_URL ?? "http://localhost:8787");
+
   console.log(`\nSeeded "${firm.name}" for ${user.email}.`);
+  console.log(`Founder portal for Weldloop (as the founder sees it): ${portal.url}`);
   console.log("Start the app with `pnpm web` and sign in with that email; the sign-in link is printed in the server log.");
   await root.close();
 });

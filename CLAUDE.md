@@ -97,9 +97,10 @@ ledger/      predicates, repository, read models, platform (firms, users,
 connectors/  one adapter per source, plus registry.ts (auth, scope, sourcing)
 agents/      one folder per agent: prompt, tool definitions, logic
 engines/     deterministic math (portfolio construction, round math, cap
-             tables, waterfalls, anti-dilution)
+             tables, waterfalls, anti-dilution, KPIs and warnings, fund
+             metrics, valuation marks)
 modules/     workflows as plain functions: auth, firm, connections, sourcing,
-             meetings, diligence, execution, companies, outbox; catalog.ts lists the
+             meetings, diligence, execution, portfolio, companies, outbox; catalog.ts lists the
              five product modules
 server/      Hono API: thin routes over modules (session, role, JSON)
 web/         React + Vite app; talks only to /api
@@ -128,9 +129,12 @@ db/migrations/  plain SQL, applied in order
 `admin` manages the team and firm; `partner` edits the thesis, connects
 sources, runs feeds, approves outbound items and merges, decides deals (pass
 or IC), schedules IC, approves wires (two different people) and records the
-close; `analyst` reads, uploads, queues drafts, works deals (term sheets,
-cap tables, the closing checklist, wire instructions and the call-back) and
-triages meetings. IC votes are open only to the meeting's members, and only
+close, and in Portfolio sets reserves, decides follow-ons, records money
+back and approves marks (never their own); `analyst` reads, uploads, queues
+drafts, works deals (term sheets, cap tables, the closing checklist, wire
+instructions and the call-back), keeps portfolio numbers, board meetings and
+value-creation work, proposes marks and health ratings, and triages
+meetings. IC votes are open only to the meeting's members, and only
 its chair moves it on. Check with `requireAction` in modules/auth, and
 return 403 from the API, never hide the check in the UI alone.
 
@@ -143,16 +147,24 @@ false merges on the YC 2026 set, 200 companies across the 2026 batches
 The web app, multi-firm tenancy, sign-in, onboarding, connections, the
 Sourcing module, Meetings, the Diligence module (research runs, the
 checklist, founder questions, the contradiction board, decisions and the
-cited IC memo) and the Investment Execution module (IC votes before and
-after discussion, term sheets against NVCA and house terms, pro-forma cap
-tables and waterfalls in `engines/`, the closing checklist with DocuSign,
-Carta and OFAC, wire controls and the investment record) are built.
-Portfolio Management & Value Creation is next: KPIs from founder updates,
-early warnings, value-creation work and reserves, starting from
-`investments`.
+cited IC memo), the Investment Execution module (IC votes before and after
+discussion, term sheets against NVCA and house terms, pro-forma cap tables
+and waterfalls in `engines/`, the closing checklist with DocuSign, Carta and
+OFAC, wire controls and the investment record) and the Portfolio & Value
+Creation module (KPIs as claims from the books, the founder portal,
+requests, platforms and updates; early warnings; marks approved by a second
+person; gross fund metrics and reserves; follow-ons; board meetings; value
+creation) are built. LP Reporting is next: capital accounts, net IRR and
+TVPI after fees and carry, the ILPA reporting and performance templates,
+quarterly letters that cite the ledger and only shareable scopes.
+
+The founder portal is the one place outside sign-in: a hashed, expiring,
+revocable token finds the firm (in `ledger/platform.ts`, root Db), and
+everything after runs on that firm's scoped Db. It shows a company only
+what it reports.
 
 Connectors are connected once per firm and reused by every module: a
 connector declares what it can do (`sourcing`, `research`, `meetings`,
-`execution`) in
+`execution`, `portfolio`) in
 `connectors/registry.ts`. Never ask a firm to connect the same tool again
 for a new module.

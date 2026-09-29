@@ -11,7 +11,7 @@ its source, date, confidence and the exact characters it came from. Scores,
 diligence flags, memos and LP letters are all queries over that ledger. Each
 firm's data is isolated by Postgres row-level security.
 
-**Built so far:** the ledger, entity resolver and cited extractor; 28
+**Built so far:** the ledger, entity resolver and cited extractor; 33
 connectors; multi-firm workspaces with Google, Microsoft and email sign-in;
 onboarding (firm, fund, mandate, sectors, scoring) with live portfolio
 construction math; connections you set up once and every module reuses;
@@ -26,8 +26,14 @@ IC decisions, and an IC memo whose citations are checked in code); the
 the firm's approval rule, term sheets checked against NVCA and house terms,
 pro-forma cap tables with SAFE and note conversion, returns through the
 waterfall, a closing checklist with DocuSign, Carta and OFAC, wire controls,
-and the investment record); and an approval queue for anything outbound.
-**Next:** Portfolio Management & Value Creation.
+and the investment record); the **Portfolio & Value Creation** module
+(numbers from each company's QuickBooks or Xero, a founder portal with no
+login, KPI requests, Standard Metrics, Visible, spreadsheets and update
+emails; runway, burn and plan warnings; fair value marks approved by a
+second person; gross MOIC, IRR, DPI and TVPI; reserves and follow-ons;
+board meetings; value-creation work); and an approval queue for anything
+outbound.
+**Next:** LP Reporting.
 
 ### How Diligence works
 
@@ -127,6 +133,63 @@ and the investment record); and an approval queue for anything outbound.
    investment (amount, shares, price, ownership, rights) becomes the record
    Portfolio starts from.
 
+### How Portfolio & Value Creation works
+
+A company joins the portfolio when its deal closes in Execution (or a
+follow-on is recorded). Every number is a claim with its source, so the
+same month from two sources never double counts: the company's books win
+over what a founder typed, which wins over a model's reading of an email.
+
+1. **Numbers in, every way firms get them.**
+   - The founder connects **QuickBooks Online or Xero** (read only) from a
+     private link the firm sends: no VC OS account. VC OS reads the monthly
+     income statement and balance sheet (revenue, total expenses, cash in
+     bank) for the last twelve closed months. Refresh tokens rotate on every
+     call and are stored encrypted for that firm.
+   - The same **founder portal** takes a month's numbers typed in, with the
+     metrics the firm asked for first. It shows the company only what it
+     reports, never the firm's marks, ratings or notes, and links expire and
+     can be turned off.
+   - **KPI requests**: pick the month, the due date and a handful of
+     metrics; VC OS drafts the email with the portal link in your own
+     mailbox for you to approve and send (or gives you the text to copy).
+   - The firm's **Standard Metrics** or **Visible** account, a **spreadsheet**
+     export, figures typed in from a board deck, and **founder update emails**
+     in Gmail or Outlook (read by the extractor when Claude is configured).
+2. **Early warnings.** `engines/kpi.ts` works out net burn (reported, else
+   expenses minus revenue, else the change in cash, and says which), runway
+   on the last three months, growth, the burn multiple (net burn over net new
+   ARR), plan versus actual, headcount changes, net revenue retention and
+   fleet uptime. Warnings cite the figures they rest on: runway under 12
+   months (raise now; Carta puts the median seed-to-Series A gap near 20
+   months) or under 6 (at risk), stale data, revenue behind plan, burn over
+   plan, expensive growth, shrinking teams. A partner or analyst sets the
+   company's health rating with a reason; the signals' suggestion is kept
+   next to it.
+3. **Fair value marks.** By the methods the IPEV Valuation Guidelines
+   (December 2025 edition, in effect from 1 April 2026) and ASC 820
+   recognize: calibrated to a recent round (the price of a recent round is
+   not a default, and a round over a year old is flagged), milestone
+   adjustment, a revenue multiple with cash and debt and the company's
+   preferences applied through the waterfall (`engines/valuation.ts`),
+   exit, write-off, and cost only near the investment date. Inputs the
+   ledger knows are filled in and cited; each mark shows its steps and needs
+   a written reason; a different person approves it (enforced in the
+   database too), and approved marks can't be edited.
+4. **Performance and reserves.** `engines/fund-metrics.ts`: gross MOIC,
+   IRR (XIRR on dated flows), DPI, RVPI and TVPI on invested capital, the
+   share of capital below cost and the largest position. The reserve pool
+   (fund size x reserves %) against what's deployed in follow-ons and still
+   planned per company. Reserve plans and follow-on decisions (invest, invest
+   less, pass) are decisions with reasons; an investment records the check.
+   Sales, distributions and write-offs record money back.
+5. **Board and value creation.** Board meetings with resolutions; when the
+   board decides a sale, financing or recapitalization, the record must say
+   how the preferred and common holders' different interests were handled
+   (In re Trados, Del. Ch. 2013). The help the firm gives (hires, customer
+   and partner introductions, fundraising, government programs) is tracked to
+   an outcome; introductions are double opt-in email drafts.
+
 ## Run the web app
 
 ```bash
@@ -207,6 +270,8 @@ pnpm resolve                    # merge proposals waiting for you
 pnpm resolve accept <id>
 pnpm outbox                     # CRM notes and email drafts waiting for your approval
 pnpm outbox approve <id>        # creates the draft or note; nothing is ever sent
+pnpm portfolio                  # every holding: value, MOIC, runway, warnings
+pnpm portfolio sync "Weldloop"  # refresh one company's numbers from its books and your tools
 ```
 
 For production, `docker compose up -d` and set
@@ -233,6 +298,9 @@ For production, `docker compose up -d` and set
 | `engines/round-math.ts` | Post-money, entry ownership, check plus reserves as a share of the fund, and checks against the mandate. |
 | `engines/cap-table.ts`, `waterfall.ts`, `anti-dilution.ts` | The pro-forma cap table (option pool shuffle, SAFE and note conversion), exit waterfalls and anti-dilution adjustments. Unit-tested against worked examples. |
 | `modules/execution/` | IC meetings and the approval rules (`ic.ts`), term sheets and house terms (`terms.ts`), the closing checklist (`closing.ts`), wire controls and the close. |
+| `engines/kpi.ts`, `fund-metrics.ts`, `valuation.ts` | Monthly KPI series, net burn, runway, burn multiple and early warnings; gross MOIC, XIRR, DPI, RVPI, TVPI and the reserve pool; fair value marks by IPEV-recognized methods. Unit-tested. |
+| `modules/portfolio/` | The portfolio overview and company view, KPI entry and imports and the sync (`kpis.ts`), the founder portal and KPI requests (`portal.ts`), marks (`marks.ts`), and health, reserves, follow-ons, realizations, board meetings and value creation (`work.ts`). `pnpm portfolio` on the command line. |
+| `connectors/accounting.ts`, `portfolio-platforms.ts` | QuickBooks Online and Xero (OAuth, monthly reports), Standard Metrics and Visible. |
 | `connectors/docusign.ts`, `carta.ts`, `ofac.ts` | Signature status and draft envelopes, cap tables from Carta or any export, and Treasury's sanctions lists. |
 | `modules/outbox/` | The approval queue for anything that leaves VC OS. Agents queue; a person approves; then it runs once. |
 | `evals/resolver/` | Resolver eval and the Phase 0 gate. |
@@ -269,8 +337,16 @@ but it was written alongside the resolver, so treat it as a smoke test.
 - Thesis fit is v0: sector keywords (stemmed), geography and stage, with
   every reason cited. The weighted dimensions (team, moat, GTM) are scored
   in Diligence from evidence.
-- Portfolio and LP Reporting have their pages and scope in the app; their
-  workflows are the next phases.
+- LP Reporting has its page and scope in the app; its workflow is next.
+- QuickBooks, Xero, Standard Metrics and Visible follow each vendor's API
+  documentation and are tested against fixtures, not live accounts.
+  Standard Metrics' and Visible's paths sit in `STANDARD_METRICS_PATHS` and
+  `VISIBLE_PATHS`; check them with `pnpm connectors --check`. Accounting
+  figures are accrual-basis income statement totals and bank balances;
+  capital expenditure and working capital aren't in net burn unless the
+  company reports burn itself.
+- Portfolio performance is gross, on invested capital. Net returns to LPs
+  (after fees, expenses and carry) belong to LP Reporting.
 - Term sheets are entered as fields; reading one from a PDF is not built.
   Carta's API is partner-only (invite): without access, import the export.
   DocuSign status and drafts follow DocuSign's eSignature REST docs and are
