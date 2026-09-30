@@ -32,7 +32,7 @@ export default function SignIn() {
         <div>
           <div className="eyebrow">VC OS</div>
           <h1>Sign in</h1>
-          <p className="muted">One workspace for sourcing, diligence, execution, portfolio and LP reporting.</p>
+          <p className="muted">The operating system for your fund: sourcing and diligence, the deal, the portfolio and its exits, your investors and compliance, in one place.</p>
         </div>
         {error && <Notice tone="bad">{error}</Notice>}
         <div className="section">

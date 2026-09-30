@@ -128,7 +128,7 @@ function Reports({ data, onChange }: CoTabProps) {
           {[...byPeriod.entries()].map(([k, rs]) => (
             <li key={k}>
               <span>{rs[0]!.period}</span>
-              <span>{data.reviewer && <strong>{person(rs[0]!.person)}: </strong>}{rs.map((r) => r.kind === "no_activity" ? L.reportKinds.no_activity : `${r.action && r.action !== "hold" ? `${r.action} ` : ""}${r.quantity ?? ""} ${r.security}${r.ticker ? ` (${r.ticker})` : ""}${r.traded_on ? ` on ${longDate(r.traded_on)}` : ""}`).join("; ")}</span>
+              <span>{data.reviewer && <strong>{person(rs[0]!.person)}: </strong>}{rs.map((r) => r.kind === "no_activity" ? L.reportKinds.no_activity : `${r.action === "buy" ? "bought " : r.action === "sell" ? "sold " : ""}${r.quantity ?? ""} ${r.security}${r.ticker ? ` (${r.ticker})` : ""}${r.traded_on ? ` on ${longDate(r.traded_on)}` : ""}`).join("; ")}</span>
             </li>
           ))}
         </ul>

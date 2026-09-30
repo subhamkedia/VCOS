@@ -38,7 +38,6 @@ export default function Sourcing() {
   return (
     <>
       <PageHead
-        eyebrow="Module · live"
         title="Sourcing"
         lead="Feeds check the sources you choose on a schedule. Every company found is matched against your ledger and scored against your current thesis, with the reason for each point."
         actions={can("manage_feeds") && <button className="btn primary" onClick={() => setAdding(!adding)} aria-expanded={adding}>{adding ? "Close" : "Add a feed"}</button>}

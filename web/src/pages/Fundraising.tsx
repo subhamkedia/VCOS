@@ -14,7 +14,6 @@ export default function Fundraising() {
   const { data, error, reload } = useApi<{ raises: RaiseSummary[] }>("/fundraising");
   const head = (
     <PageHead
-      eyebrow="Module"
       title="Fundraising & IR"
       lead="Raise the fund and look after its investors: the LP pipeline, a tracked data room, the DDQ, onboarding and closings, side letters, the LPAC and investor requests. Nothing is sent without a person's approval."
     />

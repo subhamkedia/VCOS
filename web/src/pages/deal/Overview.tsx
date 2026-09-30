@@ -240,14 +240,9 @@ function Flags({ data, onChange }: TabProps) {
   );
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  "deal.start": "started diligence", "deal.update": "updated the deal", "deal.item": "updated a checklist item", "deal.note": "logged a note",
-  "deal.question.add": "added a question", "deal.question.update": "updated a question", "memo.draft": "drafted a memo", "decision.pass": "passed",
-  "decision.advance": "sent it to IC", "contradiction.explained": "explained a conflict", "contradiction.resolved": "settled a conflict", "meeting.match": "matched a meeting",
-  "claim.insert": "added a fact", "contradiction.open": "found a conflict",
-};
 
 function Activity({ data }: { data: TabProps["data"] }) {
+  const v = useVocab();
   const items = data.activity.filter((a) => a.actor.startsWith("human:") || a.action.startsWith("contradiction.")).slice(0, 12);
   return (
     <section className="panel panel-pad section" aria-labelledby="act-h">
@@ -255,7 +250,7 @@ function Activity({ data }: { data: TabProps["data"] }) {
       {items.length === 0 ? <p className="small muted" style={{ margin: 0 }}>Nothing yet.</p> : (
         <ul className="timeline small">
           {items.map((a, i) => (
-            <li key={i}><span className="muted"><Time at={a.at} /></span><span><strong>{a.actor.startsWith("human:") ? a.actor.slice(6) : "VC OS"}</strong> {ACTION_LABELS[a.action] ?? a.action.replace(/[._]/g, " ")}</span></li>
+            <li key={i}><span className="muted"><Time at={a.at} /></span><span><strong>{a.actor.startsWith("human:") ? a.actor.slice(6) : "VC OS"}</strong> {v.action(a.action)}</span></li>
           ))}
         </ul>
       )}

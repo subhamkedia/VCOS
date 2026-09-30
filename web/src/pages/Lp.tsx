@@ -19,7 +19,6 @@ export default function Lp() {
   const { data, error, reload } = useApi<LpOverview>("/lp");
   const head = (
     <PageHead
-      eyebrow="Module"
       title="LP Reporting"
       lead="Your investors, capital calls and distributions, capital accounts, and quarterly reports in ILPA formats. Every number is computed in code; nothing goes to an investor until a second person approves it."
     />

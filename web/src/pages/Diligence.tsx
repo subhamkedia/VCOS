@@ -21,7 +21,6 @@ export default function Diligence() {
   return (
     <>
       <PageHead
-        eyebrow="Module"
         title="Diligence"
         lead="One workspace per company you're seriously looking at: everything your connected tools and public sources know, meetings and calls, a checklist that fills in from the ledger, questions for the founders, and a memo where every fact is cited."
         actions={can("work_deals") && <button className="btn primary" onClick={() => setStarting(!starting)} aria-expanded={starting}>{starting ? "Close" : "Start diligence"}</button>}

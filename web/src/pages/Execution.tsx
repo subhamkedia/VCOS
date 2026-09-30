@@ -25,7 +25,6 @@ export default function Execution() {
   return (
     <>
       <PageHead
-        eyebrow="Module"
         title="Investment Execution"
         lead="From IC to a closed investment: independent committee votes, term sheets checked against NVCA and your house terms, the round and your returns modelled in code, and a closing checklist with signature, sanctions and wire controls. VC OS never sends a document or moves money."
       />

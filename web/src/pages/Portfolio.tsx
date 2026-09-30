@@ -20,7 +20,6 @@ export default function Portfolio() {
   const queues = useApi<{ marksToReview: Mark[]; requests: KpiRequest[]; initiatives: InitiativeRow[] }>("/portfolio/queues");
   const head = (
     <PageHead
-      eyebrow="Module"
       title="Portfolio & Value Creation"
       lead="Every company the fund holds: numbers from the books and the founders, early warnings, fair value marks, reserves and follow-ons, board meetings, the help you give, and exits."
       actions={<Link className="btn small" to="/portfolio/liquidity">Exits and liquidity</Link>}
@@ -108,7 +107,7 @@ export default function Portfolio() {
                       <td><Link to={`/portfolio/${c.companyId}`} onClick={(e) => e.stopPropagation()}><strong>{c.name}</strong></Link><div className="small muted">since {dateOnly(c.firstInvested)}{c.ownershipPct !== null ? ` · ${c.ownershipPct.toFixed(1)}%` : ""}</div></td>
                       <td>{c.status === "exited" ? <span className="pill quiet">Exited</span> : c.status === "public" ? <span className="pill info">Listed</span> : <HealthPill rating={c.health?.rating} suggested={c.suggested} labels={data.healthLabels} />}</td>
                       <td className="num">{usd(c.invested)}</td>
-                      <td className="num">{usd(c.fairValue + c.realized)}<div className="small muted">{c.valueBasis === "mark" ? `mark ${dateOnly(c.mark!.asOf)}` : c.valueBasis === "cost" ? "at cost" : c.valueBasis === "public" ? "listed" : c.pendingUsd > 0 ? `${usd(c.pendingUsd)} still due` : "realized"}</div></td>
+                      <td className="num">{usd(c.fairValue + c.realized)}<div className="small muted">{c.valueBasis === "mark" ? `mark ${dateOnly(c.mark!.asOf)}` : c.valueBasis === "cost" ? "at cost" : c.valueBasis === "public" ? "listed" : c.fairValue > 0 ? `${usd(c.fairValue)} still held or due` : "realized"}</div></td>
                       <td className="num">{x2(c.moic)}</td>
                       <td className="small">{c.status !== "active" ? "—" : c.notBurning ? "Not burning" : months(c.runwayMonths)}</td>
                       <td className="small num">{c.revenue !== null ? <>{usd(c.revenue)}/mo <span className="muted">{pctFmt(c.revenueMoM)}</span></> : c.arr !== null ? `${usd(c.arr)} ARR` : "—"}</td>

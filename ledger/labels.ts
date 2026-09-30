@@ -215,6 +215,31 @@ export const COMPLIANCE_LABELS = {
   giftKinds: { gift: "Gift", entertainment: "Entertainment" } as Record<string, string>,
 };
 
+/** What each audit_log action means, as a phrase after a person's name ("drafted a memo"). */
+export const ACTION_LABELS: Record<string, string> = {
+  "deal.start": "started diligence", "deal.update": "updated the deal", "deal.item": "updated a checklist item", "deal.item.delete": "removed a checklist item",
+  "deal.note": "logged a note", "deal.question.add": "added a question", "deal.question.update": "updated a question", "deal.close": "recorded the close",
+  "memo.draft": "drafted a memo", "contradiction.explained": "explained a conflict", "contradiction.resolved": "settled a conflict", "contradiction.open": "found a conflict",
+  "meeting.match": "matched a meeting", "meeting.unmatch_after_extraction": "unmatched a meeting", "claim.insert": "added a fact", "evidence.insert": "added a source",
+  "decision.pass": "passed", "decision.advance": "sent it to IC", "decision.ic_vote_pre": "voted before discussion", "decision.ic_vote_post": "voted after discussion",
+  "decision.invest": "recorded the investment", "decision.follow_on": "decided a follow-on", "decision.score_override": "overrode a score",
+  "decision.health_rating": "rated the company's health", "decision.reserve_plan": "planned reserves", "decision.exit_consent": "decided on an exit",
+  "ic.schedule": "scheduled IC", "ic.update": "moved IC along", "term_sheet.version": "saved a term sheet version", "term_sheet.status": "updated a term sheet",
+  "cap_table.version": "saved a cap table", "closing.item": "updated a closing item", "closing.item.add": "added a closing item", "wire.instructions": "recorded wire instructions",
+  "investment.record": "recorded the investment", "outbox.queue": "queued a draft for approval",
+  "portfolio.mark.propose": "proposed a mark", "portfolio.realization": "recorded money back", "portfolio.board_meeting": "recorded a board meeting",
+  "portfolio.initiative": "added value-creation work", "portfolio.kpi_request": "requested numbers", "portfolio.sync": "synced numbers",
+  "exit.plan": "updated the exit plan", "exit.start": "started an exit process", "exit.update": "updated an exit process", "exit.bid": "logged a bid",
+  "exit.close": "recorded an exit closing", "exit.receivable": "settled an escrow or earnout", "exit.public_holding": "recorded listed shares", "exit.prices": "added share prices",
+  "exit.qsbs": "reviewed QSBS", "compliance.screening": "screened the deal",
+};
+
+/** The kinds of decision the firm records (decisions.kind). */
+export const DECISION_LABELS: Record<string, string> = {
+  pass: "Passed", advance: "Sent to IC", ic_vote_pre: "IC vote before discussion", ic_vote_post: "IC vote after discussion", invest: "Invested",
+  follow_on: "Follow-on decision", score_override: "Score override", health_rating: "Health rating", reserve_plan: "Reserve plan", exit_consent: "Exit decision",
+};
+
 /** Why the firm passed on a company (decisions.reason_code). */
 export const PASS_REASON_LABELS: Record<string, string> = {
   team: "Team", market_size: "Market size", timing: "Timing", competition: "Competition", technology_risk: "Technology risk",
@@ -262,6 +287,8 @@ export function vocabulary(sourceNames: Record<string, string> = {}) {
     compliance: COMPLIANCE_LABELS,
     exits: EXIT_LABELS,
     passReasons: PASS_REASON_LABELS,
+    actions: ACTION_LABELS,
+    decisions: DECISION_LABELS,
   };
 }
 

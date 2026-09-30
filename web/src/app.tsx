@@ -27,6 +27,7 @@ import LpFund from "./pages/LpFund";
 import Investor from "./pages/Investor";
 import Fundraising from "./pages/Fundraising";
 import Compliance from "./pages/Compliance";
+import { Icon } from "./icons";
 import Liquidity from "./pages/Liquidity";
 import FundLife from "./pages/FundLife";
 import Raise from "./pages/Raise";
@@ -113,7 +114,7 @@ function Shell() {
     <div className="shell">
       <a className="skip" href="#main">Skip to content</a>
       <aside className="rail" aria-label="Main menu">
-        <div className="brand">VC OS</div>
+        <div className="brand"><span className="mark" aria-hidden="true">VC</span><span className="name">VC OS</span></div>
         {me.firms.length > 1 ? (
           <select className="firm-switch" value={me.firm!.id} onChange={(e) => void switchFirm(e.target.value)} aria-label="Firm">
             {me.firms.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -126,7 +127,8 @@ function Shell() {
           <nav aria-labelledby="nav-modules">
             {(modules ?? []).map((m) => (
               <NavLink key={m.id} to={m.path}>
-                {m.name}
+                <Icon name={m.id} />
+                <span className="label">{m.name}</span>
                 {m.status !== "live" && <span className="tag">{m.status === "next" ? "next" : `phase ${m.phase}`}</span>}
               </NavLink>
             ))}
@@ -135,16 +137,16 @@ function Shell() {
         <div>
           <h6 id="nav-workspace">Workspace</h6>
           <nav aria-labelledby="nav-workspace">
-            <NavLink to="/companies">Companies</NavLink>
+            <NavLink to="/companies"><Icon name="companies" /><span className="label">Companies</span></NavLink>
             <NavLink to="/meetings">
-              Meetings {meetingCounts && meetingCounts.needs_review > 0 && <span className="count" aria-label={`${meetingCounts.needs_review} need you`}>{meetingCounts.needs_review}</span>}
+              <Icon name="meetings" /><span className="label">Meetings</span>{meetingCounts && meetingCounts.needs_review > 0 && <span className="count" aria-label={`${meetingCounts.needs_review} need you`}>{meetingCounts.needs_review}</span>}
             </NavLink>
             <NavLink to="/approvals">
-              Approvals {pending && pending.length > 0 && <span className="count" aria-label={`${pending.length} waiting`}>{pending.length}</span>}
+              <Icon name="approvals" /><span className="label">Approvals</span>{pending && pending.length > 0 && <span className="count" aria-label={`${pending.length} waiting`}>{pending.length}</span>}
             </NavLink>
-            <NavLink to="/compliance">Compliance</NavLink>
-            <NavLink to="/connections">Connections</NavLink>
-            <NavLink to="/settings">Firm settings</NavLink>
+            <NavLink to="/compliance"><Icon name="compliance" /><span className="label">Compliance</span></NavLink>
+            <NavLink to="/connections"><Icon name="connections" /><span className="label">Connections</span></NavLink>
+            <NavLink to="/settings"><Icon name="settings" /><span className="label">Firm settings</span></NavLink>
           </nav>
         </div>
         <div className="me">

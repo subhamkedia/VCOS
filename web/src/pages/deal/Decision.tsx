@@ -41,7 +41,7 @@ export default function Decision({ data, onChange }: TabProps) {
             {data.decisions.map((d) => (
               <li key={d.id}>
                 <span className="muted">{dateOnly(d.created_at)}</span>
-                <span><strong>{d.kind === "pass" ? "Passed" : d.kind === "advance" ? "Sent to IC" : d.kind.replace(/_/g, " ")}</strong>{d.reason_code ? ` · ${v.passReason(d.reason_code)}` : ""} · {d.actor.replace(/^human:/, "")}<br />{d.rationale}</span>
+                <span><strong>{v.decision(d.kind)}</strong>{d.reason_code ? ` · ${v.passReason(d.reason_code)}` : ""} · {d.actor.replace(/^human:/, "")}<br />{d.rationale}</span>
               </li>
             ))}
           </ul>

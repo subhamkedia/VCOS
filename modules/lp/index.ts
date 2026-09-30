@@ -107,7 +107,7 @@ export async function fundView(db: Db, fundId: string, asOf = today()) {
     reports: rs.map(({ snapshot: _s, letter: _l, ...r }) => r),
     // The latest quarter that has ended.
     suggestedPeriod: quarterOf(dayBefore(q.start)).period,
-    calendar: [...(await calendar(db, f.id, year - 1)), ...(await calendar(db, f.id, year))].filter((d) => d.due >= `${year - 1}-10-01`),
+    calendar: [...(await calendar(db, f.id, year - 1)), ...(await calendar(db, f.id, year))].filter((d) => d.due >= `${year - 1}-10-01`).sort((a, b) => a.due.localeCompare(b.due)),
     taxDocuments: await taxDocs(db, f.id),
     sources: await sources(db),
   };

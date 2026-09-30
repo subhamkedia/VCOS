@@ -23,6 +23,7 @@ export const MODULES: ModuleInfo[] = [
       "Enrich what it finds from Harmonic, PitchBook, Crunchbase or Dealroom",
       "Score each company against your thesis, with the reason for every point",
       "Resolve duplicates, so a company found twice is one record",
+      "Triage what's found: start diligence, or pass with the reason kept on record",
     ],
     reads: ["Firm profile and thesis", "Connected sources"],
   },
@@ -52,13 +53,14 @@ export const MODULES: ModuleInfo[] = [
   },
   {
     id: "portfolio", name: "Portfolio & Value Creation", path: "/portfolio", status: "live", phase: 3,
-    summary: "Every company the fund holds: its numbers from the books and founders, early warnings, fair value marks, reserves and follow-ons, board meetings, and the help you give.",
+    summary: "Every company the fund holds: its numbers from the books and founders, early warnings, fair value marks, reserves and follow-ons, board meetings, the help you give, and exits and liquidity.",
     does: [
       "Numbers from the company's QuickBooks or Xero, a founder portal with no login, KPI requests, spreadsheets, Standard Metrics or Visible, and founder update emails; each figure cited",
       "Early warnings: runway, burn above plan, revenue behind plan, burn multiple, shrinking teams, stale data",
       "Fair value marks by IPEV-recognized methods, prepared by one person and approved by another",
       "Gross MOIC, IRR, DPI, RVPI and TVPI; the reserve pool; follow-on decisions with their reasons",
       "Board meetings with resolutions and conflict review; value-creation work measured by outcome",
+      "Exits: plans and processes with the fund's consent, escrows and earnouts, listed shares under the lock-up and Rule 144, in-kind distributions, QSBS, a liquidity forecast, and each fund's term and wind-down",
     ],
     reads: ["Investment records from Execution", "The company's books and founder updates", "Fund size and reserves"],
   },

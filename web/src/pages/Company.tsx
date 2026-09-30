@@ -160,8 +160,8 @@ export default function Company() {
           <h2 id="decisions-h">Decisions</h2>
           {data.decisions.map((d) => (
             <div key={d.id} className="small">
-              <strong>{d.kind === "pass" ? "Passed" : d.kind.replace(/_/g, " ")}</strong>{" "}
-              {d.reason_code && <span className="pill outline">{d.reason_code.replace(/_/g, " ")}</span>} {d.rationale}{" "}
+              <strong>{v.decision(d.kind)}</strong>{" "}
+              {d.reason_code && <span className="pill outline">{v.passReason(d.reason_code)}</span>} {d.rationale}{" "}
               <span className="muted">by {d.actor.replace(/^human:/, "")}, {dateOnly(d.created_at)}</span>
             </div>
           ))}

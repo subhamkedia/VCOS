@@ -448,5 +448,5 @@ export function reportingCalendar(year: number): Deadline[] {
     { key: `adv_${year}`, title: `Form ADV annual amendment for ${year}`, due: addDays(`${year}-12-31`, 90), basis: "SEC: within 90 days of fiscal year end (registered and exempt reporting advisers)" },
     { key: `k1_${year}`, title: `Schedules K-1 for ${year}`, due: `${year + 1}-03-15`, basis: "IRS: March 15; September 15 with a Form 7004 extension" },
     { key: `audit_${year}`, title: `Audited financial statements for ${year}`, due: addDays(`${year}-12-31`, 120), basis: "SEC custody rule audit provision: within 120 days of year end (registered advisers; LPAs often require it too)" },
-  ];
+  ].sort((a, b) => a.due.localeCompare(b.due));
 }
