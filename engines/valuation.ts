@@ -23,13 +23,14 @@ import { waterfall, type CommonClass, type PreferredSeries } from "./waterfall.j
  * Deterministic and unit-tested. A model may explain a mark, never set one.
  */
 
-export type Method = "recent_round" | "milestone" | "revenue_multiple" | "exit" | "write_off" | "cost";
+export type Method = "recent_round" | "milestone" | "revenue_multiple" | "exit" | "public_price" | "write_off" | "cost";
 
 export const METHOD_LABELS: Record<Method, string> = {
   recent_round: "Calibrated to a recent round",
   milestone: "Milestone adjustment",
   revenue_multiple: "Multiple of revenue",
   exit: "Exit proceeds",
+  public_price: "Quoted price",
   write_off: "Written off",
   cost: "At cost",
 };
@@ -52,6 +53,7 @@ export type MarkInput =
       discountPct?: number;
     }
   | { method: "exit"; proceeds: number }
+  | { method: "public_price"; shares: number; price: number; priceDate: string }
   | { method: "write_off" }
   | { method: "cost"; invested: number; investedDate: string };
 
@@ -116,6 +118,15 @@ export function mark(input: MarkInput, asOf: string): Mark {
       if (input.proceeds < 0) throw new Error("Proceeds can't be negative.");
       steps.push(`Proceeds due to the fund from the sale: ${usd(input.proceeds)}.`);
       return { method: input.method, value: input.proceeds, steps, warnings };
+    case "public_price": {
+      if (input.shares <= 0 || input.price <= 0) throw new Error("Shares and the price must be positive.");
+      const value = input.shares * input.price;
+      steps.push(`${input.shares.toLocaleString("en-US")} shares x $${input.price.toFixed(4)} (closing price on ${input.priceDate}) = ${usd(value)}.`);
+      // ASC 820 as amended by ASU 2022-03: a contractual sale restriction (a lock-up) isn't a discount.
+      steps.push("No discount for the lock-up: a contractual restriction on selling belongs to the holder, not the shares (ASC 820, ASU 2022-03).");
+      if ((Date.parse(asOf) - Date.parse(input.priceDate)) / 86_400_000 > 5) warnings.push(`The price is from ${input.priceDate}; use the closing price on the measurement date.`);
+      return { method: input.method, value, steps, warnings };
+    }
     case "write_off":
       steps.push("The company has failed or the position is worthless: written off to zero.");
       return { method: input.method, value: 0, steps, warnings };

@@ -298,32 +298,49 @@ export async function latestMarks(db: Db): Promise<Map<string, ValuationRow>> {
 // Realizations
 // ---------------------------------------------------------------------------
 
+export type RealizationKind = "sale" | "partial_sale" | "distribution" | "dividend" | "write_off" | "escrow_release" | "earnout" | "secondary" | "tender" | "public_sale" | "in_kind";
+
 export interface RealizationRow {
   id: string;
   company_id: string;
   occurred_on: string;
   amount_usd: number;
-  kind: "sale" | "partial_sale" | "distribution" | "dividend" | "write_off";
+  kind: RealizationKind;
   note: string | null;
+  exit_id: string | null;
+  receivable_id: string | null;
+  /** Shares sold or distributed, when it was shares. */
+  shares: number | null;
+  price_usd: number | null;
+  lp_distribution_id: string | null;
+  detail: Record<string, unknown>;
   created_by: string;
   created_at: string;
 }
 
-export async function insertRealization(db: Db, r: { companyId: string; occurredOn: string; amountUsd: number; kind: RealizationRow["kind"]; note?: string | null }, by: string): Promise<RealizationRow> {
+export interface NewRealization {
+  companyId: string; occurredOn: string; amountUsd: number; kind: RealizationKind; note?: string | null;
+  exitId?: string | null; receivableId?: string | null; shares?: number | null; priceUsd?: number | null; lpDistributionId?: string | null; detail?: Record<string, unknown>;
+}
+
+const realizationOut = (r: RealizationRow): RealizationRow => ({ ...r, occurred_on: day(r.occurred_on)!, amount_usd: Number(r.amount_usd), shares: num(r.shares), price_usd: num(r.price_usd), created_at: iso(r.created_at)! });
+
+export async function insertRealization(db: Db, r: NewRealization, by: string): Promise<RealizationRow> {
   const { rows } = await db.query<RealizationRow>(
-    "insert into realizations(company_id, occurred_on, amount_usd, kind, note, created_by) values ($1,$2,$3,$4,$5,$6) returning *",
-    [r.companyId, r.occurredOn, r.amountUsd, r.kind, r.note ?? null, by],
+    `insert into realizations(company_id, occurred_on, amount_usd, kind, note, exit_id, receivable_id, shares, price_usd, lp_distribution_id, detail, created_by)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) returning *`,
+    [r.companyId, r.occurredOn, r.amountUsd, r.kind, r.note ?? null, r.exitId ?? null, r.receivableId ?? null, r.shares ?? null, r.priceUsd ?? null, r.lpDistributionId ?? null, JSON.stringify(r.detail ?? {}), by],
   );
   await audit(db, by, "portfolio.realization", r.companyId, { amount: r.amountUsd, kind: r.kind });
-  return { ...rows[0]!, occurred_on: day(rows[0]!.occurred_on)!, amount_usd: Number(rows[0]!.amount_usd), created_at: iso(rows[0]!.created_at)! };
+  return realizationOut(rows[0]!);
 }
 
 export async function realizations(db: Db, companyId?: string): Promise<RealizationRow[]> {
   const { rows } = await db.query<RealizationRow>(
-    `select * from realizations ${companyId ? "where company_id = $1" : ""} order by occurred_on`,
+    `select * from realizations ${companyId ? "where company_id = $1" : ""} order by occurred_on, created_at`,
     companyId ? [companyId] : [],
   );
-  return rows.map((r) => ({ ...r, occurred_on: day(r.occurred_on)!, amount_usd: Number(r.amount_usd), created_at: iso(r.created_at)! }));
+  return rows.map(realizationOut);
 }
 
 // ---------------------------------------------------------------------------

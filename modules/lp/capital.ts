@@ -1,3 +1,5 @@
+import { getPublicHolding, inKindPlans } from "../../ledger/exits.js";
+import { insertRealization } from "../../ledger/portfolio.js";
 import type { Db } from "../../lib/db.js";
 import {
   bankTxns, callItems, calls, getCallItem, distributionItems, distributions, expenses, getCall, getDistribution, getPartner, insertBankTxn, insertCall, insertDistribution,
@@ -363,6 +365,15 @@ export async function approveDistribution(db: Db, id: string, by: string) {
   const earlierDrafts = (await distributions(db, d.fund_id)).filter((x) => x.status === "draft" && x.number < d.number);
   if (earlierDrafts.length) throw new LpInvalid(`Approve or cancel distribution ${earlierDrafts[0]!.number} first.`);
   await setDistributionStatus(db, id, "approved", by);
+  // An in-kind distribution prepared from Portfolio: the shares leave the fund's books now.
+  const plan = d.kind === "in_kind" ? (await inKindPlans(db, { distributionId: id }))[0] : undefined;
+  const listed = plan ? await getPublicHolding(db, plan.public_holding_id) : null;
+  if (plan && listed) {
+    await insertRealization(db, {
+      companyId: listed.company_id, occurredOn: d.paid_on, amountUsd: Math.round(plan.shares * plan.price_usd * 100) / 100, kind: "in_kind", shares: plan.shares, priceUsd: plan.price_usd,
+      exitId: listed.exit_id, lpDistributionId: id, note: `Distributed ${plan.shares.toLocaleString("en-US")} ${listed.ticker} in kind`, detail: { publicHoldingId: listed.id, allocation: plan.allocation },
+    }, by);
+  }
   const f = await fundOr404(db, d.fund_id);
   const firm = (await getProfile(db))?.profile.firm.name ?? f.name;
   const company = d.company_id ? (await getEntity(db, d.company_id))?.name ?? null : null;
@@ -379,8 +390,9 @@ export async function approveDistribution(db: Db, id: string, by: string) {
       `Your share: ${usd(i.gross_usd)}`,
       ...(i.carry_usd ? [`Less carried interest: ${usd(i.carry_usd)}`] : []),
       `Net to you: ${usd(i.net_usd)}`,
+      ...(plan && listed ? [`Paid as ${(plan.allocation.find((a) => a.id === i.partner_id)?.shares ?? 0).toLocaleString("en-US")} shares of ${listed.ticker}, valued at $${plan.price_usd.toFixed(4)} a share.`] : []),
       "",
-      "It will be paid to the account on file. If your bank details have changed, tell us by phone, never only by email: we confirm every change on a number we already have.",
+      d.kind === "in_kind" ? "The shares will be delivered to the brokerage account on file; tell us by phone, never only by email, if it has changed." : "It will be paid to the account on file. If your bank details have changed, tell us by phone, never only by email: we confirm every change on a number we already have.",
       "",
       "The tax character of this distribution will be reported on your Schedule K-1.",
       "",

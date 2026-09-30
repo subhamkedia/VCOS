@@ -15,6 +15,7 @@ import { getProfile } from "../firm/profile.js";
 import { isReady } from "../connections/index.js";
 import { holding, holdings, kpiClaims, today, type Holding } from "./common.js";
 import { CONFLICT_KINDS, HEALTH_LABELS, INITIATIVE_KINDS, RESOLUTION_KINDS } from "./work.js";
+import { holdingValue, valueInputs } from "./value.js";
 
 /**
  * Portfolio Management and Value Creation: every company the fund holds,
@@ -31,6 +32,11 @@ export { recordKpis, importKpiCsv, syncCompany } from "./kpis.js";
 export { createPortalLink, revokePortal, requestKpis, cancelRequest, portalView, portalSubmit, startAccountingLink, finishAccountingLink } from "./portal.js";
 export { proposeMark, reviewMark } from "./marks.js";
 export {
+  saveExitPlanFor, startExit, updateExitProcess, addBid, consentToExit, previewClose, closeExit, settleReceivable, reviseReceivable, addPublicHolding, editPublicHolding,
+  recordPrices, sellPublic, previewInKind, distributeInKind, distributeProceeds, reviewQsbs, companyExits, liquidityOverview, fundLifeView, setFundLife, extendFund,
+  setWindDownStep, startContinuation, recordElection, finishContinuation,
+} from "./exits.js";
+export {
   rateHealth, planReserve, decideFollowOn, recordRealization, addBoardMeeting, addInitiative, setInitiative, queueIntro, addContact, deleteContact, HEALTH_LABELS,
 } from "./work.js";
 
@@ -39,15 +45,6 @@ const latestBy = (rows: DecisionRow[]) => {
   for (const r of rows) if (!m.has(r.entity_id)) m.set(r.entity_id, r); // newest first
   return m;
 };
-
-/** What the fund holds now: the latest approved mark, else nothing after a sale or write-off, else cost. */
-function fairValue(h: Holding, mark: ValuationRow | undefined, real: RealizationRow[]): { value: number; basis: "mark" | "cost" | "exited" } {
-  const invested = h.investments.reduce((a, i) => a + i.amount_usd, 0);
-  const exitDate = real.filter((r) => r.kind === "sale" || r.kind === "write_off").map((r) => r.occurred_on).sort().pop();
-  if (mark && (!exitDate || mark.as_of > exitDate)) return { value: mark.fair_value_usd, basis: "mark" };
-  if (exitDate) return { value: 0, basis: "exited" };
-  return { value: invested, basis: "cost" };
-}
 
 function position(h: Holding, fv: number, real: RealizationRow[]): Position {
   return {
@@ -70,24 +67,25 @@ export async function overview(db: Db, asOf = today()) {
   const health = latestBy(await decisionsOf(db, ["health_rating"]));
   const plans = latestBy(await decisionsOf(db, ["reserve_plan"]));
   const allReal = await realizations(db);
+  const inputs = await valueInputs(db);
   const rows = [];
   const positions: Position[] = [];
   for (const h of hs) {
     const real = allReal.filter((r) => r.company_id === h.companyId);
-    const fv = fairValue(h, marks.get(h.companyId), real);
+    const fv = holdingValue(h, marks.get(h.companyId), real, inputs);
     positions.push(position(h, fv.value, real));
     const sum = summarize(buildSeries(await kpiClaims(db, h.companyId)), asOf);
-    const sig = fv.basis === "exited" ? [] : signals(sum);
+    const sig = fv.basis === "exited" || fv.basis === "public" ? [] : signals(sum);
     const rating = health.get(h.companyId);
     const invested = h.investments.reduce((a, i) => a + i.amount_usd, 0);
     const realized = real.reduce((a, r) => a + r.amount_usd, 0);
     rows.push({
       companyId: h.companyId, name: h.name, dealId: h.dealId,
-      firstInvested: h.investments[0]!.close_date, invested, realized, fairValue: fv.value, valueBasis: fv.basis,
+      firstInvested: h.investments[0]!.close_date, invested, realized, fairValue: fv.value, valueBasis: fv.basis, pendingUsd: fv.pendingUsd, publicUsd: fv.publicUsd,
       moic: invested > 0 ? (realized + fv.value) / invested : null,
       ownershipPct: [...h.investments].reverse().find((i) => i.ownership_fd_pct !== null)?.ownership_fd_pct ?? null,
       boardRole: h.investments[0]!.board_role,
-      status: fv.basis === "exited" ? "exited" : "active",
+      status: fv.basis === "exited" ? "exited" : fv.basis === "public" ? "public" : "active",
       health: rating ? { rating: (rating.value as { rating: Health }).rating, by: rating.actor, at: rating.created_at } : null,
       suggested: suggestedHealth(sig),
       signals: sig.map((s) => ({ key: s.key, severity: s.severity, title: s.title })),
@@ -136,8 +134,8 @@ export async function companyView(db: Db, companyId: string, viewer: string, asO
   const real = await realizations(db, companyId);
   const marks = await valuations(db, { companyId });
   const approved = marks.find((m) => m.status === "approved");
-  const fv = fairValue(h, approved, real);
-  const sig = fv.basis === "exited" ? [] : signals(sum);
+  const fv = holdingValue(h, approved, real, await valueInputs(db));
+  const sig = fv.basis === "exited" || fv.basis === "public" ? [] : signals(sum);
   const cites = Object.fromEntries(claims.map((c) => [c.id, { evidenceId: c.evidence_id, citedText: c.cited_text, sourceType: c.source_type }]));
   const decisions = await decisionsOf(db, ["health_rating", "reserve_plan", "follow_on"], companyId);
   const sources = [];
@@ -152,6 +150,7 @@ export async function companyView(db: Db, companyId: string, viewer: string, asO
     investments: h.investments,
     position: portfolioMetrics([position(h, fv.value, real)], asOf).positions[0] ?? null,
     valueBasis: fv.basis,
+    value: fv,
     series: Object.fromEntries((Object.keys(METRIC_PREDICATE) as Metric[]).filter((m) => series[m]?.length).map((m) => [m, series[m]])),
     metricLabels: Object.fromEntries((Object.entries(METRIC_PREDICATE) as [Metric, string][]).map(([m, p]) => [m, predicateLabel(p)])),
     burn: netBurn(series),

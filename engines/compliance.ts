@@ -35,7 +35,7 @@ export interface Facts {
   stateSales: { fund: string; state: string; date: string }[];
   /** Notifiable outbound transactions, by closing date. */
   outboundNotifiable: { company: string; closed: string }[];
-  /** Public holdings of 5% or more, by the quarter the threshold was crossed. */
+  /** Listed holdings of 5% or more (Schedule 13G), or where we're an insider (Form 3), from the listing date. */
   publicHoldings: { company: string; crossed: string; pct: number; insider: boolean }[];
 }
 
@@ -78,7 +78,7 @@ export function obligations(f: Facts, year: number): Obligation[] {
   for (const h of f.publicHoldings) {
     const q = quarterEnds(Number(h.crossed.slice(0, 4))).find((x) => x >= h.crossed)!;
     const due = addDays(q, 45);
-    if (due.startsWith(String(year))) out.push({ key: `13g_${h.company}`, title: `Schedule 13G: ${h.company} (${h.pct.toFixed(1)}%)`, subject: h.company, due, form: "schedule_13g", basis: "Exchange Act Rule 13d-1 (as amended 2023): exempt investors file within 45 days after the quarter they cross 5%" });
+    if (h.pct >= 5 && due.startsWith(String(year))) out.push({ key: `13g_${h.company}`, title: `Schedule 13G: ${h.company} (${h.pct.toFixed(1)}%)`, subject: h.company, due, form: "schedule_13g", basis: "Exchange Act Rule 13d-1 (as amended 2023): exempt investors file within 45 days after the quarter they cross 5%" });
     if (h.insider) out.push({ key: `form3_${h.company}`, title: `Form 3: ${h.company}`, subject: h.company, due: addDays(h.crossed, 10), form: "form_345", basis: "Section 16: a 10% owner or director files Form 3 within 10 days (at an IPO, by the registration's effective date), then Form 4 within two business days of each trade" });
   }
   return out.sort((a, b) => a.due.localeCompare(b.due));

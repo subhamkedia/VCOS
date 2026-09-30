@@ -215,6 +215,28 @@ export const COMPLIANCE_LABELS = {
   giftKinds: { gift: "Gift", entertainment: "Entertainment" } as Record<string, string>,
 };
 
+export const EXIT_LABELS = {
+  paths: { acquisition: "Sale to a buyer", ipo: "IPO", secondary: "Secondary sale of our stake", hold: "Hold for now", wind_down: "Wind down" } as Record<string, string>,
+  kinds: { acquisition: "Sale of the company", ipo: "IPO", secondary: "Secondary sale of our shares", tender: "Tender offer", buyback: "Company buyback", wind_down: "Wind-down" } as Record<string, string>,
+  stages: { exploring: "Exploring", preparing: "Preparing", marketing: "In market", offers: "Offers in", signed: "Signed", closed: "Closed", abandoned: "Abandoned" } as Record<string, string>,
+  bidKinds: { ioi: "Indication of interest", loi: "Letter of intent", final: "Final offer" } as Record<string, string>,
+  consent: { approve: "Consent", decline: "Decline", abstain: "Abstain" } as Record<string, string>,
+  receivableKinds: {
+    escrow: "Indemnity escrow", adjustment_escrow: "Price adjustment escrow", holdback: "Holdback", expense_fund: "Expense fund", earnout: "Earnout", deferred: "Deferred payment",
+  } as Record<string, string>,
+  receivableStatus: { pending: "Pending", partial: "Partly settled", released: "Released", earned: "Earned", claimed: "Claimed by the buyer", forfeited: "Not earned" } as Record<string, string>,
+  realizationKinds: {
+    sale: "Sale", partial_sale: "Partial sale", distribution: "Distribution", dividend: "Dividend", write_off: "Write-off", escrow_release: "Escrow release", earnout: "Earnout payment",
+    secondary: "Secondary sale", tender: "Tender offer", public_sale: "Sale of listed shares", in_kind: "Distributed in kind",
+  } as Record<string, string>,
+  qsbsStatus: { eligible: "Eligible", not_eligible: "Not eligible", unclear: "Not yet confirmed" } as Record<string, string>,
+  approvedVia: { gp: "The GP's discretion under the LPA", lpac: "The LPAC's consent", investors: "Investors' vote" } as Record<string, string>,
+  windDownStatus: { open: "To do", done: "Done", na: "Not needed" } as Record<string, string>,
+  elections: { roll: "Roll into the new vehicle", sell: "Sell for cash", status_quo: "Status quo (unchanged terms)" } as Record<string, string>,
+  lifeStage: { harvesting: "Harvesting", final_years: "Final two years", extended: "In an extension", past_term: "Past its term" } as Record<string, string>,
+  priceMethods: { close: "Closing price on the date", average: "Average closing price over trading days" } as Record<string, string>,
+};
+
 export function vocabulary(sourceNames: Record<string, string> = {}) {
   return {
     predicates: Object.fromEntries([...PREDICATES.keys()].map((id) => [id, { label: predicateLabel(id), description: getPredicate(id).description, kind: getPredicate(id).kind }])),
@@ -232,6 +254,7 @@ export function vocabulary(sourceNames: Record<string, string> = {}) {
     lp: LP_LABELS,
     fundraising: FUNDRAISING_LABELS,
     compliance: COMPLIANCE_LABELS,
+    exits: EXIT_LABELS,
   };
 }
 

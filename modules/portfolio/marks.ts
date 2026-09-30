@@ -1,5 +1,7 @@
 import type { Db } from "../../lib/db.js";
-import { getValuation, insertValuation, latestMarks, reviewValuation, valuations } from "../../ledger/portfolio.js";
+import { getValuation, insertValuation, latestMarks, realizations, reviewValuation, valuations } from "../../ledger/portfolio.js";
+import { prices, publicHoldings } from "../../ledger/exits.js";
+import { publicSharesLeft } from "./value.js";
 import { buildSeries, monthText, summarize } from "../../engines/kpi.js";
 import { mark, METHOD_LABELS, type MarkInput, type Method } from "../../engines/valuation.js";
 import { model } from "../execution/index.js";
@@ -75,6 +77,19 @@ export async function proposeMark(db: Db, companyId: string, input: Record<strin
       const proceeds = n("proceeds");
       if (proceeds === undefined || proceeds < 0) throw new PortfolioInvalid("Enter the proceeds due to the fund.");
       engineInput = { method, proceeds };
+      break;
+    }
+    case "public_price": {
+      // Listed shares: every holding's remaining shares at the closing price on (or before) the measurement date.
+      const listed = await publicHoldings(db, companyId);
+      if (!listed.length) throw new PortfolioInvalid("Record the listed shares under Exits first.");
+      const real = await realizations(db, companyId);
+      const p = listed[0]!;
+      const px = (await prices(db, p.ticker)).filter((x) => x.date <= asOf).pop();
+      const price = n("price") ?? px?.close;
+      if (!price) throw new PortfolioInvalid(`There's no ${p.ticker} closing price on record by ${asOf}: add it under Exits, or enter it.`);
+      const sharesLeft = n("shares") ?? publicSharesLeft(p, real);
+      engineInput = { method, shares: sharesLeft, price, priceDate: n("price") !== undefined ? asOf : px!.date };
       break;
     }
     case "write_off":

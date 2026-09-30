@@ -581,6 +581,38 @@ export function createApp(deps: AppDeps) {
   firm.post("/portfolio/companies/:id/reserve", allow("decide_deals"), async (c) => c.json({ id: await portfolio.planReserve(c.get("db"), param(c, "id"), await c.req.json(), who(c)) }, 201));
   firm.post("/portfolio/companies/:id/follow-on", allow("decide_deals"), async (c) => c.json(await portfolio.decideFollowOn(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
   firm.post("/portfolio/companies/:id/realizations", allow("decide_deals"), async (c) => c.json(await portfolio.recordRealization(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  // Exits and liquidity, inside Portfolio. Analysts keep plans, processes,
+  // bids, listed shares and prices, QSBS reviews, and prepare distributions
+  // (a partner approves them in LP Reporting); partners give the fund's
+  // consent, record closings, settle escrows and earnouts, sell listed
+  // shares, and decide a fund's extension and continuation vehicle.
+  const body = async (c: Context<Env>) => (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  firm.get("/portfolio/liquidity", async (c) => c.json(await portfolio.liquidityOverview(c.get("db"))));
+  firm.get("/portfolio/companies/:id/exits", async (c) => c.json(await portfolio.companyExits(c.get("db"), param(c, "id"))));
+  firm.put("/portfolio/companies/:id/exit-plan", allow("work_deals"), async (c) => { await portfolio.saveExitPlanFor(c.get("db"), param(c, "id"), await body(c), who(c)); return ok(c); });
+  firm.post("/portfolio/companies/:id/exits", allow("work_deals"), async (c) => c.json(await portfolio.startExit(c.get("db"), param(c, "id"), await body(c), who(c)), 201));
+  firm.patch("/portfolio/exits/:id", allow("work_deals"), async (c) => { await portfolio.updateExitProcess(c.get("db"), param(c, "id"), await body(c), who(c)); return ok(c); });
+  firm.post("/portfolio/exits/:id/bids", allow("work_deals"), async (c) => { await portfolio.addBid(c.get("db"), param(c, "id"), await body(c), who(c)); return c.json({ ok: true }, 201); });
+  firm.post("/portfolio/exits/:id/consent", allow("decide_deals"), async (c) => c.json(await portfolio.consentToExit(c.get("db"), param(c, "id"), await body(c), who(c)), 201));
+  firm.post("/portfolio/exits/:id/close/preview", allow("work_deals"), async (c) => c.json(await portfolio.previewClose(c.get("db"), param(c, "id"), await body(c))));
+  firm.post("/portfolio/exits/:id/close", allow("decide_deals"), async (c) => c.json(await portfolio.closeExit(c.get("db"), param(c, "id"), await body(c), who(c))));
+  firm.post("/portfolio/receivables/:id/settle", allow("decide_deals"), async (c) => c.json(await portfolio.settleReceivable(c.get("db"), param(c, "id"), await body(c), who(c))));
+  firm.patch("/portfolio/receivables/:id", allow("work_deals"), async (c) => { await portfolio.reviseReceivable(c.get("db"), param(c, "id"), await body(c), who(c)); return ok(c); });
+  firm.post("/portfolio/companies/:id/listed", allow("work_deals"), async (c) => c.json(await portfolio.addPublicHolding(c.get("db"), param(c, "id"), await body(c), who(c)), 201));
+  firm.patch("/portfolio/listed/:id", allow("work_deals"), async (c) => { await portfolio.editPublicHolding(c.get("db"), param(c, "id"), await body(c), who(c)); return ok(c); });
+  firm.post("/portfolio/prices/:ticker", allow("work_deals"), async (c) => c.json(await portfolio.recordPrices(c.get("db"), param(c, "ticker"), await body(c), who(c)), 201));
+  firm.post("/portfolio/listed/:id/sell", allow("decide_deals"), async (c) => c.json(await portfolio.sellPublic(c.get("db"), param(c, "id"), await body(c), who(c)), 201));
+  firm.post("/portfolio/listed/:id/in-kind/preview", allow("work_deals"), async (c) => c.json(await portfolio.previewInKind(c.get("db"), param(c, "id"), await body(c))));
+  firm.post("/portfolio/listed/:id/in-kind", allow("work_deals"), async (c) => c.json(await portfolio.distributeInKind(c.get("db"), param(c, "id"), await body(c), who(c)), 201));
+  firm.post("/portfolio/companies/:id/distribute", allow("work_deals"), async (c) => c.json(await portfolio.distributeProceeds(c.get("db"), param(c, "id"), await body(c), who(c)), 201));
+  firm.post("/portfolio/companies/:id/investments/:inv/qsbs", allow("work_deals"), async (c) => c.json(await portfolio.reviewQsbs(c.get("db"), param(c, "id"), param(c, "inv"), await body(c), who(c)), 201));
+  firm.get("/portfolio/funds/:id/life", async (c) => c.json(await portfolio.fundLifeView(c.get("db"), param(c, "id"))));
+  firm.put("/portfolio/funds/:id/life", allow("decide_deals"), async (c) => { await portfolio.setFundLife(c.get("db"), param(c, "id"), await body(c), who(c)); return ok(c); });
+  firm.post("/portfolio/funds/:id/extensions", allow("decide_deals"), async (c) => { await portfolio.extendFund(c.get("db"), param(c, "id"), await body(c), who(c)); return c.json({ ok: true }, 201); });
+  firm.put("/portfolio/funds/:id/wind-down/:key", allow("work_deals"), async (c) => { await portfolio.setWindDownStep(c.get("db"), param(c, "id"), param(c, "key"), await body(c), who(c)); return ok(c); });
+  firm.post("/portfolio/funds/:id/continuation", allow("decide_deals"), async (c) => c.json(await portfolio.startContinuation(c.get("db"), param(c, "id"), await body(c), who(c)), 201));
+  firm.post("/portfolio/continuation/:id/elections", allow("work_deals"), async (c) => { await portfolio.recordElection(c.get("db"), param(c, "id"), await body(c), who(c)); return ok(c); });
+  firm.post("/portfolio/continuation/:id/finish", allow("decide_deals"), async (c) => { await portfolio.finishContinuation(c.get("db"), param(c, "id"), await body(c), who(c)); return ok(c); });
   firm.post("/portfolio/companies/:id/board", allow("work_deals"), async (c) => c.json(await portfolio.addBoardMeeting(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
   firm.post("/portfolio/companies/:id/initiatives", allow("work_deals"), async (c) => c.json(await portfolio.addInitiative(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
   firm.patch("/portfolio/initiatives/:id", allow("work_deals"), async (c) => {

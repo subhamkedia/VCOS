@@ -13,6 +13,7 @@ import { COMPLIANCE_LABELS } from "../../ledger/labels.js";
 import { cfius, MARKETING_CHECKLIST, obligations, outbound, payToPlay, type CfiusAnswers, type Facts, type OutboundAnswers } from "../../engines/compliance.js";
 import { searchFormD, type FormDHit } from "../../connectors/edgar.js";
 import { overview as lpOverview } from "../lp/index.js";
+import { publicHoldings } from "../../ledger/exits.js";
 
 /**
  * Compliance, as a layer every module shares. It knows the adviser's
@@ -79,6 +80,16 @@ export function usState(j: string | null): string | null {
   return STATES[last.toLowerCase()] ?? null;
 }
 
+/** Listed holdings from Portfolio's exits: 5% or more for Schedule 13G, and insiders (a director, or over 10%) for Form 3. */
+async function listedFacts(db: Db): Promise<Facts["publicHoldings"]> {
+  const out: Facts["publicHoldings"] = [];
+  for (const h of await publicHoldings(db)) {
+    const pct = h.shares_outstanding ? (h.shares / h.shares_outstanding) * 100 : 0;
+    if (pct >= 5 || h.affiliate) out.push({ company: `${h.company_name ?? "Company"} (${h.ticker})`, crossed: h.listed_on, pct, insider: h.affiliate || pct > 10 });
+  }
+  return out;
+}
+
 async function facts(db: Db, p: ComplianceProfile, extra: Partial<Facts> = {}): Promise<Facts> {
   const lp = await lpOverview(db);
   const aum = lp.funds.reduce((a, f) => a + f.nav + Math.max(0, f.commitments - f.called), 0);
@@ -97,7 +108,7 @@ async function facts(db: Db, p: ComplianceProfile, extra: Partial<Facts> = {}): 
   });
   return {
     status: p.adviser_status, fiscalYearEnd: p.fiscal_year_end, privateFundAumUsd: aum, firstSales: await firstSales(db), stateSales: [...stateFirst.values()],
-    outboundNotifiable, publicHoldings: [], ...extra,
+    outboundNotifiable, publicHoldings: await listedFacts(db), ...extra,
   };
 }
 
@@ -180,6 +191,11 @@ export async function restrictedSuggestions(db: Db) {
   const invs = await listInvestments(db);
   const out: { companyId: string; name: string; reason: string }[] = [];
   const seen = new Set<string>();
+  for (const h of await publicHoldings(db)) {
+    if (seen.has(h.company_id) || listed.has(h.company_id)) continue;
+    out.push({ companyId: h.company_id, name: h.company_name ?? h.ticker, reason: `Listed as ${h.ticker}${h.affiliate ? "; we're an affiliate (a board seat or control)" : ""}: we may hold inside information` });
+    seen.add(h.company_id);
+  }
   for (const i of invs) {
     if (seen.has(i.company_id) || listed.has(i.company_id)) continue;
     const status = (await currentClaims(db, i.company_id, { predicates: ["company.status"] })).pop();

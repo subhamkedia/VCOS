@@ -294,6 +294,23 @@ describe("limits", () => {
     expect((await app.request("/api/portal/callback?error=access_denied")).headers.get("location")).toMatch(/^\/portal\/connected\?error=access_denied/);
     expect((await pat.post(`/api/portfolio/companies/${companyId}/portal/revoke`)).status).toBe(200);
     expect((await app.request(`/api/portal/${token}`)).status).toBe(404);
+
+    // Exits: analysts run the process; the fund's consent and the closing are a partner's.
+    expect((await ana.put(`/api/portfolio/companies/${companyId}/exit-plan`, { path: "acquisition", targetYear: 2027 })).status).toBe(200);
+    const exit = await (await ana.post(`/api/portfolio/companies/${companyId}/exits`, { kind: "acquisition", counterparty: "Acme Industrial" })).json();
+    expect((await ana.post(`/api/portfolio/exits/${exit.id}/bids`, { bidder: "Acme Industrial", kind: "loi", valueUsd: 40e6 })).status).toBe(201);
+    const consent = { choice: "approve", rationale: "Three times our mark with a clean escrow; the board ran a full process." };
+    expect((await ana.post(`/api/portfolio/exits/${exit.id}/consent`, consent)).status).toBe(403);
+    expect((await pat.post(`/api/portfolio/exits/${exit.id}/consent`, consent)).status).toBe(201);
+    const close = { closedOn: "2026-06-30", totalUsd: 3e6, escrowPct: 10 };
+    expect((await (await ana.post(`/api/portfolio/exits/${exit.id}/close/preview`, close)).json()).split.atCloseCashUsd).toBe(2.7e6);
+    expect((await ana.post(`/api/portfolio/exits/${exit.id}/close`, close)).status).toBe(403);
+    expect((await pat.post(`/api/portfolio/exits/${exit.id}/close`, close)).status).toBe(200);
+    const exits = await (await ana.get(`/api/portfolio/companies/${companyId}/exits`)).json();
+    expect(exits.receivables).toHaveLength(1);
+    expect((await ana.post(`/api/portfolio/receivables/${exits.receivables[0].id}/settle`, { amountUsd: 300000 })).status).toBe(403);
+    expect((await pat.post(`/api/portfolio/receivables/${exits.receivables[0].id}/settle`, { amountUsd: 300000, on: "2026-07-01" })).status).toBe(200);
+    expect((await (await ana.get("/api/portfolio/liquidity")).json()).undistributed[0]).toMatchObject({ receivedUsd: 3e6 });
   });
   it("runs LP reporting over HTTP: partners set up and approve, analysts prepare, investors read through their link", async () => {
     const pat = await signIn("pat@alpha.example");

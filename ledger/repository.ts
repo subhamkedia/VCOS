@@ -380,7 +380,7 @@ export async function recordDecision(
   db: Db,
   input: {
     entityId: string;
-    kind: "pass" | "advance" | "ic_vote_pre" | "ic_vote_post" | "invest" | "follow_on" | "score_override" | "health_rating" | "reserve_plan";
+    kind: "pass" | "advance" | "ic_vote_pre" | "ic_vote_post" | "invest" | "follow_on" | "score_override" | "health_rating" | "reserve_plan" | "exit_consent";
     actor: string;
     value?: Record<string, unknown>;
     reasonCode?: (typeof PASS_REASONS)[number];
