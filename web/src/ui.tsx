@@ -297,6 +297,17 @@ export const actor = (a: string | null | undefined): string => {
   return a.replace(/^[a-z]+:/, "");
 };
 
+/**
+ * Text with ISO dates ("as of 2026-09-20") shown the way people read them
+ * ("as of 20 Sep 2026"). Checked documents keep ISO dates in what they store,
+ * so the citation check can match them; this only changes what's displayed.
+ */
+export const readableDates = (text: string) =>
+  text.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (m) => {
+    const d = new Date(`${m}T00:00:00Z`);
+    return Number.isNaN(d.getTime()) ? m : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  });
+
 export function Time({ at }: { at: string | null | undefined }) {
   if (!at) return <span className="muted">—</span>;
   const d = new Date(at);

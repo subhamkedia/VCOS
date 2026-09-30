@@ -36,7 +36,7 @@ export default function Calendar({ data, onChange }: CoTabProps) {
                 {data.calendar.map((o: CoObligation) => (
                   <tr key={o.key}>
                     <td className="small" style={{ whiteSpace: "nowrap" }}>{longDate(o.due)}</td>
-                    <th scope="row">{o.title}{o.subject && <span className="muted"> · {o.subject}</span>}<div className="small muted">{o.basis}</div></th>
+                    <th scope="row">{o.title}{o.subject && !o.title.includes(o.subject) && <span className="muted"> · {o.subject}</span>}<div className="small muted">{o.basis}</div></th>
                     <td><span className={`pill ${TONE[o.state]}`}>{STATE[o.state]}</span>{o.filing && <div className="small muted">{longDate(o.filing.filed_on)}{o.filing.reference ? ` · ${o.filing.reference}` : ""}</div>}{o.waitingOn && <div className="small muted">Waiting on {o.waitingOn.map(person).join(", ")}</div>}{!o.filing && o.state === "done" && <div className="small muted">Everyone has reported</div>}</td>
                   </tr>
                 ))}
@@ -55,7 +55,7 @@ export default function Calendar({ data, onChange }: CoTabProps) {
         }}>
           <h2 id="rf-h">Record a filing</h2>
           <div className="form-grid">
-            <Field label="For obligation" hint="Leave blank for a filing that isn't on the calendar"><Select id="rf-ob" value={f.key} onChange={pick} placeholder="None" options={open.map((o) => ({ id: o.key, label: `${o.title}${o.subject ? ` (${o.subject})` : ""}` }))} /></Field>
+            <Field label="For obligation" hint="Leave blank for a filing that isn't on the calendar"><Select id="rf-ob" value={f.key} onChange={pick} placeholder="None" options={open.map((o) => ({ id: o.key, label: `${o.title}${o.subject && !o.title.includes(o.subject) ? ` (${o.subject})` : ""}` }))} /></Field>
             <Field label="Form" required><Select id="rf-form" value={f.form} onChange={(v) => setF({ ...f, form: v })} options={Object.entries(L.forms).map(([id, label]) => ({ id, label }))} /></Field>
             <Field label="Filed on" required><input className="input" type="date" required value={f.filedOn} onChange={(e) => setF({ ...f, filedOn: e.target.value })} /></Field>
             <Field label="Reference" hint="Accession number, confirmation or state file number"><input className="input" value={f.reference} onChange={(e) => setF({ ...f, reference: e.target.value })} /></Field>

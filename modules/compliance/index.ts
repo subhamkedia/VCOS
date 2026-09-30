@@ -127,6 +127,7 @@ export async function calendar(db: Db, opts: { extra?: Partial<Facts>; team?: st
   const done = new Map((await filings(db)).filter((x) => x.obligation_key).map((x) => [x.obligation_key!, x]));
   const now = today();
   const yearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+  const yearAhead = new Date(Date.now() + 366 * 86_400_000).toISOString().slice(0, 10);
   const team = opts.team ?? [];
   const filed = new Map<string, Set<string>>();
   if (team.length) for (const r of await reports(db)) filed.set(r.period, (filed.get(r.period) ?? new Set()).add(r.person));
@@ -145,8 +146,10 @@ export async function calendar(db: Db, opts: { extra?: Partial<Facts>; team?: st
       const complete = Boolean(filing) || (missing !== null && missing.length === 0);
       return { ...o, filing, waitingOn: missing && missing.length ? missing : null, state: complete ? "done" : o.due < now ? "overdue" : "upcoming" };
     })
-    // An offering's own filings stay until filed, however late; the firm-wide cycle shows the last year.
-    .filter((o) => (o.state === "done" ? o.due >= `${y - 1}-10-01` : o.due >= yearAgo || (o.state === "overdue" && OFFERING_FORMS.has(o.form))));
+    // An offering's own filings stay until filed, however late; the firm-wide cycle shows the last year
+    // and the year ahead (further out is noise until it comes closer).
+    .filter((o) => (o.state === "done" ? o.due >= `${y - 1}-10-01` : o.due >= yearAgo || (o.state === "overdue" && OFFERING_FORMS.has(o.form))))
+    .filter((o) => o.due <= yearAhead);
 }
 
 export async function recordFiling(db: Db, input: Record<string, unknown>, by: string) {

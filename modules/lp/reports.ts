@@ -168,7 +168,7 @@ export async function draftLetter(db: Db, s: Snapshot, commentary: string | null
   const sources: Record<string, { label: string; detail: string }> = {};
   for (const c of calcs) {
     allowed.set(c.id, { id: c.id, label: c.label, values: numbersIn(c.text).map((x) => x.value), dates: [s.asOf] });
-    sources[c.id] = { label: c.label, detail: `the fund's books, calculated in code as of ${s.asOf}` };
+    sources[c.id] = { label: c.label, detail: `the fund's books, calculated in code as of ${longDate(s.asOf)}` };
   }
   const fact = (text: string, cites: string[]): MemoSentence => ({ text, cites, kind: "fact" });
   const byId = new Map(calcs.map((c) => [c.id, c]));
@@ -180,7 +180,7 @@ export async function draftLetter(db: Db, s: Snapshot, commentary: string | null
       .filter((c) => c.as_of && c.as_of <= s.asOf && c.as_of > yearAgo && c.source_type !== "inference");
     for (const c of claims.slice(-3)) {
       allowed.set(c.id, { id: c.id, label: predicateLabel(c.predicate), values: valuesFrom(c.value), dates: [c.as_of!] });
-      sources[c.id] = { label: `${r.company}: ${predicateLabel(c.predicate)}`, detail: `${sourceTypeLabel(c.source_type)}, public, as of ${c.as_of}` };
+      sources[c.id] = { label: `${r.company}: ${predicateLabel(c.predicate)}`, detail: `${sourceTypeLabel(c.source_type)}, public, as of ${longDate(c.as_of!)}` };
       highlights.push(fact(`${r.company}: ${predicateLabel(c.predicate).toLowerCase()} ${say(c)} (as of ${c.as_of}).`, [c.id]));
     }
   }

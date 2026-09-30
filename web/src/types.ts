@@ -350,7 +350,7 @@ export interface PortfolioCompanyView {
   investments: Investment[];
   position: FundMetrics["positions"][number] | null;
   valueBasis: ValueBasis;
-  value: { value: number; basis: ValueBasis; privateUsd: number; pendingUsd: number; publicUsd: number; privateShares: number | null };
+  value: { value: number; basis: ValueBasis; privateUsd: number; pendingUsd: number; publicUsd: number; privateShares: number | null; realizedUsd: number; markDate: string | null; markMethod: string | null; exitDate: string | null };
   series: Partial<Record<string, KpiPoint[]>>;
   metricLabels: Record<string, string>;
   burn: { month: string; value: number; basis: string; claimIds: string[] }[];
@@ -625,7 +625,7 @@ export interface LiquidityOverview {
 }
 export interface FundLifeView {
   fund: { id: string; name: string; inception: string; vintage: number | null }; termYears: number; maxExtensionYears: number; configured: boolean;
-  life: { termEnds: string; endsOn: string; extensionYearsUsed: number; extensionYearsLeft: number; monthsLeft: number; stage: string };
+  life: { termEnds: string; endsOn: string; extensionYearsUsed: number; extensionYearsLeft: number; monthsLeft: number; stage: string; investmentPeriodEnd: string | null };
   extensions: { id: string; years: number; approved_via: string; fee_change: string | null; note: string | null; created_by: string; created_at: string }[];
   residual: { companyId: string; name: string; value: number; basis: ValueBasis; privateUsd: number; pendingUsd: number; publicUsd: number }[]; residualNavUsd: number;
   options: { key: string; title: string; detail: string }[];

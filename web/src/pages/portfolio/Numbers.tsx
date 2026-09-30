@@ -4,7 +4,8 @@ import { api } from "../../api";
 import { useSession } from "../../app";
 import { Field, Notice, useToast, usd } from "../../ui";
 import type { PfTabProps } from "../PortfolioCompany";
-import { monthLabel, SOURCE_LABEL } from "./shared";
+import { monthLabel } from "./shared";
+import { useVocab } from "../../vocab";
 
 const COLUMNS: { key: string; label: string; money?: boolean }[] = [
   { key: "revenue", label: "Revenue", money: true }, { key: "expenses", label: "Expenses", money: true }, { key: "burn", label: "Net burn", money: true },
@@ -21,6 +22,7 @@ interface SyncResult { id: string; name: string; status: string; claims: number;
  * spreadsheet.
  */
 export default function Numbers({ data, onChange }: PfTabProps) {
+  const vocab = useVocab();
   const { can } = useSession();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -83,7 +85,7 @@ export default function Numbers({ data, onChange }: PfTabProps) {
                     const pt = data.series[c.key]?.find((x) => x.month === m);
                     const cite = pt ? data.cites[pt.claimId] : undefined;
                     return (
-                      <td key={c.key} className="num" title={cite ? `${SOURCE_LABEL[cite.sourceType] ?? cite.sourceType}${cite.citedText ? `: "${cite.citedText}"` : ""}` : undefined}>
+                      <td key={c.key} className="num" title={cite ? `${vocab.term("portfolio", "numberSources", cite.sourceType)}${cite.citedText ? `: "${cite.citedText}"` : ""}` : undefined}>
                         {pt ? (c.money ? usd(pt.value) : pt.value.toLocaleString("en-US")) : <span className="muted">—</span>}
                         {pt?.sourceType === "primary" && <span className="sr-only"> (from the books)</span>}
                       </td>

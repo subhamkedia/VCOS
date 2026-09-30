@@ -10,7 +10,7 @@ export const today = () => new Date().toISOString().slice(0, 10);
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 export const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 export const usd = (n: number) => `$${round2(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-export const longDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+export { longDate } from "../../lib/text.js";
 
 export const PARTNER_KINDS = Object.keys(LP_LABELS.partnerKinds);
 export const EXPENSE_CATEGORIES = Object.keys(LP_LABELS.expenseCategories);

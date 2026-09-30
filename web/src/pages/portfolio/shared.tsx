@@ -3,9 +3,6 @@ import type { Health, KpiPoint, Severity, Signal } from "../../types";
 export const HEALTH_TONE: Record<Health, string> = { on_track: "good", watch: "warn", at_risk: "bad" };
 export const SEVERITY_TONE: Record<Severity, string> = { high: "bad", medium: "warn", low: "quiet" };
 export const SEVERITY_LABEL: Record<Severity, string> = { high: "Act now", medium: "Watch", low: "Note" };
-export const SOURCE_LABEL: Record<string, string> = {
-  primary: "From the books", self_reported: "Company-reported", internal: "Our records", third_party: "Third party", inference: "Model inference",
-};
 
 export const x2 = (n: number | null | undefined) => (n === null || n === undefined ? "—" : `${n.toFixed(2)}x`);
 export const pctFmt = (n: number | null | undefined, digits = 1) => (n === null || n === undefined ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(digits)}%`);

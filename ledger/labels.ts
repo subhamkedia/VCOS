@@ -269,8 +269,39 @@ export const EXIT_LABELS = {
   approvedVia: { gp: "The GP's discretion under the LPA", lpac: "The LPAC's consent", investors: "Investors' vote" } as Record<string, string>,
   windDownStatus: { open: "To do", done: "Done", na: "Not needed" } as Record<string, string>,
   elections: { roll: "Roll into the new vehicle", sell: "Sell for cash", status_quo: "Status quo (unchanged terms)" } as Record<string, string>,
-  lifeStage: { harvesting: "Harvesting", final_years: "Final two years", extended: "In an extension", past_term: "Past its term" } as Record<string, string>,
+  lifeStage: { investing: "Investment period", harvesting: "Harvesting", final_years: "Final two years", extended: "In an extension", past_term: "Past its term" } as Record<string, string>,
   priceMethods: { close: "Closing price on the date", average: "Average closing price over trading days" } as Record<string, string>,
+};
+
+/** Portfolio work: board meetings, follow-ons, requests, help and where a number came from. */
+export const PORTFOLIO_LABELS = {
+  boardKinds: { regular: "Regular meeting", special: "Special meeting", annual: "Annual meeting", written_consent: "Written consent" } as Record<string, string>,
+  resolutionKinds: {
+    financing: "Financing", sale: "Sale of the company", recapitalization: "Recapitalization", down_round: "Down round", budget: "Budget or plan",
+    option_grants: "Option grants", executive: "Executive hire or change", auditor: "Auditor", other: "Other",
+  } as Record<string, string>,
+  resolutionOutcomes: { approved: "Approved", rejected: "Rejected", deferred: "Deferred" } as Record<string, string>,
+  followOnDecisions: { invest: "Invested", partial: "Invested less than pro rata", pass: "Passed" } as Record<string, string>,
+  requestStatus: { open: "Waiting", received: "Received", cancelled: "Cancelled" } as Record<string, string>,
+  helpKinds: {
+    hiring: "Hiring", customer_intro: "Customer introduction", partnership: "Partnership", fundraising: "Fundraising", strategy: "Strategy",
+    operations: "Operations", government: "Government and grants", technical: "Technical", other: "Other",
+  } as Record<string, string>,
+  numberSources: { primary: "From the books", self_reported: "Company-reported", internal: "Our records", third_party: "Third party", inference: "Model inference" } as Record<string, string>,
+};
+
+/** Deal terms and how a meeting was matched to a company. */
+export const EXECUTION_LABELS = {
+  securities: { preferred: "Priced round (preferred)", safe_post: "Post-money SAFE", safe_pre: "Pre-money SAFE", note: "Convertible note" } as Record<string, string>,
+  termStatus: { draft: "Draft", proposed: "Proposed", negotiating: "Negotiating", signed: "Signed", superseded: "Superseded" } as Record<string, string>,
+  holdingKinds: { common: "Common", preferred: "Preferred", options: "Options granted", pool: "Unissued pool" } as Record<string, string>,
+  capSources: { entered: "entered by hand", csv: "imported from a file", carta: "pulled from Carta" } as Record<string, string>,
+};
+export const MEETING_LABELS = {
+  matchMethods: {
+    email_domain: "by email domain", known_contact: "by a known contact", same_conference: "through the calendar invite",
+    person: "by a person", internal: "everyone is from your firm",
+  } as Record<string, string>,
 };
 
 /** Things waiting in Approvals: what approving one creates. */
@@ -302,6 +333,9 @@ export function vocabulary(sourceNames: Record<string, string> = {}) {
     decisions: DECISION_LABELS,
     dealStages: DEAL_STAGE_LABELS,
     outbox: OUTBOX_LABELS,
+    portfolio: PORTFOLIO_LABELS,
+    execution: EXECUTION_LABELS,
+    meetings: MEETING_LABELS,
   };
 }
 

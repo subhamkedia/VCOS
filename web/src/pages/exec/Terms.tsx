@@ -4,8 +4,8 @@ import { api } from "../../api";
 import { useSession } from "../../app";
 import type { Standing, TermSheetStatus, TermSheetTerms, TermSheetVersion } from "../../types";
 import { Field, Group, MoneyInput, Notice, NumberInput, Seg, Select, Time, useConfirm, useToast } from "../../ui";
-import { SECURITY_LABELS, TERM_STATUS_LABELS } from "../Execution";
 import { person, type ExecTabProps } from "../ExecutionDeal";
+import { useVocab } from "../../vocab";
 
 const STANDING: Record<Standing, { label: string; tone: string }> = {
   standard: { label: "Standard", tone: "good" }, investor_friendly: { label: "Investor-friendly", tone: "info" },
@@ -53,16 +53,17 @@ export default function Terms({ data, onChange }: ExecTabProps) {
 }
 
 function Checks({ sheet }: { sheet: TermSheetVersion }) {
+  const vocab = useVocab();
   const t = sheet.terms;
   const outside = sheet.checks.filter((c) => c.house === "outside");
   return (
     <section className="panel panel-pad section" aria-labelledby="checks-h">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2 id="checks-h">Version {sheet.version}: {t.seriesName || SECURITY_LABELS[t.security]}</h2>
-        <span className={`pill ${sheet.status === "signed" ? "good" : "info"}`}>{TERM_STATUS_LABELS[sheet.status]}</span>
+        <h2 id="checks-h">Version {sheet.version}: {t.seriesName || vocab.term("execution", "securities", t.security)}</h2>
+        <span className={`pill ${sheet.status === "signed" ? "good" : "info"}`}>{vocab.term("execution", "termStatus", sheet.status)}</span>
       </div>
       <dl className="kv">
-        <dt>Instrument</dt><dd>{SECURITY_LABELS[t.security]}</dd>
+        <dt>Instrument</dt><dd>{vocab.term("execution", "securities", t.security)}</dd>
         {t.security === "preferred" ? (
           <>
             <dt>Pre-money</dt><dd>{fmt(t.preMoneyUsd)}</dd>
@@ -102,6 +103,7 @@ function Checks({ sheet }: { sheet: TermSheetVersion }) {
 }
 
 function Versions({ data, onChange }: ExecTabProps) {
+  const vocab = useVocab();
   const { can } = useSession();
   const toast = useToast();
   const confirm = useConfirm();
@@ -113,7 +115,7 @@ function Versions({ data, onChange }: ExecTabProps) {
     }))) return;
     try {
       await api(`/deals/${data.deal.id}/term-sheets/${v.version}/status`, { body: { status } });
-      toast("good", `Version ${v.version}: ${TERM_STATUS_LABELS[status].toLowerCase()}.`);
+      toast("good", `Version ${v.version}: ${vocab.term("execution", "termStatus", status).toLowerCase()}.`);
       onChange();
     } catch (e) {
       toast("bad", (e as Error).message);
@@ -127,7 +129,7 @@ function Versions({ data, onChange }: ExecTabProps) {
           <li key={v.id}>
             <span><Time at={v.created_at} /></span>
             <span className="row" style={{ justifyContent: "space-between" }}>
-              <span><strong>Version {v.version}</strong> · {TERM_STATUS_LABELS[v.status]} · {person(v.created_by)}{v.note ? ` · ${v.note}` : ""}
+              <span><strong>Version {v.version}</strong> · {vocab.term("execution", "termStatus", v.status)} · {person(v.created_by)}{v.note ? ` · ${v.note}` : ""}
                 <span className="muted"> · {v.checks.filter((c) => c.house === "outside").length} outside house terms</span></span>
               {can("work_deals") && v.status !== "signed" && v.status !== "superseded" && (
                 <span className="row" style={{ gap: 6 }}>
@@ -146,6 +148,7 @@ function Versions({ data, onChange }: ExecTabProps) {
 const fmt = (n?: number) => (n === undefined ? "—" : `$${n >= 1e6 ? `${+(n / 1e6).toFixed(2)}M` : `${Math.round(n / 1e3)}K`}`);
 
 function TermForm({ initial, dealId, onDone, onCancel }: { initial: TermSheetTerms; dealId: string; onDone: () => void; onCancel: () => void }) {
+  const vocab = useVocab();
   const toast = useToast();
   const [t, setT] = useState<TermSheetTerms>(structuredClone({ ...BLANK, ...initial }));
   const [status, setStatus] = useState<TermSheetStatus>("proposed");
@@ -173,8 +176,8 @@ function TermForm({ initial, dealId, onDone, onCancel }: { initial: TermSheetTer
   return (
     <form className="panel panel-pad section" aria-labelledby="tf-h" onSubmit={(e) => { e.preventDefault(); void save(); }}>
       <h2 id="tf-h">Term sheet</h2>
-      <Seg label="Instrument" value={t.security} onChange={(security) => up({ security, seriesName: security === "preferred" ? t.seriesName : SECURITY_LABELS[security]! })}
-        options={(["preferred", "safe_post", "safe_pre", "note"] as const).map((id) => ({ id, label: SECURITY_LABELS[id]! }))} />
+      <Seg label="Instrument" value={t.security} onChange={(security) => up({ security, seriesName: security === "preferred" ? t.seriesName : vocab.term("execution", "securities", security) })}
+        options={(["preferred", "safe_post", "safe_pre", "note"] as const).map((id) => ({ id, label: vocab.term("execution", "securities", id) }))} />
       <Group title="The round">
         <div className="form-grid">
           <Field label="Series name" required><input className="input" required value={t.seriesName} onChange={(e) => up({ seriesName: e.target.value })} /></Field>
@@ -270,7 +273,7 @@ function TermForm({ initial, dealId, onDone, onCancel }: { initial: TermSheetTer
       <Field label="Other terms" hint="Anything not captured above."><textarea className="input" value={t.otherTerms ?? ""} onChange={(e) => up({ otherTerms: e.target.value || undefined })} /></Field>
       <div className="form-grid">
         <Field label="Status">
-          <Select id="tf-status" value={status} onChange={(v) => setStatus(v ?? "proposed")} options={(["draft", "proposed", "negotiating"] as const).map((id) => ({ id, label: TERM_STATUS_LABELS[id] }))} />
+          <Select id="tf-status" value={status} onChange={(v) => setStatus(v ?? "proposed")} options={(["draft", "proposed", "negotiating"] as const).map((id) => ({ id, label: vocab.term("execution", "termStatus", id) }))} />
         </Field>
         <Field label="What changed" hint="E.g. 'Company's markup of 12 Sept'."><input className="input" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
       </div>

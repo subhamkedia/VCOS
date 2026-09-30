@@ -5,11 +5,8 @@ import type { InitiativeRow } from "../../types";
 import { Field, Notice, Select, dateOnly, usePrompt, useToast, usd } from "../../ui";
 import type { PfTabProps } from "../PortfolioCompany";
 import { person } from "./shared";
+import { useVocab } from "../../vocab";
 
-export const KIND_LABEL: Record<string, string> = {
-  hiring: "Hiring", customer_intro: "Customer introduction", partnership: "Partnership", fundraising: "Fundraising", strategy: "Strategy",
-  operations: "Operations", government: "Government and grants", technical: "Technical", other: "Other",
-};
 const STATUS_LABEL: Record<InitiativeRow["status"], string> = { proposed: "Proposed", in_progress: "In progress", done: "Done", dropped: "Dropped" };
 const STATUS_TONE: Record<InitiativeRow["status"], string> = { proposed: "quiet", in_progress: "info", done: "good", dropped: "outline" };
 
@@ -20,6 +17,7 @@ const STATUS_TONE: Record<InitiativeRow["status"], string> = { proposed: "quiet"
  * opt-in email drafts in your own mailbox; nothing is sent for you.
  */
 export default function Help({ data, onChange }: PfTabProps) {
+  const vocab = useVocab();
   const { can } = useSession();
   const toast = useToast();
   const prompt = usePrompt();
@@ -52,7 +50,7 @@ export default function Help({ data, onChange }: PfTabProps) {
             {data.initiatives.map((i) => (
               <li key={i.id} style={{ gridTemplateColumns: "minmax(0, 1fr)" }}>
                 <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span><strong>{i.title}</strong> <span className="small muted">· {KIND_LABEL[i.kind] ?? i.kind}{i.owner ? ` · ${person(i.owner)}` : ""}{i.due_on ? ` · due ${dateOnly(i.due_on)}` : ""}</span></span>
+                  <span><strong>{i.title}</strong> <span className="small muted">· {vocab.term("portfolio", "helpKinds", i.kind)}{i.owner ? ` · ${person(i.owner)}` : ""}{i.due_on ? ` · due ${dateOnly(i.due_on)}` : ""}</span></span>
                   <span className={`pill ${STATUS_TONE[i.status]}`}>{STATUS_LABEL[i.status]}</span>
                 </div>
                 {i.detail && <p className="small" style={{ margin: "4px 0 0" }}>{i.detail}</p>}
@@ -76,6 +74,7 @@ export default function Help({ data, onChange }: PfTabProps) {
 }
 
 function AddInitiative({ data, onChange }: PfTabProps) {
+  const vocab = useVocab();
   const toast = useToast();
   const [kind, setKind] = useState<string | undefined>();
   const [title, setTitle] = useState("");
@@ -99,7 +98,7 @@ function AddInitiative({ data, onChange }: PfTabProps) {
     <form className="panel panel-pad section" aria-labelledby="add-vc-h" onSubmit={(e) => { e.preventDefault(); void save(); }}>
       <h2 id="add-vc-h">Add help</h2>
       <div className="form-grid">
-        <Field label="Kind" required><Select id="vc-kind" value={kind} onChange={setKind} options={data.options.initiativeKinds.map((id) => ({ id, label: KIND_LABEL[id] ?? id }))} /></Field>
+        <Field label="Kind" required><Select id="vc-kind" value={kind} onChange={setKind} options={data.options.initiativeKinds.map((id) => ({ id, label: vocab.term("portfolio", "helpKinds", id) }))} /></Field>
         <Field label="What" required><input className="input" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="E.g. intro to a state DOT bridge program" /></Field>
         <Field label="Owner"><input className="input" value={owner} onChange={(e) => setOwner(e.target.value)} /></Field>
         <Field label="Due"><input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} /></Field>

@@ -79,11 +79,13 @@ export default function Portfolio() {
             </section>
             <section className="panel panel-pad section" aria-labelledby="work-h">
               <h2 id="work-h">Waiting on you</h2>
-              <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
-                <li>{data.counts.atRisk} at risk, {data.counts.watch} to watch</li>
-                <li>{data.counts.marksToReview} {data.counts.marksToReview === 1 ? "mark" : "marks"} to review</li>
-                <li>{data.counts.openRequests} KPI {data.counts.openRequests === 1 ? "request" : "requests"} out{data.counts.overdueRequests ? `, ${data.counts.overdueRequests} overdue` : ""}</li>
-              </ul>
+              {data.counts.atRisk + data.counts.watch + data.counts.marksToReview + data.counts.openRequests === 0 ? <p className="small muted">Nothing is waiting on you.</p> : (
+                <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+                  {data.counts.atRisk + data.counts.watch > 0 && <li>{[data.counts.atRisk && `${data.counts.atRisk} at risk`, data.counts.watch && `${data.counts.watch} to watch`].filter(Boolean).join(", ")}</li>}
+                  {data.counts.marksToReview > 0 && <li>{data.counts.marksToReview} {data.counts.marksToReview === 1 ? "mark" : "marks"} to review</li>}
+                  {data.counts.openRequests > 0 && <li>{data.counts.openRequests} KPI {data.counts.openRequests === 1 ? "request" : "requests"} out{data.counts.overdueRequests ? `, ${data.counts.overdueRequests} overdue` : ""}</li>}
+                </ul>
+              )}
               {queues.data && queues.data.marksToReview.length > 0 && (
                 <ul className="timeline small">
                   {queues.data.marksToReview.map((mk) => (
@@ -108,15 +110,15 @@ export default function Portfolio() {
                 <tbody>
                   {rows.map((c) => (
                     <tr key={c.companyId} className="click" onClick={() => nav(`/portfolio/${c.companyId}`)}>
-                      <td><Link to={`/portfolio/${c.companyId}`} onClick={(e) => e.stopPropagation()}><strong>{c.name}</strong></Link><div className="small muted">since {dateOnly(c.firstInvested)}{c.ownershipPct !== null ? ` · ${c.ownershipPct.toFixed(1)}%` : ""}</div></td>
-                      <td>{c.status === "exited" ? <span className="pill quiet">Exited</span> : c.status === "public" ? <span className="pill info">Listed</span> : <HealthPill rating={c.health?.rating} suggested={c.suggested} labels={data.healthLabels} />}</td>
+                      <td><Link to={`/portfolio/${c.companyId}`} onClick={(e) => e.stopPropagation()}><strong>{c.name}</strong></Link><div className="small muted">since {dateOnly(c.firstInvested)}{c.ownershipPct !== null ? ` · ${c.ownershipPct.toFixed(1)}% owned` : ""}</div></td>
+                      <td>{c.status === "exited" ? <span className="pill quiet">{c.realized === 0 && c.fairValue === 0 ? "Written off" : "Exited"}</span> : c.status === "public" ? <span className="pill info">Listed</span> : <HealthPill rating={c.health?.rating} suggested={c.suggested} labels={data.healthLabels} />}</td>
                       <td className="num">{usd(c.invested)}</td>
-                      <td className="num">{usd(c.fairValue + c.realized)}<div className="small muted">{c.valueBasis === "mark" ? `mark ${dateOnly(c.mark!.asOf)}` : c.valueBasis === "cost" ? "at cost" : c.valueBasis === "public" ? "listed" : c.fairValue > 0 ? `${usd(c.fairValue)} still held or due` : "realized"}</div></td>
+                      <td className="num">{usd(c.fairValue + c.realized)}<div className="small muted">{c.valueBasis === "mark" ? `mark ${dateOnly(c.mark!.asOf)}` : c.valueBasis === "cost" ? "at cost" : c.valueBasis === "public" ? "listed" : c.fairValue > 0 ? `${usd(c.fairValue)} still held or due` : c.realized === 0 ? "written off" : "realized"}</div></td>
                       <td className="num">{x2(c.moic)}</td>
                       <td className="small">{c.status !== "active" ? "—" : c.notBurning ? "Not burning" : months(c.runwayMonths)}</td>
                       <td className="small num">{c.revenue !== null ? <>{usd(c.revenue)}/mo <span className="muted">{pctFmt(c.revenueMoM)}</span></> : c.arr !== null ? `${usd(c.arr)} ARR` : "—"}</td>
-                      <td>{c.signals.length ? <span className={`pill ${SEVERITY_TONE[c.signals[0]!.severity]}`}>{c.signals[0]!.title}{c.signals.length > 1 ? ` +${c.signals.length - 1}` : ""}</span> : <span className="muted small">None</span>}</td>
-                      <td className="small muted">{c.latestMonth ? monthLabel(c.latestMonth) : "None yet"}</td>
+                      <td>{c.signals.length ? <span className={`pill ${SEVERITY_TONE[c.signals[0]!.severity]}`}>{c.signals[0]!.title}{c.signals.length > 1 ? ` +${c.signals.length - 1}` : ""}</span> : <span className="muted small">{c.status === "active" ? "None" : "—"}</span>}</td>
+                      <td className="small muted">{c.latestMonth ? monthLabel(c.latestMonth) : c.status === "active" ? "None yet" : "—"}</td>
                     </tr>
                   ))}
                 </tbody>

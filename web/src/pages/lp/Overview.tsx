@@ -44,11 +44,16 @@ export default function Overview({ data, onChange, go }: LpTabProps & { go: (t: 
       <div className="grid-2">
         <section className="panel panel-pad section" aria-labelledby="work-h">
           <h2 id="work-h">Waiting on you</h2>
-          <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
-            <li><button className="linkish" onClick={() => go("calls")}>{drafts.calls} capital {drafts.calls === 1 ? "call" : "calls"} to approve</button>{data.bank.unmatched.length ? `, ${data.bank.unmatched.length} bank ${data.bank.unmatched.length === 1 ? "receipt" : "receipts"} to match` : ""}</li>
-            <li><button className="linkish" onClick={() => go("distributions")}>{drafts.dists} {drafts.dists === 1 ? "distribution" : "distributions"} to approve{drafts.toPay ? `, ${drafts.toPay} to record as paid` : ""}</button></li>
-            <li><button className="linkish" onClick={() => go("reports")}>{drafts.reports} {drafts.reports === 1 ? "report" : "reports"} to approve</button></li>
-          </ul>
+          {/* Only what's actually waiting: an empty line ("0 distributions") is noise. */}
+          {drafts.calls + data.bank.unmatched.length + drafts.dists + drafts.toPay + drafts.reports === 0 ? <p className="small muted">Nothing is waiting on you.</p> : (
+            <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+              {drafts.calls > 0 && <li><button className="linkish" onClick={() => go("calls")}>{drafts.calls} capital {drafts.calls === 1 ? "call" : "calls"} to approve</button></li>}
+              {data.bank.unmatched.length > 0 && <li><button className="linkish" onClick={() => go("calls")}>{data.bank.unmatched.length} bank {data.bank.unmatched.length === 1 ? "receipt" : "receipts"} to match</button></li>}
+              {drafts.dists > 0 && <li><button className="linkish" onClick={() => go("distributions")}>{drafts.dists} {drafts.dists === 1 ? "distribution" : "distributions"} to approve</button></li>}
+              {drafts.toPay > 0 && <li><button className="linkish" onClick={() => go("distributions")}>{drafts.toPay} {drafts.toPay === 1 ? "distribution" : "distributions"} to record as paid</button></li>}
+              {drafts.reports > 0 && <li><button className="linkish" onClick={() => go("reports")}>{drafts.reports} {drafts.reports === 1 ? "report" : "reports"} to approve</button></li>}
+            </ul>
+          )}
           {next.length > 0 && (
             <>
               <h3>Next deadlines</h3>

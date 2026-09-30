@@ -129,3 +129,6 @@ export function normalizePersonName(name: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/** A calendar date as people write it: "September 13, 2026". Pure. */
+export const longDate = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });

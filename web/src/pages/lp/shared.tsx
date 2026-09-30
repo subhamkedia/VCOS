@@ -1,5 +1,5 @@
 import type { Letter, NetReturns, Performance, StatementColumn } from "../../types";
-import { usd } from "../../ui";
+import { readableDates, usd } from "../../ui";
 
 export const x2 = (n: number | null | undefined) => (n === null || n === undefined ? "—" : `${n.toFixed(2)}x`);
 export const irr = (n: number | null | undefined) => (n === null || n === undefined ? "—" : `${(n * 100).toFixed(1)}%`);
@@ -84,7 +84,7 @@ export function LetterView({ letter }: { letter: Letter }) {
           <p style={{ margin: 0 }}>
             {s.sentences.map((x, i) => (
               <span key={i}>
-                {x.text}
+                {readableDates(x.text)}
                 {x.cites.map((c) => <sup key={c}><a href={`#src-${n.get(c)}`} aria-label={`Source ${n.get(c)}: ${letter.sources[c]?.label ?? ""}`}>[{n.get(c)}]</a></sup>)}{" "}
               </span>
             ))}

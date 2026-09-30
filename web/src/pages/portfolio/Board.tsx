@@ -4,13 +4,7 @@ import { useSession } from "../../app";
 import { Field, Notice, Select, dateOnly, useToast } from "../../ui";
 import type { PfTabProps } from "../PortfolioCompany";
 import { person } from "./shared";
-
-const KIND_LABEL: Record<string, string> = { regular: "Regular meeting", special: "Special meeting", annual: "Annual meeting", written_consent: "Written consent" };
-const RES_LABEL: Record<string, string> = {
-  financing: "Financing", sale: "Sale of the company", recapitalization: "Recapitalization", down_round: "Down round", budget: "Budget or plan",
-  option_grants: "Option grants", executive: "Executive hire or change", auditor: "Auditor", other: "Other",
-};
-const OUTCOME_LABEL: Record<string, string> = { approved: "Approved", rejected: "Rejected", deferred: "Deferred" };
+import { useVocab } from "../../vocab";
 
 /**
  * Board meetings the firm sits in on, with what was resolved. A director
@@ -20,6 +14,7 @@ const OUTCOME_LABEL: Record<string, string> = { approved: "Approved", rejected: 
  * (In re Trados, Del. Ch. 2013).
  */
 export default function Board({ data, onChange }: PfTabProps) {
+  const vocab = useVocab();
   const { can } = useSession();
   return (
     <>
@@ -32,8 +27,8 @@ export default function Board({ data, onChange }: PfTabProps) {
               <li key={m.id}>
                 <span className="small">{dateOnly(m.held_on)}</span>
                 <span className="small">
-                  <strong>{KIND_LABEL[m.kind] ?? m.kind}</strong> · we attended as {m.our_role === "none" ? "guests" : m.our_role}{m.attendees.length ? ` · ${m.attendees.join(", ")}` : ""}
-                  {m.resolutions.length > 0 && <ul style={{ margin: "4px 0", paddingLeft: 18 }}>{m.resolutions.map((r, i) => <li key={i}>{r.title} <span className="muted">({RES_LABEL[r.kind] ?? r.kind}, {OUTCOME_LABEL[r.outcome] ?? r.outcome})</span></li>)}</ul>}
+                  <strong>{vocab.term("portfolio", "boardKinds", m.kind)}</strong> · we attended as {m.our_role === "none" ? "guests" : m.our_role}{m.attendees.length ? ` · ${m.attendees.join(", ")}` : ""}
+                  {m.resolutions.length > 0 && <ul style={{ margin: "4px 0", paddingLeft: 18 }}>{m.resolutions.map((r, i) => <li key={i}>{r.title} <span className="muted">({vocab.term("portfolio", "resolutionKinds", r.kind)}, {vocab.term("portfolio", "resolutionOutcomes", r.outcome)})</span></li>)}</ul>}
                   {m.conflict_review && <><br /><strong>Conflicts:</strong> {m.conflict_review}</>}
                   {m.notes && <><br />{m.notes}</>}
                   <br /><span className="muted">Recorded by {person(m.created_by)}</span>
@@ -48,6 +43,7 @@ export default function Board({ data, onChange }: PfTabProps) {
 }
 
 function AddMeeting({ data, onChange }: PfTabProps) {
+  const vocab = useVocab();
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [heldOn, setHeldOn] = useState("");
@@ -79,7 +75,7 @@ function AddMeeting({ data, onChange }: PfTabProps) {
       <h2 id="add-bm-h">Record a board meeting</h2>
       <div className="form-grid">
         <Field label="Date" required><input className="input" type="date" required value={heldOn} onChange={(e) => setHeldOn(e.target.value)} /></Field>
-        <Field label="Type"><Select id="bm-kind" value={kind} onChange={setKind} options={Object.entries(KIND_LABEL).map(([id, label]) => ({ id, label }))} /></Field>
+        <Field label="Type"><Select id="bm-kind" value={kind} onChange={setKind} options={vocab.terms("portfolio", "boardKinds")} /></Field>
         <Field label="We attended as"><Select id="bm-role" value={ourRole} onChange={setOurRole} options={[{ id: "director", label: "Director" }, { id: "observer", label: "Observer" }, { id: "none", label: "Guests" }]} /></Field>
         <Field label="Attendees" hint="Separated by commas"><input className="input" value={attendees} onChange={(e) => setAttendees(e.target.value)} /></Field>
       </div>
@@ -88,8 +84,8 @@ function AddMeeting({ data, onChange }: PfTabProps) {
         {res.map((r, i) => (
           <div className="form-grid" key={i}>
             <Field label={`Resolution ${i + 1}`}><input className="input" required value={r.title} onChange={(e) => setRes(res.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} /></Field>
-            <Field label="Kind"><Select id={`bm-rk-${i}`} value={r.kind} onChange={(v) => setRes(res.map((x, j) => (j === i ? { ...x, kind: v ?? "other" } : x)))} options={data.options.resolutionKinds.map((id) => ({ id, label: RES_LABEL[id] ?? id }))} /></Field>
-            <Field label="Outcome"><Select id={`bm-ro-${i}`} value={r.outcome} onChange={(v) => setRes(res.map((x, j) => (j === i ? { ...x, outcome: v ?? "approved" } : x)))} options={Object.entries(OUTCOME_LABEL).map(([id, label]) => ({ id, label }))} /></Field>
+            <Field label="Kind"><Select id={`bm-rk-${i}`} value={r.kind} onChange={(v) => setRes(res.map((x, j) => (j === i ? { ...x, kind: v ?? "other" } : x)))} options={data.options.resolutionKinds.map((id) => ({ id, label: vocab.term("portfolio", "resolutionKinds", id) }))} /></Field>
+            <Field label="Outcome"><Select id={`bm-ro-${i}`} value={r.outcome} onChange={(v) => setRes(res.map((x, j) => (j === i ? { ...x, outcome: v ?? "approved" } : x)))} options={vocab.terms("portfolio", "resolutionOutcomes")} /></Field>
           </div>
         ))}
         <div><button type="button" className="btn small" onClick={() => setRes([...res, { title: "", kind: "other", outcome: "approved" }])}>Add a resolution</button></div>

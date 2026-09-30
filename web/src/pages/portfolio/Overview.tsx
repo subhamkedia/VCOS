@@ -4,11 +4,13 @@ import { useSession } from "../../app";
 import type { Health, KpiPoint } from "../../types";
 import { Field, Notice, Select, dateOnly, useToast, usd } from "../../ui";
 import type { PfTabProps } from "../PortfolioCompany";
-import { HEALTH_TONE, KpiBars, SignalList, SOURCE_LABEL, months, monthLabel, pctFmt, person, x2 } from "./shared";
+import { HEALTH_TONE, KpiBars, SignalList, months, monthLabel, pctFmt, person, x2 } from "./shared";
+import { useVocab } from "../../vocab";
 
 const n0 = (n: number) => Math.round(n).toLocaleString("en-US");
 
-export default function Overview({ data, onChange, go }: PfTabProps & { go: (t: "numbers" | "reporting") => void }) {
+export default function Overview({ data, onChange, go }: PfTabProps & { go: (t: "numbers" | "reporting" | "exit") => void }) {
+  const vocab = useVocab();
   const s = data.summary;
   const p = data.position;
   const burnPoints: KpiPoint[] = data.burn.map((b) => ({ month: b.month, value: Math.max(0, b.value), claimId: b.claimIds[0] ?? "", sourceType: b.basis }));
@@ -23,7 +25,7 @@ export default function Overview({ data, onChange, go }: PfTabProps & { go: (t: 
   const shown = charts.filter((c) => c.points?.length);
   const cite = (claimId: string | undefined) => {
     const c = claimId ? data.cites[claimId] : undefined;
-    return c ? <span className="small muted" title={c.citedText ?? undefined}> · {SOURCE_LABEL[c.sourceType] ?? c.sourceType}</span> : null;
+    return c ? <span className="small muted" title={c.citedText ?? undefined}> · {vocab.term("portfolio", "numberSources", c.sourceType)}</span> : null;
   };
   return (
     <>
@@ -43,6 +45,17 @@ export default function Overview({ data, onChange, go }: PfTabProps & { go: (t: 
             {data.investments.some((i) => i.board_role === "seat") ? " · board seat" : data.investments.some((i) => i.board_role === "observer") ? " · board observer" : ""}.
           </p>
         </section>
+        {data.valueBasis === "exited" ? (
+          <section className="panel panel-pad section" aria-labelledby="out-h">
+            <h2 id="out-h">Outcome</h2>
+            <p className="small" style={{ margin: 0 }}>
+              {data.value.realizedUsd === 0 && data.realizations.some((r) => r.kind === "write_off")
+                ? `Written off${data.value.exitDate ? ` on ${dateOnly(data.value.exitDate)}` : ""}; the ${usd(p?.invested ?? 0)} invested was lost.`
+                : `Exited${data.value.exitDate ? ` on ${dateOnly(data.value.exitDate)}` : ""}: ${usd(data.value.realizedUsd)} back so far${data.value.pendingUsd > 0 ? `, ${usd(data.value.pendingUsd)} still expected from escrows and earnouts` : ""}${data.value.publicUsd > 0 ? `, ${usd(data.value.publicUsd)} in the buyer's shares` : ""}.`}
+            </p>
+            <div className="row"><button className="btn small" onClick={() => go("exit")}>Exit and liquidity</button></div>
+          </section>
+        ) : (
         <section className="panel panel-pad section" aria-labelledby="warn-h">
           <h2 id="warn-h">Early warnings</h2>
           <SignalList signals={data.signals} empty={s.latestMonth ? "Nothing to flag in the latest numbers." : "No numbers yet."} />
@@ -53,6 +66,7 @@ export default function Overview({ data, onChange, go }: PfTabProps & { go: (t: 
             </div>
           )}
         </section>
+        )}
       </div>
 
       {s.latestMonth && (

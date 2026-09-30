@@ -2,7 +2,7 @@ import type { Db } from "../../lib/db.js";
 import { answers, approveAnswer, getProspect, insertActivity, upsertAnswer } from "../../ledger/fundraising.js";
 import { funds, reports } from "../../ledger/lp.js";
 import { getProfile, PROFILE_OPTIONS } from "../firm/profile.js";
-import { FundraisingInvalid, text, today, usd } from "./common.js";
+import { FundraisingInvalid, longDate, text, today, usd } from "./common.js";
 
 /**
  * The due diligence questionnaire library. Sections follow the ILPA Due
@@ -129,7 +129,7 @@ async function fromRecords(db: Db): Promise<Map<string, { answer: string; source
     const n = s.performance.net;
     const g = s.performance.gross;
     const prev = out.get("track.performance");
-    const line = `${fund.name}, as of ${r.as_of}: net IRR ${pct(n.irr)}, net TVPI ${mult(n.tvpi)}, DPI ${mult(n.dpi)}; gross IRR ${pct(g.irr)}, gross multiple ${mult(g.moic)}. ${s.performance.marketingNote}`;
+    const line = `${fund.name}, as of ${longDate(r.as_of)}: net IRR ${pct(n.irr)}, net TVPI ${mult(n.tvpi)}, DPI ${mult(n.dpi)}; gross IRR ${pct(g.irr)}, gross multiple ${mult(g.moic)}. ${s.performance.marketingNote}`;
     out.set("track.performance", { answer: prev ? `${prev.answer}\n${line}` : line, sources: [...(prev?.sources ?? []), `${fund.name}: approved ${r.period.replace("-", " ")} report`] });
   }
   out.set("valuation.policy", {

@@ -4,10 +4,10 @@ import { useSession } from "../../app";
 import { Chips, Field, Notice, dateOnly, useConfirm, useToast } from "../../ui";
 import type { PfTabProps } from "../PortfolioCompany";
 import { monthLabel, person } from "./shared";
+import { useVocab } from "../../vocab";
 
 const DEFAULT = ["revenue.monthly", "expenses.monthly", "cash.balance", "burn.monthly", "team.headcount", "customers.paying.count", "revenue.arr"];
 const REQ_TONE: Record<string, string> = { open: "info", received: "good", cancelled: "quiet" };
-const REQ_LABEL: Record<string, string> = { open: "Waiting", received: "Received", cancelled: "Cancelled" };
 
 /**
  * How the company reports: who at the company sends the numbers, monthly
@@ -16,6 +16,7 @@ const REQ_LABEL: Record<string, string> = { open: "Waiting", received: "Received
  * books. Ask for a handful of metrics: short requests get answered.
  */
 export default function Reporting({ data, onChange }: PfTabProps) {
+  const vocab = useVocab();
   const { can } = useSession();
   const toast = useToast();
   const confirm = useConfirm();
@@ -105,7 +106,7 @@ export default function Reporting({ data, onChange }: PfTabProps) {
                 <span>{monthLabel(r.period)}</span>
                 <span className="row" style={{ justifyContent: "space-between" }}>
                   <span>{r.metrics.length} metrics, due {dateOnly(r.due_on)} · to {r.recipients.join(", ")} · {person(r.created_by)}{r.status === "open" && r.due_on < new Date().toISOString().slice(0, 10) ? <span className="pill bad" style={{ marginLeft: 6 }}>Overdue</span> : null}</span>
-                  <span className={`pill ${REQ_TONE[r.status]}`}>{REQ_LABEL[r.status]}</span>
+                  <span className={`pill ${REQ_TONE[r.status]}`}>{vocab.term("portfolio", "requestStatus", r.status)}</span>
                 </span>
               </li>
             ))}

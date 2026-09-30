@@ -10,7 +10,7 @@ export const today = () => new Date().toISOString().slice(0, 10);
 export const addDays = (d: string, n: number) => new Date(Date.parse(d) + n * 86_400_000).toISOString().slice(0, 10);
 export const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export const usd = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
-export const longDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+export { longDate } from "../../lib/text.js";
 export const money = (v: unknown): number | null => {
   if (v === undefined || v === null || v === "") return null;
   const n = typeof v === "number" ? v : Number(String(v).replace(/[^0-9.]/g, ""));

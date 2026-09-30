@@ -18,8 +18,11 @@ import {
 import { parseCsv } from "../../lib/csv.js";
 import { getProfile } from "../firm/profile.js";
 import { draftDistribution, previewDistribution } from "../lp/capital.js";
+import { termsOf } from "../lp/common.js";
 import { holding, holdings, isDay, PortfolioInvalid, today, type Holding } from "./common.js";
 import { fundShare, holdingValue, publicSharesLeft, valueInputs } from "./value.js";
+import { EXECUTION_LABELS } from "../../ledger/labels.js";
+import { longDate } from "../../lib/text.js";
 
 /**
  * Exits and liquidity, inside Portfolio. Each company has an exit plan (the
@@ -57,6 +60,10 @@ const ORDER: ExitStage[] = ["exploring", "preparing", "marketing", "offers", "si
 // ---------------------------------------------------------------------------
 // Exit plans
 // ---------------------------------------------------------------------------
+
+/** An investment as a person names it: "Series Seed Preferred, February 1, 2024". */
+const lotLabel = (i: { series_name: string | null; security: string; close_date: string }) =>
+  `${i.series_name ?? EXECUTION_LABELS.securities[i.security] ?? "Investment"}, ${longDate(i.close_date)}`;
 
 export async function saveExitPlanFor(db: Db, companyId: string, input: Record<string, unknown>, by: string) {
   await holding(db, companyId);
@@ -512,7 +519,7 @@ export async function reviewQsbs(db: Db, companyId: string, investmentId: string
 async function qsbsFor(db: Db, h: Holding, on: string) {
   const reviews = await latestQsbs(db);
   return h.investments.map((i) => ({
-    investmentId: i.id, label: `${i.series_name ?? i.security}, ${i.close_date}`, fund: i.fund_name, basisUsd: i.amount_usd, acquiredOn: i.close_date,
+    investmentId: i.id, label: lotLabel(i), fund: i.fund_name, basisUsd: i.amount_usd, acquiredOn: i.close_date,
     review: reviews.get(i.id) ?? null, result: qsbs({ acquiredOn: i.close_date, basisUsd: i.amount_usd }, on),
   }));
 }
@@ -564,7 +571,7 @@ export async function liquidityOverview(db: Db) {
     for (const i of h.investments) {
       if (reviews.get(i.id)?.status === "not_eligible") continue;
       const q = qsbs({ acquiredOn: i.close_date, basisUsd: i.amount_usd }, on);
-      if (q.next && Date.parse(q.next.on) - Date.parse(on) < 366 * 86_400_000) qsbsSoon.push({ company: h.name, companyId: h.companyId, label: `${i.series_name ?? i.security}, ${i.close_date}`, next: q.next, exclusionPct: q.exclusionPct });
+      if (q.next && Date.parse(q.next.on) - Date.parse(on) < 366 * 86_400_000) qsbsSoon.push({ company: h.name, companyId: h.companyId, label: lotLabel(i), next: q.next, exclusionPct: q.exclusionPct });
     }
   }
   const active = hs.map((h) => h.companyId);
@@ -621,7 +628,9 @@ export async function fundLifeView(db: Db, fundId: string) {
   const maxExt = saved?.max_extension_years ?? profile?.extensionYears ?? 2;
   const ext = await extensions(db, fundId);
   const on = today();
-  const life = fundLife({ inception: f.inception, termYears, extensions: ext, maxExtensionYears: maxExt }, on);
+  // The investment period from the fund's LPA terms (LP Reporting); set to the inception when never entered.
+  const ipEnd = termsOf(f).investmentPeriodEnd;
+  const life = fundLife({ inception: f.inception, termYears, extensions: ext, maxExtensionYears: maxExt, investmentPeriodEnd: ipEnd > f.inception ? ipEnd : undefined }, on);
   // What the fund still holds, from Portfolio's values for its companies.
   const inputs = await valueInputs(db);
   const marks = await latestMarks(db);

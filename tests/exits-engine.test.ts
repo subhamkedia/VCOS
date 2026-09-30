@@ -96,6 +96,14 @@ describe("the fund's tail", () => {
     expect(o).toEqual(["extension", "sell_or_distribute", "direct_secondary", "strip_sale", "continuation", "wind_up"]);
   });
 
+  it("is in its investment period until the LPA says it ends, then harvesting, then in its final two years", () => {
+    const f = { inception: "2024-01-15", termYears: 10, extensions: [], maxExtensionYears: 2, investmentPeriodEnd: "2029-01-14" };
+    expect(fundLife(f, "2026-09-30").stage).toBe("investing");
+    expect(fundLife(f, "2029-01-15").stage).toBe("harvesting");
+    expect(fundLife(f, "2032-06-30").stage).toBe("final_years");
+    expect(fundLife({ ...f, investmentPeriodEnd: undefined }, "2026-09-30").stage).toBe("harvesting");
+  });
+
   it("tallies continuation vehicle elections, with silence as a sale", () => {
     const investors = [{ id: "a", navUsd: 6e6 }, { id: "b", navUsd: 3e6 }, { id: "c", navUsd: 1e6 }];
     const open = cvElections({ launchedOn: "2026-09-01", deadline: "2026-10-01", statusQuoOffered: true, pricePct: 92, investors, elections: [{ id: "a", choice: "roll" }] }, "2026-09-15");

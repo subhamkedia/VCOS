@@ -8,7 +8,7 @@ import { longDate, person } from "./lp/shared";
 import { useRun } from "./exits/shared";
 
 const today = () => new Date().toISOString().slice(0, 10);
-const STAGE_TONE: Record<string, string> = { harvesting: "good", final_years: "warn", extended: "warn", past_term: "bad" };
+const STAGE_TONE: Record<string, string> = { investing: "info", harvesting: "good", final_years: "warn", extended: "warn", past_term: "bad" };
 
 /** A fund's term, extensions, what it still holds, options for the tail, a continuation vehicle, and the wind-down. */
 export default function FundLife() {
@@ -22,7 +22,7 @@ export default function FundLife() {
   const l = data.life;
   return (
     <>
-      <PageHead eyebrow={<Link to="/portfolio/liquidity">Exits and liquidity</Link>} title={`${data.fund.name}: term and wind-down`} lead={`Began ${longDate(data.fund.inception)}; a ${data.termYears}-year term${l.extensionYearsUsed ? `, extended ${l.extensionYearsUsed} year${l.extensionYearsUsed === 1 ? "" : "s"}` : ""}.`} />
+      <PageHead eyebrow={<Link to="/portfolio/liquidity">Exits and liquidity</Link>} title={`${data.fund.name}: term and wind-down`} lead={`Began ${longDate(data.fund.inception)}; a ${data.termYears}-year term${l.extensionYearsUsed ? `, extended ${l.extensionYearsUsed} year${l.extensionYearsUsed === 1 ? "" : "s"}` : ""}${l.investmentPeriodEnd ? `; investment period to ${longDate(l.investmentPeriodEnd)}` : ""}.`} />
       <section className="panel panel-pad section" aria-labelledby="lf-h">
         <div className="spread"><h2 id="lf-h">The fund's life</h2><span className={`pill ${STAGE_TONE[l.stage]}`}>{L.lifeStage[l.stage]}</span></div>
         <div className="stats">
@@ -43,7 +43,7 @@ export default function FundLife() {
         {data.residual.length === 0 ? <p className="small muted" style={{ margin: 0 }}>Nothing: every holding is realized.</p> : (
           <ul className="timeline small">{data.residual.map((r) => <li key={r.companyId} style={{ gridTemplateColumns: "minmax(0, 1fr) auto" }}><span><Link to={`/portfolio/${r.companyId}?tab=exit`}>{r.name}</Link></span><span className="num">{usd(r.value)}</span></li>)}</ul>
         )}
-        {l.stage === "harvesting" ? (
+        {l.stage === "harvesting" || l.stage === "investing" ? (
           <details><summary className="small">Options for the tail, for the fund's last years</summary><ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{data.options.map((o) => <li key={o.key}><strong>{o.title}.</strong> {o.detail}</li>)}</ul></details>
         ) : (
           <>
@@ -183,7 +183,7 @@ function WindDown({ data, onChange }: { data: FundLifeView; onChange: () => void
   return (
     <section className="panel panel-pad section" aria-labelledby="wd-h">
       <div className="spread"><h2 id="wd-h">Wind-down</h2><span className="small muted">{done} of {data.windDown.length}</span></div>
-      {data.life.stage === "harvesting" && done === 0 ? <details><summary className="small">The steps to close the fund</summary>{list}</details> : list}
+      {(data.life.stage === "harvesting" || data.life.stage === "investing") && done === 0 ? <details><summary className="small">The steps to close the fund</summary>{list}</details> : list}
     </section>
   );
 }

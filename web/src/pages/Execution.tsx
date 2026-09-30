@@ -5,19 +5,15 @@ import { useApi } from "../api";
 import type { ExecutionRow, IcPhase, Investment, TermSheetStatus } from "../types";
 import { ErrorState, Loading, Notice, PageHead, Seg, Time, dateOnly, usd } from "../ui";
 import { Progress, StageName, STAGE_TONE } from "./Diligence";
+import { useVocab } from "../vocab";
 
 export const PHASE_LABELS: Record<IcPhase, string> = {
   pre_vote: "Independent votes", discussion: "In discussion", post_vote: "Final votes", decided: "Decided", cancelled: "Cancelled",
 };
-export const TERM_STATUS_LABELS: Record<TermSheetStatus, string> = {
-  draft: "Draft", proposed: "Proposed", negotiating: "Negotiating", signed: "Signed", superseded: "Superseded",
-};
-export const SECURITY_LABELS: Record<string, string> = {
-  preferred: "Priced round (preferred)", safe_post: "Post-money SAFE", safe_pre: "Pre-money SAFE", note: "Convertible note",
-};
 
 /** Deals from IC to close, and the investments closed so far. */
 export default function Execution() {
+  const vocab = useVocab();
   const nav = useNavigate();
   const [view, setView] = useState<"active" | "closed">("active");
   const { data, error, reload } = useApi<ExecutionRow[]>("/execution");
@@ -47,7 +43,7 @@ export default function Execution() {
                     <td><Link to={`/execution/${d.id}`} onClick={(e) => e.stopPropagation()}><strong>{d.company_name}</strong></Link></td>
                     <td><span className={`pill ${STAGE_TONE[d.stage]}`}><StageName stage={d.stage} /></span></td>
                     <td className="small">{d.ic ? (d.ic.outcome ? <span className={`pill ${d.ic.outcome === "approved" ? "good" : "bad"}`}>{d.ic.outcome === "approved" ? "Approved" : "Declined"}</span> : PHASE_LABELS[d.ic.phase]) : <span className="muted">Not scheduled</span>}</td>
-                    <td className="small">{d.termSheet ? `v${d.termSheet.version} · ${TERM_STATUS_LABELS[d.termSheet.status]}` : <span className="muted">—</span>}</td>
+                    <td className="small">{d.termSheet ? `v${d.termSheet.version} · ${vocab.term("execution", "termStatus", d.termSheet.status)}` : <span className="muted">—</span>}</td>
                     <td style={{ minWidth: 150 }}>
                       {d.closing ? (
                         <>
@@ -78,7 +74,7 @@ export default function Execution() {
                 <tr key={i.id} className="click" onClick={() => nav(`/execution/${i.deal_id}`)}>
                   <td><Link to={`/execution/${i.deal_id}`} onClick={(e) => e.stopPropagation()}><strong>{i.company_name}</strong></Link><div className="small muted">{i.fund_name}</div></td>
                   <td className="small">{dateOnly(i.close_date)}</td>
-                  <td className="small">{i.series_name ?? SECURITY_LABELS[i.security]}</td>
+                  <td className="small">{i.series_name ?? vocab.term("execution", "securities", i.security)}</td>
                   <td className="num">{usd(i.amount_usd)}</td>
                   <td className="num">{i.ownership_fd_pct === null ? "—" : `${i.ownership_fd_pct.toFixed(2)}%`}</td>
                   <td className="num">{usd(i.post_money_usd)}</td>

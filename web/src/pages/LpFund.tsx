@@ -3,6 +3,7 @@ import { useApi } from "../api";
 import type { LpFundView } from "../types";
 import { ErrorState, Loading, PageHead, Tabs, tabPanelProps } from "../ui";
 import Overview from "./lp/Overview";
+import { longDate } from "./lp/shared";
 import Investors from "./lp/Investors";
 import Calls from "./lp/Calls";
 import Distributions from "./lp/Distributions";
@@ -35,7 +36,7 @@ export default function LpFund() {
   const refresh = () => void reload();
   return (
     <>
-      <PageHead eyebrow={<Link to="/lp-reporting">LP Reporting</Link>} title={data.fund.name} lead={`${data.fund.vintage ?? "—"} vintage · first close ${data.fund.inception} · figures as of ${data.asOf}`} />
+      <PageHead eyebrow={<Link to="/lp-reporting">LP Reporting</Link>} title={data.fund.name} lead={`${data.fund.vintage ? `${data.fund.vintage} vintage · ` : ""}first close ${longDate(data.fund.inception)} · figures as of ${longDate(data.asOf)}`} />
       <Tabs tabs={tabs} value={tab} onChange={setTab} label="Fund sections" idBase="lp" />
       <div {...tabPanelProps("lp", tab)} className="section">
         {tab === "overview" && <Overview data={data} onChange={refresh} go={setTab} />}

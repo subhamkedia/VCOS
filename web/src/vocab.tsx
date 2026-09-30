@@ -24,7 +24,13 @@ export interface VocabData {
   decisions: Record<string, string>;
   dealStages: Record<string, string>;
   outbox: { channels: Record<string, string>; approve: Record<string, string> };
+  portfolio: Record<string, Record<string, string>>;
+  execution: Record<string, Record<string, string>>;
+  meetings: Record<string, Record<string, string>>;
+  exits: Record<string, Record<string, string>>;
 }
+
+type Group = "portfolio" | "execution" | "meetings" | "exits";
 
 const humanize = (id: string) => id.replace(/[._-]+/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
@@ -46,6 +52,10 @@ export function makeVocab(d: VocabData | null) {
     passReason: (id: string) => pick(d?.passReasons, id),
     decision: (id: string) => pick(d?.decisions, id),
     dealStage: (id: string) => pick(d?.dealStages, id),
+    /** A label from a module's group, e.g. v.term("portfolio", "boardKinds", "annual"). */
+    term: (group: Group, list: string, id: string) => pick(d?.[group]?.[list], id),
+    /** The ids and labels of a list, for a select. */
+    terms: (group: Group, list: string) => Object.entries(d?.[group]?.[list] ?? {}).map(([id, label]) => ({ id, label })),
     channel: (id: string) => pick(d?.outbox?.channels, id),
     approveLabel: (id: string) => d?.outbox?.approve[id] ?? "Approve",
     passReasonIds: Object.keys(d?.passReasons ?? {}),

@@ -4,8 +4,8 @@ import { api } from "../../api";
 import { useSession } from "../../app";
 import type { Wire, WireStatus } from "../../types";
 import { Field, MoneyInput, Notice, Select, Time, dateOnly, useConfirm, usePrompt, useToast, usd } from "../../ui";
-import { SECURITY_LABELS } from "../Execution";
 import { person, type ExecTabProps } from "../ExecutionDeal";
+import { useVocab } from "../../vocab";
 
 const WIRE_LABELS: Record<WireStatus, string> = {
   received: "Instructions received", verified: "Confirmed by phone", approved: "Approved by two people", sent: "Sent", confirmed: "Received by the company", cancelled: "Replaced",
@@ -187,6 +187,7 @@ function CloseForm({ data, onChange }: ExecTabProps) {
 }
 
 function Closed({ data }: { data: ExecTabProps["data"] }) {
+  const vocab = useVocab();
   const i = data.investments[0]!;
   return (
     <section className="panel panel-pad section" aria-labelledby="inv-h">
@@ -198,7 +199,7 @@ function Closed({ data }: { data: ExecTabProps["data"] }) {
         {i.shares !== null && <div className="stat"><b className="num">{Math.round(i.shares).toLocaleString("en-US")}</b><span>Shares at ${i.price_per_share?.toFixed(4)}</span></div>}
       </div>
       <dl className="kv">
-        <dt>Instrument</dt><dd>{i.series_name ?? SECURITY_LABELS[i.security]}</dd>
+        <dt>Instrument</dt><dd>{i.series_name ?? vocab.term("execution", "securities", i.security)}</dd>
         <dt>Board</dt><dd>{i.board_role === "seat" ? "Board seat" : i.board_role === "observer" ? "Observer" : "None"}</dd>
         <dt>Recorded by</dt><dd>{person(i.created_by)}</dd>
       </dl>

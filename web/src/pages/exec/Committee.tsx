@@ -141,7 +141,7 @@ function Meeting({ m, data, onChange }: { m: IcMeeting } & ExecTabProps) {
         </p>
       )}
 
-      {round && m.isMember && !mine && !recused && <VoteForm meetingId={m.id} round={round} onDone={onChange} />}
+      {round && m.isMember && !mine && !recused && <VoteForm meetingId={m.id} round={round} rule={m.rule} onDone={onChange} />}
       {round && mine && <Notice tone="good">Your {round === "pre" ? "independent" : "final"} vote is in.{round === "pre" && " Others' votes stay hidden until the chair opens discussion."}</Notice>}
 
       {m.phase === "pre_vote" && m.preVotes.length > 0 && <Votes title="Your independent vote" votes={m.preVotes} />}
@@ -174,7 +174,7 @@ function Meeting({ m, data, onChange }: { m: IcMeeting } & ExecTabProps) {
             <button type="button" className="btn primary" disabled={declining && !reason} onClick={() => void advance()}>
               {m.phase === "pre_vote" ? "Open discussion" : m.phase === "discussion" ? "Call the final vote" : "Close the meeting"}
             </button>
-            <button type="button" className="btn ghost" onClick={() => void cancel()}>Cancel meeting</button>
+            <button type="button" className="btn danger" onClick={() => void cancel()}>Cancel meeting</button>
           </div>
         </div>
       )}
@@ -184,7 +184,7 @@ function Meeting({ m, data, onChange }: { m: IcMeeting } & ExecTabProps) {
   );
 }
 
-function VoteForm({ meetingId, round, onDone }: { meetingId: string; round: "pre" | "post"; onDone: () => void }) {
+function VoteForm({ meetingId, round, rule, onDone }: { meetingId: string; round: "pre" | "post"; rule: string; onDone: () => void }) {
   const toast = useToast();
   const [vote, setVote] = useState<"yes" | "no" | "abstain" | undefined>();
   const [conviction, setConviction] = useState(3);
@@ -211,7 +211,7 @@ function VoteForm({ meetingId, round, onDone }: { meetingId: string; round: "pre
           <label key={v} className="row" style={{ gap: 4 }}><input type="radio" name={`vote-${meetingId}`} value={v} checked={vote === v} onChange={() => setVote(v)} required /> {VOTE_LABELS[v]}</label>
         ))}
       </fieldset>
-      <Field label={`Conviction: ${conviction} of 5`} hint="5 means you'd champion it (or block it). Under the champion rule, one 5 carries the deal unless someone votes no with a 5.">
+      <Field label={`Conviction: ${conviction} of 5`} hint={rule === "champion" ? "5 means you'd champion it (or block it). Under the champion rule, one 5 carries the deal unless someone votes no with a 5." : "How strongly you hold this view: 1 is barely, 5 is you'd champion it (or block it)."}>
         <input type="range" min={1} max={5} step={1} value={conviction} onChange={(e) => setConviction(Number(e.target.value))} aria-valuetext={`${conviction} of 5`} />
       </Field>
       <Field label="Why" hint={round === "pre" ? "Your reasoning before hearing others. Visible after discussion opens." : undefined}>

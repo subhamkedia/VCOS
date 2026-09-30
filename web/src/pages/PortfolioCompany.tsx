@@ -1,7 +1,7 @@
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useApi } from "../api";
 import type { PortfolioCompanyView } from "../types";
-import { ErrorState, Loading, PageHead, Tabs, tabPanelProps, usd } from "../ui";
+import { ErrorState, Loading, PageHead, Tabs, dateOnly, tabPanelProps, usd } from "../ui";
 import { HealthPill } from "./portfolio/shared";
 import Overview from "./portfolio/Overview";
 import Numbers from "./portfolio/Numbers";
@@ -35,13 +35,16 @@ export default function PortfolioCompany() {
     { id: "exit", label: "Exit and liquidity" },
   ];
   const refresh = () => void reload();
+  const writtenOff = data.valueBasis === "exited" && data.value.realizedUsd === 0 && data.realizations.some((r) => r.kind === "write_off");
+  const still = data.value.pendingUsd + data.value.publicUsd;
   return (
     <>
       <PageHead
         eyebrow={<Link to="/portfolio">Portfolio</Link>}
         title={data.company.name}
-        lead={data.valueBasis === "exited"
-          ? (data.value.pendingUsd + data.value.publicUsd > 0 ? `Exited; ${usd(data.value.pendingUsd + data.value.publicUsd)} still held in ${[data.value.pendingUsd > 0 && "escrows and earnouts", data.value.publicUsd > 0 && "the buyer's shares"].filter(Boolean).join(" and ")}.` : "Exited.")
+        lead={writtenOff ? `Written off${data.value.exitDate ? ` on ${dateOnly(data.value.exitDate)}` : ""}.`
+          : data.valueBasis === "exited"
+          ? `Exited${data.value.exitDate ? ` on ${dateOnly(data.value.exitDate)}` : ""}${still > 0 ? `; ${usd(still)} still held in ${[data.value.pendingUsd > 0 && "escrows and earnouts", data.value.publicUsd > 0 && "the buyer's shares"].filter(Boolean).join(" and ")}` : ""}.`
           : data.valueBasis === "public" ? "Listed." : undefined}
         actions={
           <div className="row">

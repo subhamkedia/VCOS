@@ -2,7 +2,7 @@ import { Fragment, useState } from "react";
 import { api, useApi } from "../../api";
 import { useSession } from "../../app";
 import type { Memo } from "../../types";
-import { ErrorState, Loading, Notice, Time, actor, useToast } from "../../ui";
+import { ErrorState, Loading, Notice, Time, actor, readableDates, useToast } from "../../ui";
 import { useVocab } from "../../vocab";
 import { SourceViewer } from "../Company";
 import type { TabProps } from "../Deal";
@@ -84,7 +84,7 @@ function MemoView({ dealId, version }: { dealId: string; version: number }) {
             <p>
               {s.sentences.map((x, i) => (
                 <Fragment key={i}>
-                  <span className={x.kind === "view" ? "view" : undefined}>{x.text}</span>
+                  <span className={x.kind === "view" ? "view" : undefined}>{readableDates(x.text)}</span>
                   {x.cites.map((c) => (
                     <sup key={c}><button type="button" aria-expanded={open === c} aria-label={`Source ${numberOf(c)}: ${m.refs[c]?.label ?? "citation"}`} onClick={() => setOpen(open === c ? null : c)}>{numberOf(c)}</button></sup>
                   ))}{" "}

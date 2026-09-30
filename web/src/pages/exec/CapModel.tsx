@@ -5,9 +5,8 @@ import { useSession } from "../../app";
 import type { CapTable, Holding, NoteRow, SafeRow, SeriesTerms } from "../../types";
 import { Field, Notice, Time, useToast, usd } from "../../ui";
 import { person, type ExecTabProps } from "../ExecutionDeal";
+import { useVocab } from "../../vocab";
 
-const KIND_LABELS: Record<Holding["kind"], string> = { common: "Common", preferred: "Preferred", options: "Options granted", pool: "Unissued pool" };
-const SOURCE_LABELS: Record<CapTable["source"], string> = { entered: "entered by hand", csv: "imported from a file", carta: "pulled from Carta" };
 const n0 = (n: number) => Math.round(n).toLocaleString("en-US");
 const pct = (n: number) => `${n.toFixed(2)}%`;
 
@@ -103,14 +102,15 @@ function Returns({ scenarios, invested }: { scenarios: ExecTabProps["data"]["mod
 }
 
 function CapTableView({ cap }: { cap: CapTable }) {
+  const vocab = useVocab();
   return (
     <section className="panel panel-pad section" aria-labelledby="cap-h">
       <h2 id="cap-h">Company cap table, version {cap.version}</h2>
-      <p className="small muted" style={{ margin: 0 }}>{SOURCE_LABELS[cap.source]} by {person(cap.created_by)}, <Time at={cap.created_at} />. Kept confidential.</p>
+      <p className="small muted" style={{ margin: 0 }}>{vocab.term("execution", "capSources", cap.source)} by {person(cap.created_by)}, <Time at={cap.created_at} />. Kept confidential.</p>
       <div className="table-wrap">
         <table className="t">
           <thead><tr><th scope="col">Holder</th><th scope="col">Class</th><th scope="col">Kind</th><th scope="col" className="num">Shares</th></tr></thead>
-          <tbody>{cap.holdings.map((h, i) => <tr key={i}><td>{h.holder}</td><td className="small">{h.className}</td><td className="small">{KIND_LABELS[h.kind]}</td><td className="num">{n0(h.shares)}</td></tr>)}</tbody>
+          <tbody>{cap.holdings.map((h, i) => <tr key={i}><td>{h.holder}</td><td className="small">{h.className}</td><td className="small">{vocab.term("execution", "holdingKinds", h.kind)}</td><td className="num">{n0(h.shares)}</td></tr>)}</tbody>
         </table>
       </div>
       {cap.safes.length > 0 && <p className="small" style={{ margin: 0 }}>SAFEs: {cap.safes.map((s) => `${s.holder} ${usd(s.amount)}${s.cap ? ` at a ${usd(s.cap)} cap` : ""}`).join("; ")}.</p>}
@@ -226,6 +226,7 @@ function Rows<T extends object>({ title, rows, set, cols, blank, hint }: { title
 }
 
 function CapEditor({ dealId, initial, onDone, onCancel }: { dealId: string; initial: CapTable | null; onDone: () => void; onCancel: () => void }) {
+  const vocab = useVocab();
   const toast = useToast();
   const [holdings, setHoldings] = useState<Holding[]>(initial?.holdings ?? [{ holder: "", className: "Common", shares: 0, kind: "common" }]);
   const [safes, setSafes] = useState<SafeRow[]>(initial?.safes ?? []);
@@ -246,7 +247,7 @@ function CapEditor({ dealId, initial, onDone, onCancel }: { dealId: string; init
       <h2 id="ce-h">Cap table</h2>
       <Rows title="Holdings" rows={holdings} set={setHoldings} blank={{ holder: "", className: "Common", shares: 0, kind: "common" }} cols={[
         { key: "holder", label: "Holder" }, { key: "className", label: "Class" }, { key: "shares", label: "Shares", type: "number" },
-        { key: "kind", label: "Kind", type: "select", options: Object.entries(KIND_LABELS).map(([id, label]) => ({ id, label })) },
+        { key: "kind", label: "Kind", type: "select", options: vocab.terms("execution", "holdingKinds") },
       ]} />
       <Rows title="SAFEs outstanding" rows={safes} set={setSafes} blank={{ holder: "", amount: 0, kind: "post" }} hint="They convert in this round: at the cap, the discount, or the round price, whichever gives more shares." cols={[
         { key: "holder", label: "Holder" }, { key: "amount", label: "Amount ($)", type: "number" },

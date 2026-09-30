@@ -4,15 +4,18 @@ import { useSession } from "../../app";
 import { Field, MoneyInput, Notice, NumberInput, Seg, Select, dateOnly, useConfirm, useToast, usd } from "../../ui";
 import type { PfTabProps } from "../PortfolioCompany";
 import { person } from "./shared";
+import { useVocab } from "../../vocab";
 
-const DECISION_LABEL: Record<string, string> = { invest: "Invested", partial: "Invested less than pro rata", pass: "Passed" };
-const REAL_LABEL: Record<string, string> = { sale: "Sale", partial_sale: "Partial sale", distribution: "Distribution", dividend: "Dividend", write_off: "Write-off" };
 
 /**
  * Our checks, the reserve set aside for this company, follow-on decisions
  * (each one re-underwritten, with its reason) and money back.
  */
+/** What can be recorded by hand here; sales, escrows and listed shares are recorded from the Exit tab. */
+const MANUAL_REALIZATIONS = ["sale", "partial_sale", "distribution", "dividend", "write_off"];
+
 export default function Capital({ data, onChange }: PfTabProps) {
+  const vocab = useVocab();
   const { can } = useSession();
   return (
     <>
@@ -46,7 +49,7 @@ export default function Capital({ data, onChange }: PfTabProps) {
           <h2 id="real-h">Money back</h2>
           {data.realizations.length ? (
             <ul className="timeline small">
-              {data.realizations.map((r) => <li key={r.id}><span>{dateOnly(r.occurred_on)}</span><span><strong>{REAL_LABEL[r.kind] ?? r.kind}</strong> · {usd(r.amount_usd)}{r.note ? ` · ${r.note}` : ""}</span></li>)}
+              {data.realizations.map((r) => <li key={r.id}><span>{dateOnly(r.occurred_on)}</span><span><strong>{vocab.term("exits", "realizationKinds", r.kind)}</strong> · {usd(r.amount_usd)}{r.note ? ` · ${r.note}` : ""}</span></li>)}
             </ul>
           ) : <Notice>Nothing returned yet.</Notice>}
           {can("decide_deals") && <RealizationForm data={data} onChange={onChange} />}
@@ -60,7 +63,7 @@ export default function Capital({ data, onChange }: PfTabProps) {
             {data.followOns.map((d) => (
               <li key={d.id}>
                 <span>{dateOnly(String(d.value.roundDate))}</span>
-                <span><strong>{String(d.value.round)}</strong>: {DECISION_LABEL[String(d.value.decision)]}{Number(d.value.amountUsd) ? ` ${usd(Number(d.value.amountUsd))}` : ""}{d.value.proRataUsd ? ` (pro rata ${usd(Number(d.value.proRataUsd))})` : ""} · {person(d.actor)}<br />{d.rationale}</span>
+                <span><strong>{String(d.value.round)}</strong>: {vocab.term("portfolio", "followOnDecisions", String(d.value.decision))}{Number(d.value.amountUsd) ? ` ${usd(Number(d.value.amountUsd))}` : ""}{d.value.proRataUsd ? ` (pro rata ${usd(Number(d.value.proRataUsd))})` : ""} · {person(d.actor)}<br />{d.rationale}</span>
               </li>
             ))}
           </ul>
@@ -105,6 +108,7 @@ function ReserveForm({ data, onChange }: PfTabProps) {
 }
 
 function RealizationForm({ data, onChange }: PfTabProps) {
+  const vocab = useVocab();
   const confirm = useConfirm();
   const [kind, setKind] = useState<string | undefined>();
   const [date, setDate] = useState("");
@@ -118,7 +122,7 @@ function RealizationForm({ data, onChange }: PfTabProps) {
       void run({ kind, occurredOn: date, amountUsd: amount, note }, () => { setKind(undefined); setAmount(undefined); setNote(""); });
     }}>
       <div className="form-grid">
-        <Field label="What happened" required><Select id="rl-kind" value={kind} onChange={setKind} options={Object.entries(REAL_LABEL).map(([id, label]) => ({ id, label }))} /></Field>
+        <Field label="What happened" required><Select id="rl-kind" value={kind} onChange={setKind} options={MANUAL_REALIZATIONS.map((id) => ({ id, label: vocab.term("exits", "realizationKinds", id) }))} /></Field>
         <Field label="Date" required><input className="input" type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         {kind !== "write_off" && <Field label="Amount to the fund" required><MoneyInput id="rl-amt" value={amount} onChange={setAmount} /></Field>}
         <Field label="Note"><input className="input" value={note} onChange={(e) => setNote(e.target.value)} /></Field>

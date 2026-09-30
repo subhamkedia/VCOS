@@ -6,6 +6,7 @@ import { useSession } from "../app";
 import type { CompanyRow, Feed, Meeting, MeetingStatus } from "../types";
 import { ErrorState, Field, Loading, Notice, PageHead, Seg, Time, useToast } from "../ui";
 import { SourceViewer } from "./Company";
+import { useVocab } from "../vocab";
 
 const TABS: { id: MeetingStatus; label: string }[] = [
   { id: "needs_review", label: "Needs you" },
@@ -14,10 +15,6 @@ const TABS: { id: MeetingStatus; label: string }[] = [
   { id: "ignored", label: "Ignored" },
 ];
 
-const METHOD_LABELS: Record<string, string> = {
-  email_domain: "by email domain", known_contact: "by a known contact", same_conference: "through the calendar invite",
-  person: "by a person", internal: "everyone is from your firm",
-};
 
 /**
  * Every call from the firm's meeting tools, matched to the company it was
@@ -119,6 +116,7 @@ function SyncPanel({ syncs, onRun, canRun }: { syncs: Feed[] | null; onRun: () =
 const external = (m: Meeting) => m.attendees.filter((a) => !a.self);
 
 function MeetingCard({ m, canTriage, onChange, onRead }: { m: Meeting; canTriage: boolean; onChange: () => void; onRead: () => void }) {
+  const vocab = useVocab();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"none" | "choose" | "new">("none");
@@ -157,7 +155,7 @@ function MeetingCard({ m, canTriage, onChange, onRead }: { m: Meeting; canTriage
           {external(m).map((a, i) => <li key={a.email ?? `${a.name}-${i}`} className="pill outline">{a.name ?? a.email}{a.name && a.email ? ` · ${a.email}` : ""}</li>)}
         </ul>
       )}
-      {m.status === "matched" && m.match.method && <div className="small muted">Matched {METHOD_LABELS[m.match.method] ?? m.match.method}{m.matched_by?.startsWith("human:") ? ` (${m.matched_by.slice(6)})` : ""}.{m.extracted ? " Facts extracted." : m.has_words ? " Facts are extracted when Claude is configured." : ""}</div>}
+      {m.status === "matched" && m.match.method && <div className="small muted">Matched {vocab.term("meetings", "matchMethods", m.match.method)}{m.matched_by?.startsWith("human:") ? ` (${m.matched_by.slice(6)})` : ""}.{m.extracted ? " Facts extracted." : m.has_words ? " Facts are extracted when Claude is configured." : ""}</div>}
       {m.status !== "matched" && m.match.reasons?.length ? <p className="small" style={{ margin: 0 }}>{m.match.reasons.join(" ")}</p> : null}
 
       {canTriage && m.status === "needs_review" && (

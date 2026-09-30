@@ -1,3 +1,5 @@
+import { longDate } from "../lib/text.js";
+
 /**
  * Exits and liquidity as deterministic, tested code: how a sale's
  * consideration splits into cash at closing, escrows, holdbacks and
@@ -111,12 +113,12 @@ export function splitConsideration(c: Consideration): ConsiderationSplit {
     if (!(e.maxUsd > 0)) throw new Error(`Enter the most "${e.description}" can pay.`);
     const p = pct(e.probabilityPct, "earnout probability");
     receivables.push({ kind: "earnout", description: e.description, amountUsd: round2(e.maxUsd), expectedPct: p, dueOn: e.dueOn });
-    steps.push(`Earnout "${e.description}": up to ${usd(e.maxUsd)}, ${p}% likely, decided by ${e.dueOn}: expected ${usd(e.maxUsd * (p / 100))}.`);
+    steps.push(`Earnout "${e.description}": up to ${usd(e.maxUsd)}, ${p}% likely, decided by ${longDate(e.dueOn)}: expected ${usd(e.maxUsd * (p / 100))}.`);
   }
   for (const d of c.deferred ?? []) {
     if (!(d.amountUsd > 0)) throw new Error(`Enter the amount of "${d.description}".`);
     receivables.push({ kind: "deferred", description: d.description, amountUsd: round2(d.amountUsd), expectedPct: 100, dueOn: d.dueOn });
-    steps.push(`Deferred payment "${d.description}": ${usd(d.amountUsd)} on ${d.dueOn}.`);
+    steps.push(`Deferred payment "${d.description}": ${usd(d.amountUsd)} on ${longDate(d.dueOn)}.`);
   }
   const expected = round2(atClose + stock + receivables.reduce((a, r) => a + r.amountUsd * (r.expectedPct / 100), 0));
   const maximum = round2(atClose + stock + receivables.reduce((a, r) => a + r.amountUsd, 0));
@@ -178,17 +180,17 @@ export interface SaleWindow {
 export function saleWindow(p: PublicPosition): SaleWindow {
   const steps: string[] = [];
   const lockupEnds = addDays(p.listedOn, p.lockupDays ?? 180);
-  steps.push(`Lock-up: ${p.lockupDays ?? 180} days from the listing, to ${lockupEnds}.`);
+  steps.push(`Lock-up: ${p.lockupDays ?? 180} days from the listing, to ${longDate(lockupEnds)}.`);
   const reporting90 = addDays(p.listedOn, 90);
   const sixMonths = addMonths(p.acquiredOn, 6);
   const oneYear = addYears(p.acquiredOn, 1);
   // Rule 144(d): six months if the issuer has reported for 90 days, one year otherwise.
   const holding = p.affiliate ? max(max(sixMonths, reporting90), p.listedOn) : oneYear <= reporting90 ? max(oneYear, p.listedOn) : max(sixMonths, reporting90);
   steps.push(p.affiliate
-    ? `Rule 144 for an affiliate: shares held six months (${sixMonths}) and the company reporting for 90 days (${reporting90}).`
-    : `Rule 144 for a non-affiliate: shares held a year (${oneYear}), or six months once the company has reported for 90 days (${reporting90}).`);
+    ? `Rule 144 for an affiliate: shares held six months (${longDate(sixMonths)}) and the company reporting for 90 days (${longDate(reporting90)}).`
+    : `Rule 144 for a non-affiliate: shares held a year (${longDate(oneYear)}), or six months once the company has reported for 90 days (${longDate(reporting90)}).`);
   const earliest = max(lockupEnds, holding);
-  steps.push(`Earliest sale: ${earliest}.`);
+  steps.push(`Earliest sale: ${longDate(earliest)}.`);
   let volumeLimit: number | null = null;
   let form144 = false;
   if (p.affiliate) {
@@ -220,14 +222,14 @@ export function inKindPrice(prices: { date: string; close: number }[], m: PriceM
   const sorted = [...prices].filter((p) => p.close > 0).sort((a, b) => a.date.localeCompare(b.date));
   if (m.kind === "close") {
     const p = sorted.filter((x) => x.date <= m.on).pop();
-    if (!p) throw new Error(`No closing price on or before ${m.on}.`);
-    return { price: p.close, steps: [`Closing price on ${p.date}: $${p.close.toFixed(4)}.`] };
+    if (!p) throw new Error(`No closing price on or before ${longDate(m.on)}.`);
+    return { price: p.close, steps: [`Closing price on ${longDate(p.date)}: $${p.close.toFixed(4)}.`] };
   }
   if (!(m.days >= 1)) throw new Error("Average over at least one trading day.");
   const window = sorted.filter((x) => x.date <= m.endingOn).slice(-m.days);
-  if (window.length < m.days) throw new Error(`Only ${window.length} trading days of prices on record up to ${m.endingOn}; the method needs ${m.days}.`);
+  if (window.length < m.days) throw new Error(`Only ${window.length} trading days of prices on record up to ${longDate(m.endingOn)}; the method needs ${m.days}.`);
   const avg = window.reduce((a, x) => a + x.close, 0) / window.length;
-  return { price: Math.round(avg * 10_000) / 10_000, steps: [`Average close over ${m.days} trading days, ${window[0]!.date} to ${window[window.length - 1]!.date}: $${avg.toFixed(4)}.`] };
+  return { price: Math.round(avg * 10_000) / 10_000, steps: [`Average close over ${m.days} trading days, ${longDate(window[0]!.date)} to ${longDate(window[window.length - 1]!.date)}: $${avg.toFixed(4)}.`] };
 }
 
 /**
@@ -316,6 +318,8 @@ export interface FundLife {
   termYears: number;
   extensions: { years: number }[];
   maxExtensionYears: number;
+  /** The last day of the investment period, when the LPA sets one. */
+  investmentPeriodEnd?: string;
 }
 
 export function fundLife(f: FundLife, asOf: string) {
@@ -325,7 +329,9 @@ export function fundLife(f: FundLife, asOf: string) {
   const monthsLeft = Math.round((Date.parse(endsOn) - Date.parse(asOf)) / (DAY * 30.4375));
   return {
     termEnds, endsOn, extensionYearsUsed: used, extensionYearsLeft: Math.max(0, f.maxExtensionYears - used), monthsLeft,
-    stage: asOf > endsOn ? "past_term" as const : used > 0 ? "extended" as const : monthsLeft <= 24 ? "final_years" as const : "harvesting" as const,
+    stage: asOf > endsOn ? "past_term" as const : used > 0 ? "extended" as const : monthsLeft <= 24 ? "final_years" as const
+      : f.investmentPeriodEnd && asOf <= f.investmentPeriodEnd ? "investing" as const : "harvesting" as const,
+    investmentPeriodEnd: f.investmentPeriodEnd ?? null,
   };
 }
 
