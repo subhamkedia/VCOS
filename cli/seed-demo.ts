@@ -2,7 +2,7 @@ import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import { connect, migrate, scopedDb } from "../lib/db.js";
 import { replayLlm } from "../lib/replay-llm.js";
-import { addMembership, createFirm, upsertUser } from "../ledger/platform.js";
+import { addMembership, createFirm, subscriptionByToken, upsertUser } from "../ledger/platform.js";
 import { recordDecision } from "../ledger/repository.js";
 import { ingest } from "../connectors/ingest.js";
 import { harmonicToRecord } from "../connectors/harmonic.js";
@@ -26,6 +26,7 @@ import { monthEnd } from "../engines/kpi.js";
 import { insertInvestment } from "../ledger/execution.js";
 import * as portfolio from "../modules/portfolio/index.js";
 import * as lp from "../modules/lp/index.js";
+import * as fr from "../modules/fundraising/index.js";
 import { parseArgs, run } from "./common.js";
 
 /**
@@ -339,6 +340,87 @@ run(async () => {
   await lp.draftCall(db, fund.id, { noticeDate: "2026-10-01", dueDate: "2026-10-16", investmentsUsd: 1_000_000, fee: { from: "2026-01-01", to: "2026-06-30" }, purpose: "Girderline seed round; first-half 2026 management fee" }, LEE);
   await lp.prepareReport(db, fund.id, { period: "2026-Q2" }, LEE);
   const investorLink = await lp.createLpPortalLink(db, lpIds[0]!.id, by, process.env.APP_URL ?? "http://localhost:8787");
+
+  // Fundraising & IR (all fictional): Fund III in market, with a pipeline, a reviewed data room, DDQ answers,
+  // subscriptions at each step, and a first closing prepared by Lee for you to approve. The LPAC sits on Fund II.
+  const APP = process.env.APP_URL ?? "http://localhost:8787";
+  const raise = await fr.createRaise(db, { name: "Demo Fund III", targetUsd: 75_000_000, hardCapUsd: 90_000_000, minCommitmentUsd: 250_000, finalCloseDeadline: "2027-12-31" }, by);
+  const prospect = async (name: string, kind: string, o: Record<string, unknown>) => fr.addProspect(db, raise.id, { name, kind, ...o }, LEE);
+  const allegheny = await prospect("Allegheny Teachers' Pension Plan", "pension", { contactName: "Dana Okafor", emails: "privatemarkets@alleghenytpp.example", askUsd: 15_000_000, source: "Existing LP", owner: "partner" });
+  const threeRivers = await prospect("Three Rivers Foundation", "endowment_foundation", { contactName: "Sam Lee", emails: "investments@threerivers.example", askUsd: 8_000_000, source: "Existing LP" });
+  const cascade = await prospect("Cascade State Retirement System", "pension", { contactName: "Priya Raman", emails: "pe@cascaderetire.example", askUsd: 20_000_000, source: "Placement intro", nextStep: "Send track record and references", nextStepOn: "2026-09-20" });
+  const ironbridge = await prospect("Ironbridge Family Office", "family_office", { contactName: "Marta Kovacs", emails: "cio@ironbridgefo.example", askUsd: 5_000_000, source: "Weldloop's CEO" });
+  const meridian = await prospect("Meridian Fund of Funds IV", "fund_of_funds", { contactName: "Tom Arnold", emails: "ops@meridianfof.example", askUsd: 10_000_000, nextStep: "Onsite with their IC", nextStepOn: "2026-10-14" });
+  const keystone = await prospect("Keystone Insurance Mutual", "insurance", { emails: "alts@keystonemutual.example", askUsd: 5_000_000, source: "Existing LP" });
+  await prospect("Lakeshore University Endowment", "endowment_foundation", { askUsd: 10_000_000, nextStep: "First call", nextStepOn: "2026-10-07" });
+  await prospect("Northgate Industrial Corp.", "corporate", { askUsd: 5_000_000, source: "Portfolio customer" });
+  const halvorsen = await prospect("Halvorsen Family Office", "family_office", { askUsd: 4_000_000, source: "Existing LP" });
+  await fr.editProspect(db, allegheny.id, { stage: "committed", committedUsd: 15_000_000 }, LEE);
+  await fr.editProspect(db, threeRivers.id, { stage: "committed", committedUsd: 8_000_000 }, LEE);
+  await fr.editProspect(db, keystone.id, { stage: "soft_circle", softCircleUsd: 5_000_000 }, LEE);
+  await fr.editProspect(db, cascade.id, { stage: "diligence" }, LEE);
+  await fr.editProspect(db, meridian.id, { stage: "meeting" }, LEE);
+  await fr.editProspect(db, ironbridge.id, { stage: "contacted" }, LEE);
+  await fr.editProspect(db, halvorsen.id, { stage: "declined", declineReason: "Paused new venture commitments until 2027" }, LEE);
+  await fr.logActivity(db, cascade.id, { kind: "meeting", summary: "Two hours with their private markets team; asked for loss ratios by vintage and the reserves policy." }, LEE);
+  await fr.logActivity(db, meridian.id, { kind: "call", summary: "Intro call. Fund IV is 60% deployed and wants emerging managers in industrial tech." }, LEE);
+  // A tiny, valid PDF for the demo documents.
+  const pdf = (title: string) => {
+    const text = `BT /F1 18 Tf 72 720 Td (${title.replace(/[()\\]/g, "")}) Tj 0 -28 Td /F1 11 Tf (Fictional demo document.) Tj ET`;
+    const objs = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+      `<< /Length ${text.length} >>\nstream\n${text}\nendstream`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+    let out = "%PDF-1.4\n";
+    const offsets: number[] = [];
+    objs.forEach((o, i) => { offsets.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+    const xref = out.length;
+    out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+    return new TextEncoder().encode(out);
+  };
+  const upload = async (title: string, category: string) => {
+    const d = await fr.uploadDoc(db, raise.id, { name: `${title}.pdf`, bytes: pdf(title) }, { title, category }, LEE);
+    await fr.approveDoc(db, d.id, by);
+    return d;
+  };
+  await upload("Demo Fund III presentation", "deck");
+  await upload("Demo Fund III track record", "track_record");
+  await upload("Limited partnership agreement", "lpa");
+  await upload("Subscription agreement", "subscription");
+  await fr.uploadDoc(db, raise.id, { name: "Fund II 2025 audited financials.pdf", bytes: pdf("Fund II 2025 audited financials") }, { title: "Fund II 2025 audited financials", category: "financials" }, LEE); // waiting for your review
+  await fr.shareDataRoom(db, cascade.id, { draftEmail: false }, LEE, APP);
+  await fr.shareDataRoom(db, meridian.id, { draftEmail: false }, LEE, APP);
+  await fr.draftFromRecords(db, LEE);
+  for (const key of ["firm.overview", "terms.economics", "valuation.policy", "reporting.lp"]) await fr.approveDdqAnswer(db, key, by).catch(() => undefined);
+  const clean = { lists: async () => ({ entries: [], fetchedAt: new Date().toISOString() }) };
+  // The demo's pension is a state (governmental) plan, so it isn't an ERISA benefit plan investor.
+  const onboard = async (prospectId: string, name: string, kind: string, amount: number, basis: string, finish: boolean) => {
+    const inv = await fr.inviteSubscriber(db, raise.id, { prospectId, investorName: name, kind, commitmentUsd: amount }, LEE, APP);
+    const ref = (await subscriptionByToken(root, inv.url.split("/subscribe/")[1]!))!;
+    await fr.subscriptionSubmit(db, ref, {
+      legalName: name, commitmentUsd: amount, accreditedBasis: basis, taxForm: "w9", jurisdiction: "US, Pennsylvania", noticeEmails: inv.subscription.emails.join(","),
+      noOwnerOver25: true, benefitPlan: false, accurate: true, signedName: "Authorized Signatory", sourceOfFunds: "Plan assets",
+    });
+    if (!finish) return inv.subscription.id;
+    await fr.screenSubscriber(db, inv.subscription.id, LEE, clean);
+    await fr.reviewSubscription(db, inv.subscription.id, { kycStatus: "cleared", signedOn: "2026-09-15" }, LEE);
+    await fr.decideSubscription(db, inv.subscription.id, { accept: true }, by);
+    return inv.subscription.id;
+  };
+  const subA = await onboard(allegheny.id, "Allegheny Teachers' Pension Plan", "pension", 15_000_000, "plan", true);
+  const subT = await onboard(threeRivers.id, "Three Rivers Foundation", "endowment_foundation", 8_000_000, "entity_assets", true);
+  await onboard(keystone.id, "Keystone Insurance Mutual", "insurance", 5_000_000, "institution", false); // submitted: waiting for review
+  await fr.addTerm(db, subA, { category: "mfn", text: "Most favored nation rights, per the fund's MFN provisions." }, by);
+  await fr.addTerm(db, subA, { category: "lpac_seat", text: "A seat on the LP advisory committee." }, by);
+  await fr.addTerm(db, subT, { category: "reporting", text: "Quarterly ESG data for each portfolio company." }, by);
+  await fr.addTerm(db, subT, { category: "confidentiality", text: "Disclosure permitted under state public records law." }, by);
+  await fr.draftClosing(db, raise.id, { closingDate: "2026-09-30", subscriptionIds: [subA, subT], note: "First closing" }, LEE);
+  const fund2 = (await lp.overview(db)).funds[0]!;
+  const f2 = await lp.fundView(db, fund2.id);
+  for (const p of f2.investors.filter((i) => i.kind !== "gp").slice(0, 3)) await fr.addLpacMember(db, fund2.id, { partnerId: p.id, representative: `${p.name.split(" ")[0]} delegate`, since: "2024-03-01" }, by);
+  const members = (await fr.lpacView(db, fund2.id)).members;
+  const { consent } = await fr.requestConsent(db, fund2.id, { kind: "conflict", topic: "Fund III investing alongside Fund II in Weldloop's Series A", detail: "Fund III would invest $2M in Weldloop's Series A, in which Fund II takes its pro rata. The round is led and priced by an independent investor, both funds invest on the same terms, and neither fund's investment supports the other's valuation." }, by);
+  await fr.castVote(db, consent.id, { memberId: members[0]!.id, vote: "approve" }, LEE);
+  await fr.logRequest(db, { fundId: fund2.id, fromName: "Keystone Insurance Mutual", category: "tax", subject: "Estimated 2026 taxable income for our planning", receivedOn: "2026-09-10" }, LEE);
+  await fr.logRequest(db, { fundId: fund2.id, fromName: "Three Rivers Foundation", category: "reporting", subject: "Portfolio company headcount by gender for our DEI report", receivedOn: "2026-09-25" }, LEE);
 
   console.log(`\nSeeded "${firm.name}" for ${user.email}.`);
   console.log(`Founder portal for Weldloop (as the founder sees it): ${portal.url}`);

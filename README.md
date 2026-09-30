@@ -2,16 +2,16 @@
 
 An AI-native operating system for venture firms. Any firm signs up,
 describes its fund and mandate, connects the tools it already uses, and
-works in one web app with five modules: **Sourcing**, **Diligence**,
-**Investment Execution**, **Portfolio Management & Value Creation** and **LP
-Reporting**.
+works in one web app with six modules: **Sourcing**, **Diligence**,
+**Investment Execution**, **Portfolio Management & Value Creation**, **LP
+Reporting** and **Fundraising & Investor Relations**.
 
 Underneath, every fact about a company is stored once as a **claim**, with
 its source, date, confidence and the exact characters it came from. Scores,
 diligence flags, memos and LP letters are all queries over that ledger. Each
 firm's data is isolated by Postgres row-level security.
 
-**Built so far:** the ledger, entity resolver and cited extractor; 36
+**Built so far:** the ledger, entity resolver and cited extractor; 37
 connectors; multi-firm workspaces with Google, Microsoft and email sign-in;
 onboarding (firm, fund, mandate, sectors, scoring) with live portfolio
 construction math; connections you set up once and every module reuses;
@@ -38,7 +38,12 @@ reconciled from Mercury or any bank's statement, capital accounts for the
 quarter, year and inception, net IRR and TVPI after fees and carry beside
 gross, quarterly reports after the ILPA templates with a letter that cites
 the books and public sources only, and a private portal for each
-investor); and an approval queue for anything outbound.
+investor); the **Fundraising & IR** module (the LP pipeline with weighted
+coverage of the target, a tracked data room, a DDQ library drafted from the
+firm's records, investor onboarding without an account, closings checked
+against the offering's legal limits that feed LP Reporting's register,
+equalization for later closings, side letters and MFN elections, the LPAC
+and investor requests); and an approval queue for anything outbound.
 **Next:** the Phase 0 gate on the YC 2026 set.
 
 ### How Diligence works
@@ -269,6 +274,74 @@ and Mercury's API reference. The SEC's 2023 private fund adviser rules,
 including the quarterly statement rule, were vacated by the Fifth Circuit
 in June 2024, so the ILPA templates and the LPA set the standard.
 
+### How Fundraising & Investor Relations works
+
+A raise starts from the firm profile's fund (name, target, hard cap, closing
+dates); a partner sets the offering's terms with counsel: the Investment
+Company Act exemption (3(c)(1), a qualifying venture capital fund, or
+3(c)(7)), Regulation D (506(b) or 506(c)), the minimum commitment, whether
+the fund operates as a VCOC, and the LPA's equalization rate.
+
+1. **The pipeline.** Prospective LPs by stage (identified, contacted, first
+   meeting, in diligence, soft-circled, committed, closed, declined), with
+   the ask, soft circle, odds, owner and next step, and every change logged.
+   Coverage of the target is closed commitments plus the weighted pipeline.
+   A decline needs its reason. Prospects come in by hand, from a CSV or CRM
+   export, or from an Affinity list.
+2. **The data room.** Documents are versioned, and a second person reviews
+   each before any investor sees it (for marketing material, that's the
+   Marketing Rule review). Each prospect gets a private, expiring, revocable
+   link; it acknowledges confidentiality first, and every view and download
+   is recorded on its record: the best signal of real interest.
+3. **The DDQ.** A library in the ILPA DDQ 2.0's sections. What the firm's
+   records support is drafted from them with the source named: the firm,
+   team and strategy from the profile, terms from the fund, the IC process,
+   the valuation, reporting and wire controls VC OS runs, and performance
+   only from an approved LP report, net beside gross. A second person
+   approves each answer; only approved answers are exported, and answers
+   over a year old are flagged.
+4. **Subscriptions.** A committed investor gets a private link to the
+   questionnaire (no account, never bank details): its Rule 501(a)
+   accredited basis, qualified purchaser basis for a 3(c)(7) fund, benefit
+   plan and pooled-vehicle status, tax form, FOIA status, and for an entity
+   its 25% owners. The firm screens the investor and its owners against
+   OFAC's lists, checks Parallel Markets where connected, clears KYC (a
+   potential match needs a written reason), records how accreditation was
+   verified (a 506(c) offering needs more than self-certification; SEC
+   staff accept a $200,000 or $1 million minimum investment with written
+   representations), and sends the subscription documents as a DocuSign
+   draft. A partner accepts, or rejects with a reason.
+5. **Closings.** A draft closing is checked against everyone admitted so far
+   plus the newcomers (hard cap, 100 or 250 beneficial owners, $12 million
+   for a qualifying venture fund, qualified purchasers, 506(c) verification,
+   the 25% benefit plan test, pooled investors that may need a look-through)
+   and each investor (KYC, sanctions, signatures). A different person
+   approves it. Approval admits the investors to LP Reporting's register,
+   creating the fund at the first closing, and gives the Form D date (15
+   days after the first sale). At a later closing, equalization
+   (`engines/fund-accounting.ts`) re-splits earlier calls: newcomers pay in
+   their share and their fee from the first closing, with interest at the
+   LPA's rate to earlier investors, who get their excess back (callable
+   again). Capital accounts show the interest on its own line; NAV doesn't
+   move.
+6. **Side letters and MFN.** Negotiated terms are recorded by kind. After the
+   final closing, each MFN holder is offered the electable terms granted to
+   investors with equal or smaller commitments (LPAC seats never), with a
+   window; elected terms join its side letter. Terms that oblige the firm
+   (reporting, excuse rights, confidentiality, tax) are listed to keep.
+7. **Investor relations.** The LP advisory committee: seats, consent
+   requests (conflicts, valuations, extensions), each member's vote, and an
+   outcome checked against a majority of current members. Investor requests
+   are logged with a due date (10 days by default) and flagged when late.
+
+Sources: ILPA DDQ 2.0 and Diversity Metrics Template, Regulation D Rules
+501(a) (as amended in 2020), 503 and 506, the SEC staff's March 12, 2025
+no-action letter on 506(c) verification, Investment Company Act sections
+3(c)(1), 3(c)(7) and 2(a)(51) and the SEC's 2024 qualifying venture capital
+fund adjustment, the Department of Labor's plan asset regulation (the 25%
+test and the VCOC exception), and common LPA and side letter practice for
+equalization and MFN elections.
+
 ## Run the web app
 
 ```bash
@@ -357,6 +430,11 @@ pnpm lp calendar "Demo Fund II" 2026            # reports, K-1s, audit and Form 
 pnpm lp bank "Demo Fund II" --file statement.csv  # match receipts (or --since 2026-01-01 for Mercury)
 pnpm lp report "Demo Fund II" 2026-Q3           # prepare a report for a second person to approve
 pnpm lp export <report id> capital-accounts     # or fees-expenses, performance, investments
+pnpm fundraising                                # every raise: target, closed, weighted pipeline, coverage
+pnpm fundraising pipeline "Demo Fund III"       # prospects by stage with next steps and data room activity
+pnpm fundraising investors "Demo Fund III"      # subscriptions and what each still needs before a closing
+pnpm fundraising ddq --out ddq.md               # the approved DDQ answers as a document
+pnpm fundraising requests                       # investor requests, oldest due first
 ```
 
 For production, `docker compose up -d` and set
@@ -388,6 +466,9 @@ For production, `docker compose up -d` and set
 | `connectors/accounting.ts`, `portfolio-platforms.ts` | QuickBooks Online and Xero (OAuth, monthly reports), Standard Metrics and Visible. |
 | `engines/fund-accounting.ts` | Allocation to the cent, management fees by day count with step-down and offsets, the carry waterfall (whole of fund or deal by deal, hurdle, catch-up, escrow), capital accounts, accrued carry and clawback, net returns, the reporting calendar. Unit-tested. |
 | `modules/lp/` | Funds, investors and register imports (`funds.ts`), calls, receipts, bank reconciliation, distributions and expenses (`capital.ts`), the books and statements (`books.ts`), quarterly reports, the cited letter and exports (`reports.ts`), and the investor portal (`portal.ts`). `pnpm lp` on the command line. |
+| `engines/fundraising.ts` | The weighted pipeline, the offering's limits (investor counts, qualified purchasers, 506(c) verification, the 25% ERISA test, hard cap, look-through) and MFN eligibility. Unit-tested. |
+| `modules/fundraising/` | Raises and the pipeline (`pipeline.ts`), the data room (`dataroom.ts`), the DDQ library (`ddq.ts`), subscriptions and onboarding (`subscriptions.ts`), closings and equalization (`closings.ts`), side letters and MFN (`sideletters.ts`), the LPAC and investor requests (`ir.ts`). `pnpm fundraising` on the command line. |
+| `connectors/parallel.ts` | Parallel Markets: accreditation and KYC status, read only. |
 | `connectors/bank.ts` | Mercury (read only) and bank statement CSVs. No payment or transfer function exists. |
 | `connectors/docusign.ts`, `carta.ts`, `ofac.ts` | Signature status and draft envelopes, cap tables from Carta or any export, and Treasury's sanctions lists. |
 | `modules/outbox/` | The approval queue for anything that leaves VC OS. Agents queue; a person approves; then it runs once. |
@@ -440,6 +521,13 @@ but it was written alongside the resolver, so treat it as a smoke test.
   figures are accrual-basis income statement totals and bank balances;
   capital expenditure and working capital aren't in net burn unless the
   company reports burn itself.
+- Fundraising flags the offering's legal limits; it doesn't replace fund
+  counsel. Parallel Markets' paths follow its public documentation and sit
+  in `PARALLEL_PATHS` (check them with `pnpm connectors --check`). Data room
+  files aren't watermarked, and the subscription agreement itself is signed
+  in DocuSign, not in VC OS. Equalization covers capital, the newcomer's
+  fee and interest; LPAs that also re-allocate earlier distributions or
+  realized gains need an adjustment by hand.
 - Portfolio performance is gross, on invested capital; net returns to LPs
   (after fees, expenses and carry) are in LP Reporting.
 - Term sheets are entered as fields; reading one from a PDF is not built.

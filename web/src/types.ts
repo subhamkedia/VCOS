@@ -495,3 +495,62 @@ export interface InvestorPortal {
   distributions: { number: number; paidOn: string; kind: string; company: string | null; status: string; gross: number; carry: number; net: number }[];
   taxDocuments: { year: number; kind: string; status: string; deliveredOn: string | null }[];
 }
+
+// ---------------------------------------------------------------------------
+// Fundraising & Investor Relations
+// ---------------------------------------------------------------------------
+
+export type FrLabels = Record<"stages" | "activityKinds" | "docCategories" | "docStatus" | "exemptions" | "offerings" | "verification" | "subscriptionStatus" | "kycStatus" | "taxForms" | "accreditedBases" | "qpBases" | "closingStatus" | "termCategories" | "electionStatus" | "consentKinds" | "consentStatus" | "votes" | "requestCategories" | "requestStatus", Record<string, string>>;
+export type ProspectStage = "identified" | "contacted" | "meeting" | "diligence" | "soft_circle" | "committed" | "closed" | "declined";
+export interface RaiseSummary { id: string; name: string; status: "open" | "closed"; targetUsd: number; hardCapUsd: number | null; closedUsd: number; weightedUsd: number; coverage: number | null; prospects: number; followUpsDue: number }
+export interface Raise {
+  id: string; name: string; fund_id: string | null; target_usd: number; hard_cap_usd: number | null; min_commitment_usd: number | null; exemption: string; offering: string; vcoc: boolean;
+  equalization_rate_pct: number; first_close_target: string | null; final_close_deadline: string | null; status: "open" | "closed";
+}
+export interface Prospect {
+  id: string; name: string; kind: string; contact_name: string | null; emails: string[]; jurisdiction: string | null; stage: ProspectStage; probability: number | null;
+  ask_usd: number | null; soft_circle_usd: number | null; committed_usd: number | null; source: string | null; owner: string | null; next_step: string | null; next_step_on: string | null;
+  decline_reason: string | null; overdue: boolean; engagement: { views: number; downloads: number; documents: number; lastViewedAt: string | null } | null;
+  dataRoom: { id: string; expires_at: string; acknowledged_at: string | null; last_used_at: string | null } | null;
+}
+export interface Activity { id: string; prospect_id: string; occurred_on: string; kind: string; summary: string; actor: string }
+export interface DataRoomDoc { id: string; title: string; category: string; version: number; file_name: string; size_bytes: number; marketing: boolean; status: "draft" | "approved" | "archived"; uploaded_by: string; approved_by: string | null; created_at: string }
+export interface Subscription {
+  id: string; prospect_id: string | null; investor_name: string; kind: string; natural_person: boolean; commitment_usd: number | null; status: "invited" | "submitted" | "accepted" | "rejected" | "withdrawn" | "admitted";
+  accredited_basis: string | null; qualified_purchaser: boolean; qp_basis: string | null; benefit_plan: boolean; pooled_vehicle: boolean; verification: string | null; tax_form: string | null; jurisdiction: string | null;
+  emails: string[]; beneficial_owners: { name: string; pct: number }[]; kyc_status: "pending" | "cleared" | "flagged"; kyc_note: string | null;
+  sanctions: { checkedAt: string; names: string[]; hits: { name: string; match: string; score: number }[] } | null; signed_on: string | null; closing_id: string | null;
+  rejected_reason: string | null; open: string[];
+}
+export interface ClosingRow { id: string; number: number; closing_date: string; status: "draft" | "approved" | "cancelled"; created_by: string; approved_by: string | null; note: string | null }
+export interface OfferingIssue { key: string; severity: "block" | "warn"; investor?: string; message: string }
+export interface RaiseView {
+  raise: Raise; labels: FrLabels;
+  pipeline: { target: number; closed: number; committed: number; softCircled: number; weighted: number; coverage: number | null; remaining: number; byStage: { stage: ProspectStage; count: number; amount: number; weighted: number }[] };
+  prospects: Prospect[]; activity: Activity[]; documents: DataRoomDoc[]; dataRoomViews: { prospect_id: string; title: string; action: string; viewed_at: string }[];
+  subscriptions: Subscription[]; closings: ClosingRow[]; admitted: { investors: number; commitments: number }; issues: OfferingIssue[];
+  sources: { id: string; name: string; summary: string; manual: boolean; ready: boolean }[];
+}
+export interface ClosingView {
+  closing: ClosingRow; investors: { id: string; name: string; commitment: number | null; kind: string }[]; issues: OfferingIssue[];
+  perInvestor: { subscriptionId: string; investor: string; open: string[] }[]; blocked: boolean;
+  equalization: { id?: string; partner_name?: string; capital_usd: number; fee_usd: number; interest_usd: number; detail: string[]; settled_on?: string | null }[];
+}
+export interface DdqQuestion { key: string; section: string; question: string; stale: boolean; answer: { answer: string; sources: string[]; status: "draft" | "approved"; updated_by: string; approved_by: string | null; approved_at: string | null } | null }
+export interface SideLetterView {
+  terms: { id: string; subscription_id: string; investor_name?: string; category: string; text: string; electable: boolean; granted_on: string; elected_from: string | null }[];
+  elections: { id: string; subscription_id: string; investor: string; status: "offered" | "elected" | "declined"; window_ends: string; term: { category: string; text: string } | null }[];
+  obligations: { investor?: string; category: string; text: string; since: string }[];
+}
+export interface LpacView {
+  members: { id: string; partner_id: string; partner_name?: string; representative: string; email: string | null; since: string; until: string | null }[];
+  consents: { id: string; kind: string; topic: string; detail: string; requested_on: string; due_on: string | null; status: string; decided_on: string | null; votes: { member_id: string; vote: string }[]; tally: { members: number; approve: number; decline: number; abstain: number; pending: number; majority: boolean } }[];
+  investors: { id: string; name: string }[];
+}
+export interface InvestorRequest { id: string; fund_id: string | null; from_name: string; category: string; subject: string; detail: string | null; received_on: string; due_on: string | null; status: "open" | "answered" | "closed"; answer: string | null; overdue: boolean }
+export interface DataRoomPublic { firm: string; raise: string; investor: string; acknowledged: boolean; notice: string; documents: { id: string; title: string; category: string; version: number; fileName: string; sizeBytes: number; updatedAt: string | null }[] }
+export interface SubscribePublic {
+  firm: string; raise: string; investor: string; status: string; naturalPerson: boolean; commitmentUsd: number | null; minCommitmentUsd: number | null;
+  needsQualifiedPurchaser: boolean; generalSolicitation: boolean; accreditedBases: { id: string; label: string }[]; qpBases: { id: string; label: string }[];
+  taxForms: { id: string; label: string }[]; documents: { title: string; category: string }[]; answers: Record<string, unknown>;
+}

@@ -2,9 +2,9 @@
 
 An AI-native operating system for venture firms: one web app that any firm
 signs up to, describes its fund and mandate, connects the tools it uses, and
-works in. One claim ledger per firm feeds five modules: Sourcing, Diligence
+works in. One claim ledger per firm feeds six modules: Sourcing, Diligence
 (including the IC memo), Investment Execution, Portfolio Management & Value
-Creation, and LP Reporting. Read this file at the start of every
+Creation, LP Reporting, and Fundraising & Investor Relations. Read this file at the start of every
 session. It overrides your defaults.
 
 ## The six principles (do not break these)
@@ -101,8 +101,8 @@ engines/     deterministic math (portfolio construction, round math, cap
              metrics, valuation marks, fund accounting: fees, carry,
              capital accounts, net returns)
 modules/     workflows as plain functions: auth, firm, connections, sourcing,
-             meetings, diligence, execution, portfolio, lp, companies,
-             outbox; catalog.ts lists the five product modules
+             meetings, diligence, execution, portfolio, lp, fundraising,
+             companies, outbox; catalog.ts lists the product modules
 server/      Hono API: thin routes over modules (session, role, JSON)
 web/         React + Vite app; talks only to /api
 evals/       one folder per agent: labeled data + runner
@@ -138,7 +138,10 @@ value-creation work, proposes marks and health ratings, and triages
 meetings; and in LP Reporting keeps the investor register, prepares calls,
 distributions and reports, records expenses and reconciles the bank, while
 partners set up funds and terms and approve calls, distributions and
-reports (never ones they prepared). IC votes are open only to the meeting's members, and only
+reports (never ones they prepared); and in Fundraising analysts keep the
+pipeline, the data room, the DDQ and subscriptions while partners set up
+raises, approve documents and DDQ answers (never their own), accept
+subscriptions, approve closings, grant side letter terms and run the LPAC. IC votes are open only to the meeting's members, and only
 its chair moves it on. Check with `requireAction` in modules/auth, and
 return 403 from the API, never hide the check in the UI alone.
 
@@ -162,18 +165,24 @@ board meetings; value creation) and the LP Reporting module (funds and
 investors, capital calls and distributions approved by a second person with
 notices as outbox drafts, bank reconciliation, capital accounts, net returns
 after fees and carry beside gross, ILPA-style quarterly reports whose letter
-cites the books and public-scope claims only, and the investor portal). The
-gate is next.
+cites the books and public-scope claims only, and the investor portal) and
+the Fundraising & IR module (the LP pipeline, a reviewed and tracked data
+room, the DDQ library, investor onboarding, closings checked against the
+offering's limits that feed LP Reporting's register, equalization, side
+letters and MFN, the LPAC and investor requests). Compliance as a shared
+layer and Exits & Liquidity in Portfolio are next; then the gate.
 
-The founder portal and the investor portal are the only places outside
-sign-in: a hashed, expiring, revocable token finds the firm (in
+The founder portal, the investor portal, the data room and the
+subscription questionnaire are the only places outside sign-in: a hashed, expiring, revocable token finds the firm (in
 `ledger/platform.ts`, root Db), and everything after runs on that firm's
 scoped Db. The founder portal shows a company only what it reports; the
 investor portal shows one investor its own account and approved reports,
-never another investor's.
+never another investor's; the data room shows a prospect only reviewed
+documents after it acknowledges confidentiality; the questionnaire never
+asks for bank details.
 
 Connectors are connected once per firm and reused by every module: a
 connector declares what it can do (`sourcing`, `research`, `meetings`,
-`execution`, `portfolio`, `lp`) in
+`execution`, `portfolio`, `lp`, `fundraising`) in
 `connectors/registry.ts`. Never ask a firm to connect the same tool again
 for a new module.
