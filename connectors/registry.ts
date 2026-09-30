@@ -26,6 +26,7 @@ import { cartaCheck } from "./carta.js";
 import { accountingCheck } from "./accounting.js";
 import { standardMetricsCheck, standardMetricsFor, visibleCheck, visibleFor } from "./portfolio-platforms.js";
 import { ofacCheck } from "./ofac.js";
+import { mercuryCheck } from "./bank.js";
 import { outlookCheck, outlookSearch } from "./outlook.js";
 import { emailToRecord } from "./email.js";
 import { driveCheck } from "./gdrive.js";
@@ -42,7 +43,7 @@ import { discoverFromPortfolioPage, ORG_TYPES, type OrgType } from "./portfolio-
  * the Sourcing screen and `pnpm connectors` all render from this list.
  */
 
-export type Category = "data vendor" | "public" | "crm" | "email" | "documents" | "meetings" | "closing" | "portfolio";
+export type Category = "data vendor" | "public" | "crm" | "email" | "documents" | "meetings" | "closing" | "portfolio" | "fund";
 
 /** What diligence knows about the company it's researching. */
 export interface ResearchTarget extends CompanyRef {
@@ -127,6 +128,8 @@ export interface ConnectorInfo {
   execution?: { summary: string };
   /** Used by Portfolio monitoring: KPIs and founder updates. */
   portfolio?: PortfolioSpec;
+  /** Used by LP Reporting: the fund's bank, fund administrators, LP notices. */
+  lp?: { summary: string };
   /** OAuth products that share one account consent (Gmail, Drive, Calendar, Meet). */
   product?: string;
   ingest: string;
@@ -342,6 +345,7 @@ export const CONNECTORS: ConnectorInfo[] = [
       summary: "Founder updates from the company's domain", needsDomain: true,
       run: async (c) => (await gmailSearch(`from:${c.domain} (update OR monthly OR quarterly OR investors OR KPIs OR board) newer_than:120d`, { max: 25 })).map((m) => emailToRecord(m, { company: c.name, companyDomain: c.domain })),
     },
+    lp: { summary: "Capital call and distribution notices to LPs, as drafts you send" },
     ingest: 'pnpm ingest gmail "<gmail query>"', check: gmailCheck,
   },
   {
@@ -365,6 +369,7 @@ export const CONNECTORS: ConnectorInfo[] = [
       summary: "Founder updates from the company's domain", needsDomain: true,
       run: async (c) => (await outlookSearch(`from:${c.domain} update`, { max: 25 })).map((m) => emailToRecord(m, { company: c.name, companyDomain: c.domain })),
     },
+    lp: { summary: "Capital call and distribution notices to LPs, as drafts you send" },
     ingest: 'pnpm ingest outlook "<search>"', check: outlookCheck,
   },
 
@@ -514,6 +519,31 @@ export const CONNECTORS: ConnectorInfo[] = [
     ingest: "Portfolio → company → Refresh numbers", check: () => visibleCheck(),
     portfolio: { summary: "Metrics founders report in Visible", run: (c) => visibleFor(c) },
   },
+
+  // --- Fund operations ------------------------------------------------------------
+  // Used by LP Reporting. Read only: VC OS reconciles money, never moves it.
+  {
+    id: "mercury", name: "Mercury", category: "fund", scope: "confidential",
+    description: "The fund's bank account at Mercury, read only: incoming capital call wires and outgoing distributions, matched to each LP's line. Use a read-only API token.",
+    auth: { kind: "api_key", fields: [key("mercuryApiToken", "Read-only API token", "Mercury → Settings → API tokens → Read only")] },
+    docsUrl: "https://docs.mercury.com/reference/getaccount",
+    ingest: "LP Reporting → Calls → Sync the bank", check: () => mercuryCheck(),
+    lp: { summary: "Capital call receipts and distributions, reconciled" },
+  },
+  {
+    id: "bank-csv", name: "Bank statements", category: "fund", scope: "confidential", manual: true,
+    description: "A statement export (CSV) from any bank: First Citizens (SVB), JPMorgan, Bank of America and others. Receipts are matched to capital call lines the same way.",
+    auth: { kind: "none" },
+    ingest: "LP Reporting → Calls → Upload a statement",
+    lp: { summary: "Reconcile receipts from any bank's CSV export" },
+  },
+  {
+    id: "fund-admin-csv", name: "Fund administrator exports", category: "fund", scope: "confidential", manual: true,
+    description: "Your LP register from Carta, Juniper Square, AngelList or a spreadsheet (CSV): names, commitments, closings, contacts. Their APIs aren't open to firms, so an export is the way in.",
+    auth: { kind: "none" },
+    ingest: "LP Reporting → Investors → Import",
+    lp: { summary: "Import the LP register from your fund administrator" },
+  },
 ];
 
 export function getConnector(id: string): ConnectorInfo {
@@ -556,4 +586,5 @@ export const ENV_NAMES: Record<ConfigKey, string> = {
   quickbooksClientId: "QUICKBOOKS_CLIENT_ID", quickbooksClientSecret: "QUICKBOOKS_CLIENT_SECRET", quickbooksEnvironment: "QUICKBOOKS_ENVIRONMENT",
   xeroClientId: "XERO_CLIENT_ID", xeroClientSecret: "XERO_CLIENT_SECRET",
   standardMetricsClientId: "STANDARD_METRICS_CLIENT_ID", standardMetricsClientSecret: "STANDARD_METRICS_CLIENT_SECRET", visibleApiToken: "VISIBLE_API_TOKEN",
+  mercuryApiToken: "MERCURY_API_TOKEN",
 };

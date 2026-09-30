@@ -62,6 +62,9 @@ export const config = {
   standardMetricsClientSecret: env("STANDARD_METRICS_CLIENT_SECRET"),
   visibleApiToken: env("VISIBLE_API_TOKEN"),
 
+  // The fund's bank, read only, for reconciling capital calls and distributions
+  mercuryApiToken: env("MERCURY_API_TOKEN"),
+
   // Meeting notetakers (API keys belong to one firm)
   granolaApiKey: env("GRANOLA_API_KEY"),
   firefliesApiKey: env("FIREFLIES_API_KEY"),

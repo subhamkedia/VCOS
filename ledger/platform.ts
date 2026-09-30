@@ -305,6 +305,25 @@ export async function portalLinkByToken(root: Db, token: string): Promise<Portal
   return r ? { id: r.id, firmId: r.firm_id, companyId: r.company_id } : null;
 }
 
+export interface LpPortalRef {
+  id: string;
+  firmId: string;
+  partnerId: string;
+}
+
+/** An investor's live portal link by its token (only the hash is stored). */
+export async function lpPortalByToken(root: Db, token: string): Promise<LpPortalRef | null> {
+  if (!token || token.length < 20) return null;
+  const { rows } = await root.query<{ id: string; firm_id: string; partner_id: string }>(
+    `update lp_portal_links set last_used_at = now()
+      where token_hash = $1 and revoked_at is null and expires_at > now()
+      returning id, firm_id, partner_id`,
+    [sha256(token)],
+  );
+  const r = rows[0];
+  return r ? { id: r.id, firmId: r.firm_id, partnerId: r.partner_id } : null;
+}
+
 /** The accounting OAuth flow a portal link started. Single use, within fifteen minutes. */
 export async function takePortalOAuth(root: Db, state: string): Promise<(PortalRef & { provider: "quickbooks" | "xero"; verifier: string }) | null> {
   const { rows } = await root.query<{ id: string; firm_id: string; company_id: string; oauth_provider: "quickbooks" | "xero"; oauth_verifier: string }>(

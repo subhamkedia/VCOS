@@ -4,7 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import { scopedDb, type Db } from "../lib/db.js";
 import type { Llm } from "../lib/llm.js";
 import type { Mailer } from "../lib/mailer.js";
-import { endSession, portalLinkByToken, readSession, removeMember, renameFirm, switchFirm, takePortalOAuth, team, SESSION_DAYS, ROLES, type Role, type SessionInfo } from "../ledger/platform.js";
+import { endSession, lpPortalByToken, portalLinkByToken, readSession, removeMember, renameFirm, switchFirm, takePortalOAuth, team, SESSION_DAYS, ROLES, type Role, type SessionInfo } from "../ledger/platform.js";
 import * as auth from "../modules/auth/index.js";
 import * as connections from "../modules/connections/index.js";
 import * as sourcing from "../modules/sourcing/index.js";
@@ -14,6 +14,7 @@ import * as meetings from "../modules/meetings/index.js";
 import * as diligence from "../modules/diligence/index.js";
 import * as execution from "../modules/execution/index.js";
 import * as portfolio from "../modules/portfolio/index.js";
+import * as lp from "../modules/lp/index.js";
 import type { MeetingStatus } from "../ledger/meetings.js";
 import type { DealStage } from "../ledger/diligence.js";
 import { checkProfile, construction, getProfile, profileHistory, profileOptions, saveProfile, ProfileInvalid } from "../modules/firm/profile.js";
@@ -43,6 +44,8 @@ type Env = { Variables: { session: SessionInfo; db: Db; role: Role; token: strin
 
 const COOKIE = "vcos_session";
 const param = (c: Context<Env>, name: string) => c.req.param(name) ?? "";
+const csvResponse = (c: Context, out: { filename: string; text: string }) =>
+  c.body(out.text, 200, { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${out.filename.replace(/[^A-Za-z0-9._-]/g, "_")}"`, "Cache-Control": "no-store" });
 
 export function createApp(deps: AppDeps) {
   const { root, mailer, appUrl, llm } = deps;
@@ -55,7 +58,7 @@ export function createApp(deps: AppDeps) {
   app.onError((err, c) => {
     if (err instanceof ProfileInvalid) return c.json({ error: err.message, errors: err.errors }, 422);
     if (err instanceof auth.Forbidden) return c.json({ error: err.message }, 403);
-    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid || err instanceof execution.ExecutionInvalid || err instanceof portfolio.PortfolioInvalid) {
+    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid || err instanceof execution.ExecutionInvalid || err instanceof portfolio.PortfolioInvalid || err instanceof lp.LpInvalid) {
       return c.json({ error: err.message }, /^No such/.test(err.message) ? 404 : 400);
     }
     const msg = err.message || "Something went wrong.";
@@ -163,6 +166,27 @@ export function createApp(deps: AppDeps) {
     } catch (err) {
       return c.redirect(`/portal/connected?${new URLSearchParams({ error: (err as Error).message })}`);
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // Investor portal (no session: the token finds the firm and the investor).
+  // Shows one investor its own statements, notices, tax documents and the
+  // fund's approved reports; never another investor's account.
+  // -------------------------------------------------------------------------
+
+  const investorRef = async (c: Context) => {
+    const ref = await lpPortalByToken(root, c.req.param("token") ?? "");
+    if (!ref) throw new lp.LpInvalid("No such link: it may have expired. Ask the fund for a new one.");
+    return ref;
+  };
+  app.get("/api/investor/:token", async (c) => {
+    const ref = await investorRef(c);
+    return c.json(await lp.lpPortalView(scopedDb(root, ref.firmId), ref));
+  });
+  app.get("/api/investor/:token/reports/:id/statement.csv", async (c) => {
+    const ref = await investorRef(c);
+    const out = await lp.lpPortalStatementCsv(scopedDb(root, ref.firmId), ref, c.req.param("id"));
+    return csvResponse(c, out);
   });
 
   app.post("/api/auth/logout", async (c) => {
@@ -518,6 +542,83 @@ export function createApp(deps: AppDeps) {
     return c.json({ ok: true });
   });
   firm.post("/portfolio/initiatives/:id/intro", allow("queue"), async (c) => c.json(await portfolio.queueIntro(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+
+  // LP Reporting. Analysts keep the investor register, prepare calls,
+  // distributions and reports, record expenses and reconcile the bank;
+  // partners set up funds and their terms, and approve calls, distributions
+  // and reports (never ones they prepared). Nothing here moves money or
+  // sends: notices are drafts in the approval outbox.
+  const csvUpload = async (c: Context<Env>) => {
+    const body = await c.req.parseBody();
+    const file = body.file;
+    if (!(file instanceof File)) throw new lp.LpInvalid("Attach a CSV file.");
+    if (!/\.(csv|txt)$/i.test(file.name)) throw new lp.LpInvalid("Export it as CSV first.");
+    return { name: file.name, text: await file.text() };
+  };
+  const day = (c: Context<Env>) => (/^\d{4}-\d{2}-\d{2}$/.test(c.req.query("asOf") ?? "") ? c.req.query("asOf")! : undefined);
+  firm.get("/lp", async (c) => c.json(await lp.overview(c.get("db"), day(c))));
+  firm.post("/lp/funds", allow("decide_deals"), async (c) => c.json(await lp.createFund(c.get("db"), await c.req.json(), who(c)), 201));
+  firm.get("/lp/funds/:id", async (c) => c.json(await lp.fundView(c.get("db"), param(c, "id"), day(c))));
+  firm.put("/lp/funds/:id/terms", allow("decide_deals"), async (c) => c.json(await lp.setTerms(c.get("db"), param(c, "id"), await c.req.json(), who(c))));
+  firm.post("/lp/funds/:id/investors", allow("work_deals"), async (c) => c.json(await lp.addPartner(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/lp/funds/:id/investors/uploads", uploadLimit, allow("work_deals"), async (c) => c.json(await lp.importPartnersCsv(c.get("db"), param(c, "id"), await csvUpload(c), who(c)), 201));
+  firm.patch("/lp/investors/:id", allow("work_deals"), async (c) => {
+    await lp.editPartner(c.get("db"), param(c, "id"), await c.req.json(), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/lp/investors/:id/portal", allow("work_deals"), async (c) => c.json(await lp.createLpPortalLink(c.get("db"), param(c, "id"), who(c), appUrl), 201));
+  firm.post("/lp/investors/:id/portal/revoke", allow("work_deals"), async (c) => c.json(await lp.revokeLpPortal(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/lp/funds/:id/calls/preview", allow("work_deals"), async (c) => c.json(await lp.previewCall(c.get("db"), param(c, "id"), await c.req.json())));
+  firm.post("/lp/funds/:id/calls", allow("work_deals"), async (c) => c.json(await lp.draftCall(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/lp/calls/:id/approve", allow("decide_deals"), async (c) => c.json(await lp.approveCall(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/lp/calls/:id/cancel", allow("decide_deals"), async (c) => {
+    await lp.cancelCall(c.get("db"), param(c, "id"), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/lp/calls/:id/notices", allow("queue"), async (c) => c.json(await lp.queueCallNotices(c.get("db"), param(c, "id"), who(c)), 201));
+  firm.post("/lp/call-items/:id/receipt", allow("work_deals"), async (c) => {
+    await lp.receive(c.get("db"), param(c, "id"), await c.req.json(), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/lp/bank/:id/match", allow("work_deals"), async (c) => {
+    const b = await c.req.json<{ itemId?: string }>();
+    await lp.matchReceipt(c.get("db"), param(c, "id"), String(b.itemId ?? ""), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/lp/funds/:id/bank/sync", allow("work_deals"), async (c) => c.json(await lp.syncBank(c.get("db"), param(c, "id"), await c.req.json(), who(c))));
+  firm.post("/lp/funds/:id/bank/uploads", uploadLimit, allow("work_deals"), async (c) => c.json(await lp.importBankCsv(c.get("db"), param(c, "id"), await csvUpload(c), who(c)), 201));
+  firm.post("/lp/funds/:id/distributions/preview", allow("work_deals"), async (c) => c.json(await lp.previewDistribution(c.get("db"), param(c, "id"), await c.req.json())));
+  firm.post("/lp/funds/:id/distributions", allow("work_deals"), async (c) => c.json(await lp.draftDistribution(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/lp/distributions/:id/approve", allow("decide_deals"), async (c) => c.json(await lp.approveDistribution(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/lp/distributions/:id/paid", allow("decide_deals"), async (c) => {
+    await lp.markDistributionPaid(c.get("db"), param(c, "id"), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/lp/distributions/:id/cancel", allow("decide_deals"), async (c) => {
+    await lp.cancelDistribution(c.get("db"), param(c, "id"), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/lp/funds/:id/expenses", allow("work_deals"), async (c) => c.json(await lp.addExpense(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/lp/funds/:id/tax-documents", allow("work_deals"), async (c) => {
+    await lp.setTaxDoc(c.get("db"), param(c, "id"), await c.req.json(), who(c));
+    return c.json({ ok: true }, 201);
+  });
+  firm.post("/lp/funds/:id/reports", allow("work_deals"), async (c) => c.json(await lp.prepareReport(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.get("/lp/reports/:id", async (c) => c.json(await lp.report(c.get("db"), param(c, "id"))));
+  firm.get("/lp/reports/:id/export/:kind", async (c) => {
+    const kind = param(c, "kind").replace(/\.csv$/, "") as lp.ExportKind;
+    if (!["capital-accounts", "fees-expenses", "performance", "investments"].includes(kind)) return c.json({ error: "Unknown export." }, 404);
+    return csvResponse(c, lp.exportCsv(await lp.report(c.get("db"), param(c, "id")), kind));
+  });
+  firm.post("/lp/reports/:id/approve", allow("decide_deals"), async (c) => {
+    await lp.approveReport(c.get("db"), param(c, "id"), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/lp/reports/:id/withdraw", allow("decide_deals"), async (c) => {
+    await lp.withdrawReport(c.get("db"), param(c, "id"), who(c));
+    return c.json({ ok: true });
+  });
+  firm.post("/lp/reports/:id/notices", allow("queue"), async (c) => c.json(await lp.queueReportNotices(c.get("db"), param(c, "id"), who(c), appUrl), 201));
 
   // Approvals
   firm.get("/outbox", async (c) => c.json(await outbox.pending(c.get("db"), (c.req.query("status") as never) || "pending")));

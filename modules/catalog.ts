@@ -63,14 +63,15 @@ export const MODULES: ModuleInfo[] = [
     reads: ["Investment records from Execution", "The company's books and founder updates", "Fund size and reserves"],
   },
   {
-    id: "lp-reporting", name: "LP Reporting", path: "/lp-reporting", status: "next", phase: 4,
-    summary: "Quarterly reports and capital account statements in ILPA formats, with numbers from code.",
+    id: "lp-reporting", name: "LP Reporting", path: "/lp-reporting", status: "live", phase: 4,
+    summary: "Your investors, capital calls and distributions, capital accounts, and quarterly reports in ILPA formats, with every number computed in code.",
     does: [
-      "ILPA reporting and performance templates",
-      "TVPI, DPI and IRR computed by tested code, never by a model",
-      "Portfolio commentary drafted from cited claims, shareable scope only",
-      "Every LP-facing document goes out only after approval",
+      "Investor register imported from your fund administrator, with the GP's commitment, closings, tax and investor status",
+      "Capital calls and distributions allocated to the cent, the carry waterfall applied, approved by a second person, notices drafted for you to send",
+      "Receipts reconciled from Mercury or any bank's statement export; VC OS never moves money",
+      "Capital accounts for the quarter, year and inception to date; net IRR, TVPI and DPI after fees and carry beside gross",
+      "Quarterly reports after the ILPA templates, a letter that cites the books and public sources only, and a private portal for each investor",
     ],
-    reads: ["Fund structure and commitments", "Portfolio valuations", "Public-scope claims only"],
+    reads: ["Fund terms from your firm profile", "Investments from Execution", "Marks and realizations from Portfolio", "Public-scope claims only"],
   },
 ];

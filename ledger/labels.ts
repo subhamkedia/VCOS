@@ -114,6 +114,29 @@ export function formatValue(predicate: string, value: unknown): string {
 }
 
 /** The whole vocabulary, for the web app. */
+/** LP Reporting's enums: investor types, ILPA expense categories, statuses. */
+export const LP_LABELS = {
+  partnerKinds: {
+    pension: "Pension plan", endowment_foundation: "Endowment or foundation", insurance: "Insurance company", fund_of_funds: "Fund of funds",
+    family_office: "Family office", individual: "Individual", corporate: "Corporation", sovereign: "Sovereign wealth fund", gp: "General partner commitment", other: "Other",
+  } as Record<string, string>,
+  // The ILPA Reporting Template's partnership expense lines (v2.0).
+  expenseCategories: {
+    organizational: "Organizational costs", legal: "Legal", audit_tax: "Audit and tax", fund_admin: "Fund administration",
+    insurance: "Insurance", bank_interest: "Credit facility interest and fees", broken_deal: "Broken deal costs", other: "Other partnership expenses",
+  } as Record<string, string>,
+  taxStatus: { taxable: "Taxable", tax_exempt: "Tax-exempt", foreign: "Non-US" } as Record<string, string>,
+  investorStatus: { accredited: "Accredited investor", qualified_client: "Qualified client", qualified_purchaser: "Qualified purchaser" } as Record<string, string>,
+  taxDocKinds: { k1: "Schedule K-1", k3: "Schedule K-3", estimate: "Tax estimate" } as Record<string, string>,
+  taxDocStatus: { pending: "Pending", delivered: "Delivered" } as Record<string, string>,
+  callStatus: { draft: "Draft", approved: "Approved", cancelled: "Cancelled" } as Record<string, string>,
+  distributionStatus: { draft: "Draft", approved: "Approved", paid: "Paid", cancelled: "Cancelled" } as Record<string, string>,
+  distributionKinds: { cash: "Cash", in_kind: "In kind (shares)" } as Record<string, string>,
+  reportStatus: { draft: "Draft", approved: "Approved", withdrawn: "Withdrawn" } as Record<string, string>,
+  waterfalls: { european: "Whole of fund (European)", american: "Deal by deal (American)" } as Record<string, string>,
+  feeBasis: { committed: "Committed capital", invested: "Invested capital" } as Record<string, string>,
+};
+
 export function vocabulary(sourceNames: Record<string, string> = {}) {
   return {
     predicates: Object.fromEntries([...PREDICATES.keys()].map((id) => [id, { label: predicateLabel(id), description: getPredicate(id).description, kind: getPredicate(id).kind }])),
@@ -128,6 +151,7 @@ export function vocabulary(sourceNames: Record<string, string> = {}) {
     enumValues: ENUM_VALUE_LABELS,
     fitCriteria: FIT_CRITERION_LABELS,
     severities: SEVERITY_LABELS,
+    lp: LP_LABELS,
   };
 }
 

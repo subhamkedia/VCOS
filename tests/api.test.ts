@@ -295,4 +295,45 @@ describe("limits", () => {
     expect((await pat.post(`/api/portfolio/companies/${companyId}/portal/revoke`)).status).toBe(200);
     expect((await app.request(`/api/portal/${token}`)).status).toBe(404);
   });
+  it("runs LP reporting over HTTP: partners set up and approve, analysts prepare, investors read through their link", async () => {
+    const pat = await signIn("pat@alpha.example");
+    await pat.post("/api/firms", { name: "Alpha Ventures" });
+    const firmId = (await readSession(root, pat.cookie.split("=")[1]))!.firm!.id;
+    const ana = await signIn("ana@alpha.example");
+    await addMembership(root, firmId, (await readSession(root, ana.cookie.split("=")[1]))!.user.id, "analyst");
+    await ana.post("/api/firms/switch", { firmId });
+    const p = await starterProfile("Alpha Ventures");
+    expect((await pat.put("/api/profile", { ...p, fund: { ...p.fund, name: "Alpha Fund I", firstCloseDate: "2025-01-15", managementFeePct: 2, carryPct: 20 } })).status).toBe(200);
+    expect((await ana.post("/api/lp/funds", {})).status).toBe(403);
+    const fund = await (await pat.post("/api/lp/funds", {})).json();
+    expect(fund.name).toBe("Alpha Fund I");
+    for (const [name, commitmentUsd] of [["Harbor Pension Plan", 8e6], ["Aster Family Office", 2e6]] as const) {
+      expect((await ana.post(`/api/lp/funds/${fund.id}/investors`, { name, kind: "pension", commitmentUsd, emails: "ir@lp.example" })).status).toBe(201);
+    }
+    const preview = await (await ana.post(`/api/lp/funds/${fund.id}/calls/preview`, { noticeDate: "2025-01-20", dueDate: "2025-02-10", investmentsUsd: 1e6 })).json();
+    expect(preview.items.map((i: { amount: number }) => i.amount)).toEqual([800_000, 200_000]);
+    const { call } = await (await ana.post(`/api/lp/funds/${fund.id}/calls`, { noticeDate: "2025-01-20", dueDate: "2025-02-10", investmentsUsd: 1e6, purpose: "First investments" })).json();
+    expect((await ana.post(`/api/lp/calls/${call.id}/approve`)).status).toBe(403);
+    expect((await pat.post(`/api/lp/calls/${call.id}/approve`)).status).toBe(200);
+    const report = await (await ana.post(`/api/lp/funds/${fund.id}/reports`, { period: "2025-Q1" })).json();
+    expect((await ana.post(`/api/lp/reports/${report.id}/approve`)).status).toBe(403);
+    expect((await pat.post(`/api/lp/reports/${report.id}/approve`)).status).toBe(200);
+    const csv = await pat.get(`/api/lp/reports/${report.id}/export/capital-accounts.csv`);
+    expect(csv.headers.get("content-type")).toMatch(/text\/csv/);
+    expect(await csv.text()).toMatch(/^Investor,Line,Quarter/);
+    expect((await pat.get(`/api/lp/reports/${report.id}/export/everything.csv`)).status).toBe(404);
+    const view = await (await ana.get(`/api/lp/funds/${fund.id}?asOf=2025-03-31`)).json();
+    const harbor = view.investors.find((i: { name: string }) => i.name === "Harbor Pension Plan");
+    const { url } = await (await ana.post(`/api/lp/investors/${harbor.id}/portal`)).json();
+    const token = url.split("/investor/")[1];
+    const lp = await app.request(`/api/investor/${token}`);
+    expect(lp.status).toBe(200);
+    const body = await lp.json();
+    expect(body.investor.name).toBe("Harbor Pension Plan");
+    expect(JSON.stringify(body)).not.toContain("Aster Family Office");
+    expect((await app.request(`/api/investor/${token}/reports/${report.id}/statement.csv`)).status).toBe(200);
+    expect((await app.request("/api/investor/definitely-not-a-valid-token-000000000")).status).toBe(404);
+    expect((await ana.post(`/api/lp/investors/${harbor.id}/portal/revoke`)).status).toBe(200);
+    expect((await app.request(`/api/investor/${token}`)).status).toBe(404);
+  });
 });

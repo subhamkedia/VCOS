@@ -77,6 +77,7 @@ export interface Connector {
   meetings?: { summary: string; defaultCadence: Cadence };
   execution?: { summary: string };
   portfolio?: { summary: string; perCompany: boolean };
+  lp?: { summary: string };
   status: "available" | "connected" | "error" | "not_configured";
   accountLabel: string | null; connectedBy: string | null; connectedAt: string | null; lastCheckedAt: string | null; lastError: string | null;
 }
