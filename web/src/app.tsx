@@ -26,6 +26,7 @@ import Lp from "./pages/Lp";
 import LpFund from "./pages/LpFund";
 import Investor from "./pages/Investor";
 import Fundraising from "./pages/Fundraising";
+import Compliance from "./pages/Compliance";
 import Raise from "./pages/Raise";
 import DataRoom from "./pages/DataRoom";
 import Subscribe from "./pages/Subscribe";
@@ -139,6 +140,7 @@ function Shell() {
             <NavLink to="/approvals">
               Approvals {pending && pending.length > 0 && <span className="count" aria-label={`${pending.length} waiting`}>{pending.length}</span>}
             </NavLink>
+            <NavLink to="/compliance">Compliance</NavLink>
             <NavLink to="/connections">Connections</NavLink>
             <NavLink to="/settings">Firm settings</NavLink>
           </nav>
@@ -165,6 +167,7 @@ function Shell() {
           <Route path="/lp-reporting/:id" element={<LpFund />} />
           <Route path="/fundraising" element={<Fundraising />} />
           <Route path="/fundraising/:id" element={<Raise />} />
+          <Route path="/compliance" element={<Compliance />} />
           <Route path="/meetings" element={<Meetings />} />
           <Route path="/connections" element={<Connections />} />
           <Route path="/approvals" element={<Approvals />} />

@@ -27,6 +27,7 @@ import { insertInvestment } from "../ledger/execution.js";
 import * as portfolio from "../modules/portfolio/index.js";
 import * as lp from "../modules/lp/index.js";
 import * as fr from "../modules/fundraising/index.js";
+import * as compliance from "../modules/compliance/index.js";
 import { parseArgs, run } from "./common.js";
 
 /**
@@ -378,7 +379,8 @@ run(async () => {
   };
   const upload = async (title: string, category: string) => {
     const d = await fr.uploadDoc(db, raise.id, { name: `${title}.pdf`, bytes: pdf(title) }, { title, category }, LEE);
-    await fr.approveDoc(db, d.id, by);
+    // Marketing material is approved with the Marketing Rule checklist confirmed, so the review is on record.
+    await fr.approveDoc(db, d.id, by, Object.fromEntries(compliance.MARKETING_CHECKLIST.map((c) => [c.key, true])));
     return d;
   };
   await upload("Demo Fund III presentation", "deck");
@@ -421,6 +423,21 @@ run(async () => {
   await fr.castVote(db, consent.id, { memberId: members[0]!.id, vote: "approve" }, LEE);
   await fr.logRequest(db, { fundId: fund2.id, fromName: "Keystone Insurance Mutual", category: "tax", subject: "Estimated 2026 taxable income for our planning", receivedOn: "2026-09-10" }, LEE);
   await fr.logRequest(db, { fundId: fund2.id, fromName: "Three Rivers Foundation", category: "reporting", subject: "Portfolio company headcount by gender for our DEI report", receivedOn: "2026-09-25" }, LEE);
+
+  // Compliance (all fictional): a registered adviser. Girderline is in closing without its regulatory screening, so the
+  // close waits for it; Lee's pre-clearance, contribution and over-limit gift wait for you; the records show conflicts.
+  await compliance.setProfile(db, { adviserStatus: "registered", ccoEmail: user.email, fiscalYearEnd: "12-31", requireScreening: true, giftLimitUsd: 250 }, by);
+  await compliance.recordFiling(db, { form: "form_adv", obligationKey: "adv_2025", filedOn: "2026-03-24", reference: "IARD annual updating amendment" }, by);
+  await compliance.recordFiling(db, { form: "form_d", subject: "Demo Fund II", filedOn: "2024-02-12", reference: "0000000000-24-000001", note: "Fictional accession number" }, by);
+  await compliance.addRestricted(db, { name: "Brightline Robotics", ticker: "BRTL", reason: "A public acquirer in confidential talks with a portfolio company" }, by);
+  await compliance.fileReport(db, LEE, { kind: "holding", period: "2026", items: [{ security: "Vanguard Total Stock Market ETF", ticker: "VTI", quantity: 120 }, { security: "Brightline Robotics", ticker: "BRTL", quantity: 50 }] });
+  await compliance.fileReport(db, LEE, { kind: "no_activity", period: "2026-Q2" });
+  await compliance.requestPreclearance(db, LEE, { kind: "ipo", security: "Northgate Grid Systems", ticker: "NGGS", amountUsd: 10_000, reason: "Directed share program through a friend at the company" });
+  await compliance.requestContribution(db, LEE, { recipient: "Jordan Avery", office: "Pennsylvania State Treasurer", jurisdiction: "Pennsylvania", election: "2026 general", amountUsd: 500, canVote: true, influencesGovernmentInvestor: true, contributeOn: "2026-10-15" });
+  await compliance.logGift(db, LEE, { direction: "received", kind: "entertainment", counterparty: "Harbor Placement Partners", description: "Dinner and a hockey game", valueUsd: 420, occurredOn: "2026-09-18" });
+  await compliance.logGift(db, by, { direction: "given", kind: "gift", counterparty: "Weldloop team", description: "Books for the offsite", valueUsd: 120, occurredOn: "2026-08-02" });
+  await compliance.detectConflicts(db, by);
+  await compliance.attest(db, LEE, { policy: "code_of_ethics" });
 
   console.log(`\nSeeded "${firm.name}" for ${user.email}.`);
   console.log(`Founder portal for Weldloop (as the founder sees it): ${portal.url}`);

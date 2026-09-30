@@ -4,7 +4,8 @@ An AI-native operating system for venture firms: one web app that any firm
 signs up to, describes its fund and mandate, connects the tools it uses, and
 works in. One claim ledger per firm feeds six modules: Sourcing, Diligence
 (including the IC memo), Investment Execution, Portfolio Management & Value
-Creation, LP Reporting, and Fundraising & Investor Relations. Read this file at the start of every
+Creation, LP Reporting, and Fundraising & Investor Relations, with
+Compliance as a layer they all share. Read this file at the start of every
 session. It overrides your defaults.
 
 ## The six principles (do not break these)
@@ -99,10 +100,11 @@ agents/      one folder per agent: prompt, tool definitions, logic
 engines/     deterministic math (portfolio construction, round math, cap
              tables, waterfalls, anti-dilution, KPIs and warnings, fund
              metrics, valuation marks, fund accounting: fees, carry,
-             capital accounts, net returns)
+             capital accounts, net returns, equalization; fundraising
+             limits; compliance dates and screens)
 modules/     workflows as plain functions: auth, firm, connections, sourcing,
              meetings, diligence, execution, portfolio, lp, fundraising,
-             companies, outbox; catalog.ts lists the product modules
+             compliance, companies, outbox; catalog.ts lists the product modules
 server/      Hono API: thin routes over modules (session, role, JSON)
 web/         React + Vite app; talks only to /api
 evals/       one folder per agent: labeled data + runner
@@ -141,7 +143,13 @@ partners set up funds and terms and approve calls, distributions and
 reports (never ones they prepared); and in Fundraising analysts keep the
 pipeline, the data room, the DDQ and subscriptions while partners set up
 raises, approve documents and DDQ answers (never their own), accept
-subscriptions, approve closings, grant side letter terms and run the LPAC. IC votes are open only to the meeting's members, and only
+subscriptions, approve closings, grant side letter terms and run the LPAC;
+and in Compliance everyone files their own reports, pre-clearance
+requests, contributions, gifts and attestations, analysts screen deals and
+raise conflicts, partners (the CCO) decide others' requests (never their
+own), keep the restricted list, record filings and resolve conflicts, and
+an admin sets the regulatory profile. Personal trading reports and requests
+are visible only to their owner and to partners. IC votes are open only to the meeting's members, and only
 its chair moves it on. Check with `requireAction` in modules/auth, and
 return 403 from the API, never hide the check in the UI alone.
 
@@ -169,8 +177,17 @@ cites the books and public-scope claims only, and the investor portal) and
 the Fundraising & IR module (the LP pipeline, a reviewed and tracked data
 room, the DDQ library, investor onboarding, closings checked against the
 offering's limits that feed LP Reporting's register, equalization, side
-letters and MFN, the LPAC and investor requests). Compliance as a shared
-layer and Exits & Liquidity in Portfolio are next; then the gate.
+letters and MFN, the LPAC and investor requests), with Compliance shared
+across them (the regulatory calendar from the modules' records, deal
+screening for outbound investment, CFIUS and export controls, the code of
+ethics, pay to play, gifts, conflicts, attestations and Marketing Rule
+reviews). Exits & Liquidity in Portfolio is next; then the gate.
+
+Compliance gates other modules through `modules/compliance/gate.ts` only:
+Execution calls `assertScreeningCleared` before recording a close, and
+Fundraising calls `marketingGate` before approving marketing material.
+Compliance rules are code in `engines/compliance.ts` with the rule cited in
+each result; they flag and date, and never file anything.
 
 The founder portal, the investor portal, the data room and the
 subscription questionnaire are the only places outside sign-in: a hashed, expiring, revocable token finds the firm (in

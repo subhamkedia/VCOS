@@ -21,9 +21,22 @@ export default function Room({ data, onChange }: FrTabProps) {
   const L = data.labels;
   const act = async (d: DataRoomDoc, what: "approve" | "archive") => {
     if (what === "archive" && !(await confirm({ title: `Archive ${d.title} v${d.version}?`, body: "Investors stop seeing it. It stays on record.", confirm: "Archive", danger: true }))) return;
-    if (what === "approve" && !(await confirm({ title: `Approve ${d.title} v${d.version} for investors?`, body: d.marketing ? "This is marketing material: check that performance is shown net beside gross, with the time periods and the risks, and that nothing is misleading." : "Investors with a data room link will see it.", confirm: "Approve" }))) return;
+    // Marketing material: the Marketing Rule checklist, kept as a review record.
+    const checklist: Record<string, boolean> = {};
+    if (what === "approve" && !(await confirm({
+      title: `Approve ${d.title} v${d.version} for investors?`,
+      confirm: "Approve",
+      body: d.marketing ? (
+        <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend className="small">This is marketing material. {data.marketing.required ? "As a registered adviser, confirm each Marketing Rule check:" : "Confirm what you checked; the review is kept with the document."}</legend>
+          {data.marketing.checklist.map((c) => (
+            <label key={c.key} className="check-row small"><input type="checkbox" onChange={(e) => { checklist[c.key] = e.target.checked; }} /><span>{c.label}</span></label>
+          ))}
+        </fieldset>
+      ) : "Investors with a data room link will see it.",
+    }))) return;
     try {
-      await api(`/fundraising/docs/${d.id}/${what}`, { body: {} });
+      await api(`/fundraising/docs/${d.id}/${what}`, { body: what === "approve" && d.marketing ? { checklist } : {} });
       toast("good", what === "approve" ? "Approved: investors can see it." : "Archived.");
       onChange();
     } catch (e) {

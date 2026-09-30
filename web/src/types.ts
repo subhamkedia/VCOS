@@ -301,6 +301,7 @@ export interface Investment {
 export interface ExecutionView {
   deal: Deal; termSheets: TermSheetVersion[]; house: HouseTerms; capTable: CapTable | null; model: ExecModel; meetings: IcMeeting[]; icRule: string;
   closing: { items: ClosingItem[]; categories: Record<string, string>; ready: { ready: boolean; open: string[] } };
+  regulatory: { required: boolean; screening: { outbound: string; cfius: string; exportControl: string; screenedAt: string } | null; blocked: string | null };
   wires: Wire[]; investments: Investment[]; passReasons: string[];
 }
 export interface ExecutionRow extends Deal {
@@ -529,6 +530,7 @@ export interface RaiseView {
   pipeline: { target: number; closed: number; committed: number; softCircled: number; weighted: number; coverage: number | null; remaining: number; byStage: { stage: ProspectStage; count: number; amount: number; weighted: number }[] };
   prospects: Prospect[]; activity: Activity[]; documents: DataRoomDoc[]; dataRoomViews: { prospect_id: string; title: string; action: string; viewed_at: string }[];
   subscriptions: Subscription[]; closings: ClosingRow[]; admitted: { investors: number; commitments: number }; issues: OfferingIssue[];
+  marketing: { checklist: readonly { key: string; label: string }[]; required: boolean };
   sources: { id: string; name: string; summary: string; manual: boolean; ready: boolean }[];
 }
 export interface ClosingView {
@@ -553,4 +555,29 @@ export interface SubscribePublic {
   firm: string; raise: string; investor: string; status: string; naturalPerson: boolean; commitmentUsd: number | null; minCommitmentUsd: number | null;
   needsQualifiedPurchaser: boolean; generalSolicitation: boolean; accreditedBases: { id: string; label: string }[]; qpBases: { id: string; label: string }[];
   taxForms: { id: string; label: string }[]; documents: { title: string; category: string }[]; answers: Record<string, unknown>;
+}
+
+// Compliance
+export type CoLabels = Record<"adviserStatus" | "forms" | "outbound" | "cfius" | "exportControl" | "preclearanceKinds" | "requestStatus" | "conflictKinds" | "conflictStatus" | "policies" | "reportKinds" | "giftKinds", Record<string, string>>;
+export interface CoObligation { key: string; title: string; due: string; basis: string; subject?: string; form: string; state: "done" | "overdue" | "upcoming"; filing: CoFiling | null; waitingOn: string[] | null }
+export interface CoFiling { id: string; form: string; obligation_key: string | null; subject: string | null; filed_on: string; reference: string | null; note: string | null; created_by: string }
+export interface CoScreening { id: string; deal_id: string; company_id: string; company_name?: string; outbound: "not_covered" | "notifiable" | "prohibited"; cfius: "none" | "review" | "declaration_likely"; export_control: "none" | "ear" | "itar"; reasons: string[]; counsel_note: string | null; screened_by: string; created_at: string }
+export interface CoRestricted { id: string; company_id: string | null; name: string; ticker: string | null; reason: string; added_on: string; added_by: string; removed_on: string | null }
+export interface CoReport { id: string; person: string; kind: "holding" | "transaction" | "no_activity"; security: string | null; ticker: string | null; action: string | null; quantity: number | null; traded_on: string | null; account: string | null; period: string; created_at: string }
+interface CoRequestBase { id: string; person: string; status: "pending" | "logged" | "approved" | "denied"; decided_by: string | null; decided_at: string | null; note: string | null; created_at: string }
+export interface CoPreclearance extends CoRequestBase { kind: string; security: string; ticker: string | null; amount_usd: number | null; reason: string | null; restricted_hit: boolean }
+export interface CoContribution extends CoRequestBase { recipient: string; office: string; jurisdiction: string; election: string; amount_usd: number; can_vote: boolean; contribute_on: string; result: { limit: number; total: number; withinDeMinimis: boolean; timeOut: boolean; message: string } }
+export interface CoGift extends CoRequestBase { direction: "given" | "received"; kind: "gift" | "entertainment"; counterparty: string; description: string; value_usd: number; occurred_on: string; over_limit: boolean }
+export interface CoConflict { id: string; kind: string; title: string; detail: string; mitigation: string | null; status: "open" | "mitigated" | "closed"; created_by: string; created_at: string; closed_by: string | null; closed_at: string | null }
+export interface ComplianceOverview {
+  profile: { adviser_status: string; cco_email: string | null; fiscal_year_end: string; require_screening: boolean; gift_limit_usd: number; updated_by: string | null; updated_at: string | null; configured: boolean };
+  labels: CoLabels; marketingChecklist: { key: string; label: string }[];
+  calendar: CoObligation[]; filings: CoFiling[];
+  screenings: CoScreening[]; needsScreening: { id: string; company_id: string; company_name: string }[];
+  restricted: CoRestricted[]; restrictedSuggestions: { companyId: string; name: string; reason: string }[];
+  reviewer: boolean; person: string;
+  reports: CoReport[]; preclearances: CoPreclearance[]; contributions: CoContribution[]; gifts: CoGift[];
+  conflicts: CoConflict[];
+  attestations: { year: number; policies: string[]; done: { person: string; policy: string; attested_on: string }[]; missing: { person: string; policy: string }[] };
+  marketingReviews: { id: string; subject_kind: string; title: string; reviewer: string; created_at: string }[];
 }

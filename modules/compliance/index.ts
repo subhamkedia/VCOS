@@ -101,20 +101,38 @@ async function facts(db: Db, p: ComplianceProfile, extra: Partial<Facts> = {}): 
   };
 }
 
-/** This year's and next year's obligations, each marked done (a filing is recorded), overdue or upcoming. */
-export async function calendar(db: Db, extra: Partial<Facts> = {}) {
+/**
+ * The last twelve months' open items and what's due over the next year and
+ * a bit, each marked done, overdue or upcoming. A recorded filing closes an
+ * obligation; the code of ethics reports close once every access person on
+ * the team has filed for the period, and until then the item says who hasn't.
+ */
+export async function calendar(db: Db, opts: { extra?: Partial<Facts>; team?: string[] } = {}) {
   const p = await profile(db);
-  const f = await facts(db, p, extra);
+  const f = await facts(db, p, opts.extra);
   const y = Number(today().slice(0, 4));
   const done = new Map((await filings(db)).filter((x) => x.obligation_key).map((x) => [x.obligation_key!, x]));
   const now = today();
+  const yearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+  const team = opts.team ?? [];
+  const filed = new Map<string, Set<string>>();
+  if (team.length) for (const r of await reports(db)) filed.set(r.period, (filed.get(r.period) ?? new Set()).add(r.person));
+  const owing = (key: string): string[] | null => {
+    if (!team.length) return null;
+    const m = /^txn_q(\d)_(\d{4})$/.exec(key) ?? /^holdings_(\d{4})$/.exec(key);
+    if (!m) return null;
+    const period = m.length === 3 ? `${m[2]}-Q${m[1]}` : m[1]!;
+    return team.filter((person) => !filed.get(period)?.has(person));
+  };
   return [...obligations(f, y - 1), ...obligations(f, y), ...obligations(f, y + 1)]
     .filter((o, i, all) => all.findIndex((x) => x.key === o.key) === i)
-    .filter((o) => o.due >= `${y - 1}-10-01` || !done.has(o.key))
     .map((o) => {
       const filing = done.get(o.key) ?? null;
-      return { ...o, filing, state: filing ? "done" : o.due < now ? "overdue" : "upcoming" };
-    });
+      const missing = owing(o.key);
+      const complete = Boolean(filing) || (missing !== null && missing.length === 0);
+      return { ...o, filing, waitingOn: missing && missing.length ? missing : null, state: complete ? "done" : o.due < now ? "overdue" : "upcoming" };
+    })
+    .filter((o) => (o.state === "done" ? o.due >= `${y - 1}-10-01` : o.due >= yearAgo));
 }
 
 export async function recordFiling(db: Db, input: Record<string, unknown>, by: string) {
@@ -329,30 +347,36 @@ export async function attest(db: Db, person: string, input: { policy?: unknown; 
 // Everything, for the Compliance page
 // ---------------------------------------------------------------------------
 
-export async function overview(db: Db, ctx: { person: string; team: string[] }) {
+/**
+ * Personal trading, contributions and gifts are private: a reviewer (a
+ * partner acting as CCO) sees everyone's; anyone else sees only their own.
+ */
+export async function overview(db: Db, ctx: { person: string; team: string[]; reviewer: boolean }) {
   const p = await profile(db);
   const year = Number(today().slice(0, 4));
   const screenings = await latestScreenings(db);
   const inClosing = await dealsInClosing(db);
   const att = await attestations(db, year);
   const policies = p.adviser_status === "registered" ? ["code_of_ethics", "compliance_manual", "insider_trading"] : ["code_of_ethics", "insider_trading"];
+  const mine = ctx.reviewer ? {} : { person: ctx.person };
   return {
     profile: p,
     labels: COMPLIANCE_LABELS,
     marketingChecklist: MARKETING_CHECKLIST,
-    calendar: await calendar(db),
+    calendar: await calendar(db, { team: ctx.team }),
     filings: await filings(db),
     screenings,
     needsScreening: inClosing.filter((d) => !screenings.some((s) => s.deal_id === d.id)),
     restricted: await restricted(db),
     restrictedSuggestions: await restrictedSuggestions(db),
-    myReports: await reports(db, { person: ctx.person }),
-    reports: await reports(db),
-    preclearances: await requests(db, "preclearances"),
-    contributions: await requests(db, "political_contributions"),
-    gifts: await requests(db, "gifts"),
+    reviewer: ctx.reviewer,
+    person: ctx.person,
+    reports: await reports(db, mine),
+    preclearances: await requests(db, "preclearances", mine),
+    contributions: await requests(db, "political_contributions", mine),
+    gifts: await requests(db, "gifts", mine),
     conflicts: await conflicts(db),
-    attestations: { year, policies, done: att, missing: ctx.team.flatMap((person) => policies.filter((pol) => !att.some((a) => a.person === person && a.policy === pol)).map((pol) => ({ person, policy: pol }))) },
+    attestations: { year, policies, done: att, missing: (ctx.reviewer ? ctx.team : [ctx.person]).flatMap((person) => policies.filter((pol) => !att.some((a) => a.person === person && a.policy === pol)).map((pol) => ({ person, policy: pol }))) },
     marketingReviews: await marketingReviews(db),
   };
 }

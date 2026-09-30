@@ -13,7 +13,7 @@ import { exitScenarios, type CommonClass, type PreferredSeries } from "../../eng
 import { capTableFromCsv, cartaCapTableHoldings } from "../../connectors/carta.js";
 import { closingStatusFor, docusignEnvelopes } from "../../connectors/docusign.js";
 import { sanctionsLists, screen, type SanctionsEntry } from "../../connectors/ofac.js";
-import { assertScreeningCleared } from "../compliance/gate.js";
+import { assertScreeningCleared, screeningStatus } from "../compliance/gate.js";
 import { getProfile, type FirmProfile } from "../firm/profile.js";
 import { isReady, withFirmCredentials } from "../connections/index.js";
 import { queue } from "../outbox/index.js";
@@ -620,6 +620,7 @@ export async function executionView(db: Db, dealId: string, viewer: string) {
     meetings,
     icRule: RULE_LABELS[(profile?.fund.icApproval ?? "majority") as Rule],
     closing: { items, categories: CATEGORY_LABELS, ready: readyToClose(items) },
+    regulatory: await screeningStatus(db, dealId),
     wires: await wires(db, dealId),
     investments: await listInvestments(db, { dealId }),
     passReasons: PASS_REASONS,

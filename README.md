@@ -4,7 +4,8 @@ An AI-native operating system for venture firms. Any firm signs up,
 describes its fund and mandate, connects the tools it already uses, and
 works in one web app with six modules: **Sourcing**, **Diligence**,
 **Investment Execution**, **Portfolio Management & Value Creation**, **LP
-Reporting** and **Fundraising & Investor Relations**.
+Reporting** and **Fundraising & Investor Relations**, with **Compliance**
+as a layer they all share.
 
 Underneath, every fact about a company is stored once as a **claim**, with
 its source, date, confidence and the exact characters it came from. Scores,
@@ -43,7 +44,13 @@ coverage of the target, a tracked data room, a DDQ library drafted from the
 firm's records, investor onboarding without an account, closings checked
 against the offering's legal limits that feed LP Reporting's register,
 equalization for later closings, side letters and MFN elections, the LPAC
-and investor requests); and an approval queue for anything outbound.
+and investor requests); **Compliance** across all of them (the regulatory
+calendar built from the other modules' records, screening of each deal for
+outbound investment, CFIUS and export controls before it can close, the
+code of ethics with the restricted list, personal trading reports and
+pre-clearance, pay-to-play and gifts, the conflicts register, annual
+attestations, and Marketing Rule reviews of data room material); and an
+approval queue for anything outbound.
 **Next:** the Phase 0 gate on the YC 2026 set.
 
 ### How Diligence works
@@ -342,6 +349,66 @@ fund adjustment, the Department of Labor's plan asset regulation (the 25%
 test and the VCOC exception), and common LPA and side letter practice for
 equalization and MFN elections.
 
+### How Compliance works
+
+Compliance isn't a separate product module: every module feeds it and two
+of them stop at it. An admin sets the adviser's regulatory status
+(registered with the SEC, an exempt reporting adviser, state-registered, or
+not an adviser), the CCO, the fiscal year end and the gift limit. Rules are
+code in `engines/compliance.ts`, unit-tested, with the citation in each
+result; the system flags and dates, and the CCO and counsel decide.
+
+1. **The calendar.** Built from the records, not typed in: Form ADV within
+   90 days of the fiscal year end; for a registered adviser, Form PF at $150
+   million in private fund assets (sized from LP Reporting's funds), the
+   audit within 120 days, the annual compliance review and code of ethics
+   reports; Form D 15 days after a fund's first closing and its annual
+   amendment while the offering continues, and a state notice for each
+   state an investor was admitted from (from Fundraising's closings);
+   Treasury's outbound notice 30 days after a notifiable deal closes (from
+   Execution). A recorded filing closes an obligation; code of ethics
+   reports close when everyone on the team has filed, and until then the
+   item names who hasn't. A fund's Form D can be looked up on EDGAR.
+2. **Deal screening.** Before a deal closes, someone answers the screening:
+   outbound investment under 31 CFR Part 850 (a covered foreign person in
+   AI, semiconductors or quantum; prohibited or notifiable by the rule's
+   thresholds), export control classification, and CFIUS (a TID business
+   and a foreign investor getting board, information or decision rights),
+   with counsel's view required whenever CFIUS may apply. When the firm
+   requires it, Execution won't record the close without a screening, and
+   a prohibited result can never close.
+3. **Code of ethics.** The restricted list, with suggestions from the
+   portfolio (board seats, companies that listed); holdings reports
+   (initial and annual) and quarterly transaction reports, private to the
+   person and the reviewers; and pre-clearance of IPOs and private
+   placements (the rule requires it) and listed securities, flagged when
+   they hit the restricted list. Someone other than the requester decides,
+   and a denial or a restricted-list approval needs a note.
+4. **Pay to play and gifts.** Each state or local political contribution is
+   pre-cleared against the Rule 206(4)-5 de minimis ($350 per election where
+   the person can vote, $150 where they can't) and flagged when it would
+   trigger the two-year time-out. Gifts and entertainment are logged; over
+   the firm's limit, a reviewer decides.
+5. **Conflicts.** A register, filled from the records (a company held by
+   more than one fund, related-party charges to a fund, LPAC conflict
+   consents) or by hand, each with its mitigation and status.
+6. **Attestations and marketing.** Each person acknowledges the code of
+   ethics and insider trading policy (and the compliance manual, for a
+   registered adviser) each year. Marketing material in the data room
+   (the deck, track record, DDQ, financials) is approved with the Marketing
+   Rule checklist: net beside gross, the required periods, hypothetical and
+   extracted performance, testimonials, fair and balanced. A registered
+   adviser must confirm every check; the review is kept either way.
+
+Sources: Advisers Act Rules 204-1, 204(b)-1, 204A-1, 206(4)-1, 206(4)-2,
+206(4)-5 and 206(4)-7; Regulation D Rule 503 and state notice filing
+practice; 31 CFR Part 850 (effective January 2, 2025) and 31 CFR Part 800;
+Exchange Act Sections 13(d) and 16. Dates reflect rule changes as of
+September 2026: the amended Form PF's compliance date is July 1, 2027, the
+investment adviser AML rule is delayed to January 1, 2028, and the SEC has
+proposed rescinding the pay-to-play rule, which applies until it's
+rescinded.
+
 ## Run the web app
 
 ```bash
@@ -435,6 +502,11 @@ pnpm fundraising pipeline "Demo Fund III"       # prospects by stage with next s
 pnpm fundraising investors "Demo Fund III"      # subscriptions and what each still needs before a closing
 pnpm fundraising ddq --out ddq.md               # the approved DDQ answers as a document
 pnpm fundraising requests                       # investor requests, oldest due first
+pnpm compliance                                 # the obligations calendar: due, overdue and filed
+pnpm compliance screenings                      # each deal's regulatory screening, and deals in closing without one
+pnpm compliance restricted                      # the restricted list, and companies that may belong on it
+pnpm compliance conflicts --detect              # find conflicts in the records, then list the register
+pnpm compliance requests                        # pre-clearances, contributions and gifts waiting for review
 ```
 
 For production, `docker compose up -d` and set
@@ -468,6 +540,8 @@ For production, `docker compose up -d` and set
 | `modules/lp/` | Funds, investors and register imports (`funds.ts`), calls, receipts, bank reconciliation, distributions and expenses (`capital.ts`), the books and statements (`books.ts`), quarterly reports, the cited letter and exports (`reports.ts`), and the investor portal (`portal.ts`). `pnpm lp` on the command line. |
 | `engines/fundraising.ts` | The weighted pipeline, the offering's limits (investor counts, qualified purchasers, 506(c) verification, the 25% ERISA test, hard cap, look-through) and MFN eligibility. Unit-tested. |
 | `modules/fundraising/` | Raises and the pipeline (`pipeline.ts`), the data room (`dataroom.ts`), the DDQ library (`ddq.ts`), subscriptions and onboarding (`subscriptions.ts`), closings and equalization (`closings.ts`), side letters and MFN (`sideletters.ts`), the LPAC and investor requests (`ir.ts`). `pnpm fundraising` on the command line. |
+| `engines/compliance.ts` | The obligations calendar by adviser status, the pay-to-play de minimis, outbound investment and CFIUS classification, and the Marketing Rule checklist. Unit-tested. |
+| `modules/compliance/` | The shared compliance layer: the calendar, filings and Form D lookup, deal screening, the code of ethics, pay to play, gifts, conflicts and attestations (`index.ts`), and the gates Execution and Fundraising call (`gate.ts`). `pnpm compliance` on the command line. |
 | `connectors/parallel.ts` | Parallel Markets: accreditation and KYC status, read only. |
 | `connectors/bank.ts` | Mercury (read only) and bank statement CSVs. No payment or transfer function exists. |
 | `connectors/docusign.ts`, `carta.ts`, `ofac.ts` | Signature status and draft envelopes, cap tables from Carta or any export, and Treasury's sanctions lists. |
@@ -510,8 +584,7 @@ but it was written alongside the resolver, so treat it as a smoke test.
   commitments then a step-down, pro rata calls, and whole-of-fund or
   deal-by-deal carry. It doesn't yet model subscription credit lines (the
   ILPA Performance Template's with-and-without-line returns), recallable
-  distributions, equalization for later closings, fee waivers, or
-  multi-currency funds. Tax documents are tracked, not prepared: K-1s come
+  distributions, fee waivers, or multi-currency funds. Tax documents are tracked, not prepared: K-1s come
   from the fund's tax preparer. Mercury follows its API reference and is
   tested against fixtures; other banks come in as statement CSVs.
 - QuickBooks, Xero, Standard Metrics and Visible follow each vendor's API
@@ -528,6 +601,12 @@ but it was written alongside the resolver, so treat it as a smoke test.
   in DocuSign, not in VC OS. Equalization covers capital, the newcomer's
   fee and interest; LPAs that also re-allocate earlier distributions or
   realized gains need an adjustment by hand.
+- Compliance screens and dates; it doesn't give legal advice, file
+  anything with a regulator, or connect to a brokerage for trade feeds
+  (people report their own holdings and trades). The outbound, CFIUS and
+  export answers are a first pass from the facts a person enters; counsel
+  decides covered transactions. Pay-to-play checks the de minimis for each
+  contribution; the two-year look-back for new hires is a manual step.
 - Portfolio performance is gross, on invested capital; net returns to LPs
   (after fees, expenses and carry) are in LP Reporting.
 - Term sheets are entered as fields; reading one from a PDF is not built.

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { useSession } from "../../app";
 import type { Wire, WireStatus } from "../../types";
@@ -168,11 +169,13 @@ function CloseForm({ data, onChange }: ExecTabProps) {
       <h2 id="close-h">Close</h2>
       {!signed && <Notice tone="warn">Mark the signed term sheet on the Term sheet tab first.</Notice>}
       {r.ready ? <Notice tone="good">Every required item is complete.</Notice> : <Notice>Still open: {titles.join("; ")}.</Notice>}
+      {data.regulatory.blocked && <Notice tone="bad">{data.regulatory.blocked} <Link to="/compliance?tab=deals">Open deal screening</Link></Notice>}
+      {!data.regulatory.blocked && data.regulatory.screening && <p className="small muted" style={{ margin: 0 }}>Regulatory screening done {dateOnly(data.regulatory.screening.screenedAt)}. <Link to="/compliance?tab=deals">See it</Link></p>}
       {can("decide_deals") ? (
         <>
           <Field label="Closing date" required><input className="input" type="date" required value={date} onChange={(e) => setDate(e.target.value)} style={{ maxWidth: 220 }} /></Field>
           {err && <Notice tone="bad">{err}</Notice>}
-          <div className="row"><button className="btn primary" disabled={!r.ready || !signed}>Record the close</button></div>
+          <div className="row"><button className="btn primary" disabled={!r.ready || !signed || Boolean(data.regulatory.blocked)}>Record the close</button></div>
         </>
       ) : <p className="small muted" style={{ margin: 0 }}>A partner records the close.</p>}
     </form>

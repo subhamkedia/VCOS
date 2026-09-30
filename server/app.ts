@@ -741,7 +741,7 @@ export function createApp(deps: AppDeps) {
   // an admin sets the regulatory profile.
   firm.get("/compliance", async (c) => {
     const t = await team(root, c.get("session").firm!.id);
-    return c.json(await compliance.overview(c.get("db"), { person: who(c), team: t.members.map((m) => `human:${m.email.toLowerCase()}`) }));
+    return c.json(await compliance.overview(c.get("db"), { person: who(c), team: t.members.map((m) => `human:${m.email.toLowerCase()}`), reviewer: auth.can(c.get("role"), "decide_deals") }));
   });
   firm.put("/compliance/profile", allow("manage_firm"), async (c) => { await compliance.setProfile(c.get("db"), await c.req.json(), who(c)); return ok(c); });
   firm.post("/compliance/filings", allow("decide_deals"), async (c) => c.json(await compliance.recordFiling(c.get("db"), await c.req.json(), who(c)), 201));

@@ -122,7 +122,7 @@ export async function reports(db: Db, opts: { person?: string } = {}): Promise<R
   return rows.map((r) => ({ ...r, quantity: num(r.quantity), traded_on: day(r.traded_on), created_at: iso(r.created_at)! }));
 }
 
-export interface RequestRow { id: string; person: string; status: "pending" | "approved" | "denied"; decided_by: string | null; decided_at: string | null; note: string | null; created_at: string; [k: string]: unknown }
+export interface RequestRow { id: string; person: string; status: "pending" | "logged" | "approved" | "denied"; decided_by: string | null; decided_at: string | null; note: string | null; created_at: string; [k: string]: unknown }
 
 /** Pre-clearances, political contributions and gifts share the decide pattern. */
 export type RequestTable = "preclearances" | "political_contributions" | "gifts";

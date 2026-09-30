@@ -7,6 +7,8 @@ import { isReady } from "../connections/index.js";
 import { engagement } from "./dataroom.js";
 import { readiness, subscriber } from "./subscriptions.js";
 import { raiseOr404, today } from "./common.js";
+import { getComplianceProfile } from "../../ledger/compliance.js";
+import { MARKETING_CHECKLIST } from "../../engines/compliance.js";
 
 /**
  * Fundraising & Investor Relations: raising a fund (the pipeline of
@@ -65,6 +67,8 @@ export async function raiseView(db: Db, id: string) {
     closings: await closings(db, id),
     admitted: { investors: admitted.length, commitments: admitted.reduce((a, s) => a + (s.commitment_usd ?? 0), 0) },
     issues,
+    // Marketing material gets the Marketing Rule review when it's approved; required for a registered adviser.
+    marketing: { checklist: MARKETING_CHECKLIST, required: (await getComplianceProfile(db))?.adviser_status === "registered" },
     sources: await Promise.all(CONNECTORS.filter((c) => c.fundraising).map(async (c) => ({ id: c.id, name: c.name, summary: c.fundraising!.summary, manual: Boolean(c.manual), ready: c.manual || c.auth.kind === "none" ? true : await isReady(db, c.id) }))),
   };
 }

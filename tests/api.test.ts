@@ -371,4 +371,28 @@ describe("limits", () => {
     const view = await (await ana.get(`/api/fundraising/raises/${raise.id}`)).json();
     expect(view.prospects[0].engagement).toMatchObject({ downloads: 1 });
   });
+
+  it("runs compliance over HTTP: everyone reports and asks, partners decide others' requests, personal reports stay private", async () => {
+    const pat = await signIn("pat@alpha.example");
+    await pat.post("/api/firms", { name: "Alpha Ventures" });
+    const firmId = (await readSession(root, pat.cookie.split("=")[1]))!.firm!.id;
+    const ana = await signIn("ana@alpha.example");
+    await addMembership(root, firmId, (await readSession(root, ana.cookie.split("=")[1]))!.user.id, "analyst");
+    await ana.post("/api/firms/switch", { firmId });
+    expect((await ana.put("/api/compliance/profile", { adviserStatus: "registered" })).status).toBe(403);
+    expect((await pat.put("/api/compliance/profile", { adviserStatus: "registered" })).status).toBe(200);
+    expect((await ana.post("/api/compliance/reports", { kind: "no_activity", period: "2026-Q2" })).status).toBe(201);
+    expect((await pat.post("/api/compliance/reports", { kind: "holding", period: "2026", items: [{ security: "Acme Corp", quantity: 10 }] })).status).toBe(201);
+    const req = await (await ana.post("/api/compliance/preclearances", { kind: "ipo", security: "Northgate Grid" })).json();
+    expect((await ana.post(`/api/compliance/preclearances/${req.id}/decide`, { approve: true })).status).toBe(403);
+    expect((await pat.post(`/api/compliance/preclearances/${req.id}/decide`, { approve: false })).status).toBe(400); // a denial needs a note
+    expect((await pat.post(`/api/compliance/preclearances/${req.id}/decide`, { approve: false, note: "IPO allocations aren't approved." })).status).toBe(200);
+    const mine = await (await ana.get("/api/compliance")).json();
+    expect(mine.reports.map((r: { person: string }) => r.person)).toEqual(["human:ana@alpha.example"]);
+    expect(mine.reviewer).toBe(false);
+    const all = await (await pat.get("/api/compliance")).json();
+    expect(all.reports).toHaveLength(2);
+    expect(all.calendar.some((o: { key: string }) => o.key.startsWith("audit_"))).toBe(true);
+    expect((await ana.post("/api/compliance/restricted", { name: "Acme Corp", reason: "Board seat" })).status).toBe(403);
+  });
 });

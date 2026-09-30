@@ -108,10 +108,18 @@ describe("the code of ethics", () => {
     expect(await C.fileReport(db, ANA, { kind: "transaction", period: "2026-Q3", items: [{ security: "Acme Corp", ticker: "acme", action: "buy", quantity: 10, tradedOn: "2026-08-01" }] })).toEqual({ filed: 1 });
     await C.fileReport(db, ANA, { kind: "no_activity", period: "2026-Q2" });
     await expect(db.query("update personal_reports set quantity = 1")).rejects.toThrow();
-    const o = await C.overview(db, { person: ANA, team: [ANA, LEE] });
-    expect(o.myReports).toHaveLength(2);
+    await C.fileReport(db, LEE, { kind: "no_activity", period: "2026-Q2" });
+    await C.setProfile(db, { adviserStatus: "registered" }, LEE);
+    const q2 = async () => (await C.calendar(db, { team: [ANA, LEE] })).find((o) => o.key === "txn_q2_2026")!;
+    expect(await q2()).toMatchObject({ state: "done", waitingOn: null }); // both reported for 2026-Q2
+    expect((await C.calendar(db, { team: [ANA, LEE, PAT] })).find((o) => o.key === "txn_q2_2026")).toMatchObject({ waitingOn: [PAT] });
+    const o = await C.overview(db, { person: ANA, team: [ANA, LEE], reviewer: false });
+    expect(o.reports).toHaveLength(2); // only Ana's own: personal trading is private
+    expect(o.preclearances.every((r) => r.person === ANA)).toBe(true);
+    expect((await C.overview(db, { person: LEE, team: [ANA, LEE], reviewer: true })).reports).toHaveLength(3);
+    expect(o.attestations.missing.every((m) => m.person === ANA)).toBe(true);
     await C.attest(db, ANA, { policy: "code_of_ethics" });
-    expect(o.attestations.missing.length).toBeGreaterThan((await C.overview(db, { person: ANA, team: [ANA, LEE] })).attestations.missing.length);
+    expect(o.attestations.missing.length).toBeGreaterThan((await C.overview(db, { person: ANA, team: [ANA, LEE], reviewer: false })).attestations.missing.length);
   });
 });
 
@@ -139,7 +147,7 @@ describe("pay to play, gifts and conflicts", () => {
     await L.addExpense(db, fund.id, { incurredOn: "2026-02-01", amountUsd: 5000, category: "other", description: "GP staff time on the audit", relatedParty: true }, PAT);
     expect(await C.detectConflicts(db, PAT)).toEqual({ added: 2 });
     expect(await C.detectConflicts(db, PAT)).toEqual({ added: 0 }); // idempotent
-    const cs = (await C.overview(db, { person: PAT, team: [] })).conflicts;
+    const cs = (await C.overview(db, { person: PAT, team: [], reviewer: true })).conflicts;
     expect(cs.map((c) => c.kind).sort()).toEqual(["cross_fund", "related_party"]);
     const cross = cs.find((c) => c.kind === "cross_fund")!;
     await expect(C.resolveConflict(db, cross.id, { status: "closed" }, LEE)).rejects.toThrow(/mitigated/);
@@ -155,7 +163,7 @@ describe("marketing review", () => {
     const d = await F.uploadDoc(db, raise.id, { name: "deck.pdf", bytes: new TextEncoder().encode("%PDF-1.4 deck") }, { category: "deck" }, PAT);
     await expect(F.approveDoc(db, d.id, LEE)).rejects.toThrow(/Marketing Rule review/);
     await F.approveDoc(db, d.id, LEE, Object.fromEntries(C.MARKETING_CHECKLIST.map((c) => [c.key, true])));
-    expect((await C.overview(db, { person: LEE, team: [] })).marketingReviews[0]).toMatchObject({ title: "deck", reviewer: LEE });
+    expect((await C.overview(db, { person: LEE, team: [], reviewer: true })).marketingReviews[0]).toMatchObject({ title: "deck", reviewer: LEE });
     // Legal documents aren't advertisements.
     const lpa = await F.uploadDoc(db, raise.id, { name: "LPA.pdf", bytes: new TextEncoder().encode("%PDF-1.4 lpa") }, { category: "lpa" }, PAT);
     await F.approveDoc(db, lpa.id, LEE);

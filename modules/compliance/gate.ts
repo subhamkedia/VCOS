@@ -1,6 +1,6 @@
 import type { Db } from "../../lib/db.js";
 import { getComplianceProfile, insertMarketingReview, latestScreenings } from "../../ledger/compliance.js";
-import { marketingComplete } from "../../engines/compliance.js";
+import { MARKETING_CHECKLIST, marketingComplete } from "../../engines/compliance.js";
 
 /**
  * The compliance checks other modules call. Kept apart from the rest of
@@ -15,12 +15,18 @@ export class ComplianceBlocked extends Error {}
  * for it, the deal needs a regulatory screening, and a prohibited outbound
  * transaction can't close at all.
  */
-export async function assertScreeningCleared(db: Db, dealId: string): Promise<void> {
+export async function screeningStatus(db: Db, dealId: string) {
   const p = await getComplianceProfile(db);
-  const s = (await latestScreenings(db)).find((x) => x.deal_id === dealId);
-  if (s?.outbound === "prohibited") throw new ComplianceBlocked("The regulatory screening found a prohibited outbound investment (31 CFR Part 850): this deal can't close.");
-  if (!p || !p.require_screening) return;
-  if (!s) throw new ComplianceBlocked("Run the regulatory screening (outbound investment, CFIUS, export controls) in Compliance before closing.");
+  const s = (await latestScreenings(db)).find((x) => x.deal_id === dealId) ?? null;
+  const blocked = s?.outbound === "prohibited"
+    ? "The regulatory screening found a prohibited outbound investment (31 CFR Part 850): this deal can't close."
+    : !s && p?.require_screening ? "Run the regulatory screening (outbound investment, CFIUS, export controls) in Compliance before closing." : null;
+  return { required: Boolean(p?.require_screening), screening: s ? { outbound: s.outbound, cfius: s.cfius, exportControl: s.export_control, screenedAt: s.created_at } : null, blocked };
+}
+
+export async function assertScreeningCleared(db: Db, dealId: string): Promise<void> {
+  const st = await screeningStatus(db, dealId);
+  if (st.blocked) throw new ComplianceBlocked(st.blocked);
 }
 
 /**
@@ -34,7 +40,7 @@ export async function marketingGate(db: Db, doc: { id: string; title: string; ma
   const provided = answers && Object.keys(answers).length > 0;
   if (p?.adviser_status === "registered") {
     const m = marketingComplete(answers ?? {});
-    if (!m.complete) throw new ComplianceBlocked(`Marketing Rule review: confirm ${m.missing.map((x) => `"${x}"`).join("; ")}.`);
+    if (!m.complete) throw new ComplianceBlocked(`Marketing Rule review: ${m.missing.length} of ${MARKETING_CHECKLIST.length} checks aren't confirmed. A registered adviser confirms each one before investors see marketing material.`);
   }
   if (p?.adviser_status === "registered" || provided) await insertMarketingReview(db, { subjectKind: "dataroom_doc", subjectId: doc.id, title: doc.title, answers: answers ?? {} }, by);
 }
