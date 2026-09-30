@@ -19,6 +19,7 @@ export interface VocabData {
   enumValues: Record<string, string>;
   fitCriteria: Record<string, string>;
   severities: Record<string, string>;
+  passReasons: Record<string, string>;
 }
 
 const humanize = (id: string) => id.replace(/[._-]+/g, " ").replace(/^\w/, (c) => c.toUpperCase());
@@ -38,6 +39,8 @@ export function makeVocab(d: VocabData | null) {
     enumValue: (id: string) => pick(d?.enumValues, id),
     criterion: (id: string) => pick(d?.fitCriteria, id),
     severity: (id: string) => pick(d?.severities, id),
+    passReason: (id: string) => pick(d?.passReasons, id),
+    passReasonIds: Object.keys(d?.passReasons ?? {}),
     groupOf: (predicate: string) => d?.groups.find((g) => g.prefixes.some((p) => predicate.startsWith(p))) ?? { id: "other", label: "Other", prefixes: [] },
     groups: d?.groups ?? [],
   };

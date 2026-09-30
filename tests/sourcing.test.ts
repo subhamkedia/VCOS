@@ -8,7 +8,7 @@ import { ycToRecord, type YcCompany } from "../connectors/yc.js";
 import { crunchbaseToRecord } from "../connectors/crunchbase.js";
 import { connectWithKeys, enable } from "../modules/connections/index.js";
 import { saveProfile, starterProfile } from "../modules/firm/profile.js";
-import { cleanParams, createFeed, discovered, feeds, nextRunAt, runDueFeeds, runFeed, runs, updateFeed, FeedInvalid } from "../modules/sourcing/index.js";
+import { cleanParams, createFeed, discovered, feeds, nextRunAt, passOnCompany, runDueFeeds, runFeed, runs, updateFeed, FeedInvalid } from "../modules/sourcing/index.js";
 
 beforeAll(() => setSecretKeyForTests(randomBytes(32)));
 
@@ -71,6 +71,12 @@ describe("running a feed", () => {
     expect(hits[2]?.name).toBe("PetPal");
     expect(hits.find((h) => h.name === "Girderline")).toMatchObject({ fit_verdict: "strong", fit_score: 88, thesis_version: 1, is_new: true });
     expect(hits.find((h) => h.name === "PetPal")?.fit_verdict).toBe("weak");
+    // Triage: pass on the pet app with a reason; the list shows where each company stands.
+    const pet = hits.find((h) => h.name === "PetPal")!;
+    await expect(passOnCompany(db, pet.entity_id, { reasonCode: "thesis_fit" }, "human:pat")).rejects.toThrow(/Say why/);
+    await expect(passOnCompany(db, pet.entity_id, { reasonCode: "vibes", rationale: "Not for us at all." }, "human:pat")).rejects.toThrow(/main reason/);
+    await passOnCompany(db, pet.entity_id, { reasonCode: "thesis_fit", rationale: "Consumer pet care is outside the industrial mandate." }, "human:pat");
+    expect((await discovered(db)).find((h) => h.name === "PetPal")).toMatchObject({ passed_reason: "thesis_fit", passed_by: "human:pat", deal_id: null });
     expect((await runs(db, id))[0]).toMatchObject({ status: "done", triggered_by: "human:pat" });
     const [feed] = await feeds(db);
     expect(new Date(String(feed!.next_run_at)).getTime()).toBeGreaterThan(Date.now() + 6 * 86_400_000);

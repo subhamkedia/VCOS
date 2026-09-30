@@ -181,6 +181,18 @@ const STAGE_ALIASES: Record<string, (typeof STAGES)[number]> = {
 };
 
 /** The starter profile from thesis.yaml, with the firm's own name filled in. */
+/**
+ * The fund's full name: the profile keeps the family name and the number
+ * apart ("Demo Fund" and "II"), and every record (investments, LP
+ * Reporting's funds, raises) uses them together ("Demo Fund II").
+ */
+export function fundName(p: Pick<FirmProfile, "fund"> | null | undefined): string | null {
+  const f = p?.fund;
+  if (!f?.name) return null;
+  const n = f.number?.trim();
+  return n && !f.name.trim().endsWith(` ${n}`) ? `${f.name.trim()} ${n}` : f.name.trim();
+}
+
 export async function starterProfile(firmName: string): Promise<FirmProfile> {
   const file = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../thesis.yaml");
   const y = parseYaml(await readFile(file, "utf8")) as {

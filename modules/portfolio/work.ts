@@ -79,7 +79,8 @@ export async function decideFollowOn(db: Db, companyId: string, input: Record<st
     const roundSize = money(input.roundSizeUsd);
     const postMoney = preMoney !== null && roundSize !== null ? preMoney + roundSize : null;
     const inv = await insertInvestment(db, {
-      dealId: h.dealId, companyId, fundName: first.fund_name, security: String(input.security ?? "preferred"), seriesName: round, closeDate: input.roundDate as string,
+      // The fund investing: the one asked for (a later fund can follow on), else the first investment's.
+      dealId: h.dealId, companyId, fundName: text(input.fundName, 1, 200) ?? first.fund_name, security: String(input.security ?? "preferred"), seriesName: round, closeDate: input.roundDate as string,
       amountUsd: amount!, shares, pricePerShare: price, postMoneyUsd: postMoney,
       ownershipFdPct: money(input.ownershipPct), boardRole: first.board_role, rights: { followOnOf: first.id }, roundKind: "follow_on",
     }, by);

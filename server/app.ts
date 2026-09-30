@@ -366,6 +366,7 @@ export function createApp(deps: AppDeps) {
     return c.json({ started: true }, 202);
   });
   firm.get("/runs", async (c) => c.json(await sourcing.runs(c.get("db"), c.req.query("feed") || undefined)));
+  firm.post("/discovered/:id/pass", allow("decide_deals"), async (c) => c.json(await sourcing.passOnCompany(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
   firm.get("/discovered", async (c) => c.json(await sourcing.discovered(c.get("db"), { verdict: c.req.query("verdict") || undefined })));
 
   // Companies and the ledger
@@ -547,7 +548,7 @@ export function createApp(deps: AppDeps) {
   // Portfolio Management and Value Creation. Analysts keep the numbers, the
   // board record and the value-creation work; partners decide reserves,
   // follow-ons and realizations, and review marks (never their own).
-  firm.get("/portfolio", async (c) => c.json(await portfolio.overview(c.get("db"))));
+  firm.get("/portfolio", async (c) => c.json(await portfolio.overview(c.get("db"), undefined, c.req.query("fund") || undefined)));
   firm.get("/portfolio/queues", async (c) => c.json(await portfolio.workQueues(c.get("db"))));
   firm.get("/portfolio/companies/:id", async (c) => c.json(await portfolio.companyView(c.get("db"), param(c, "id"), who(c))));
   firm.post("/portfolio/companies/:id/kpis", allow("work_deals"), async (c) => c.json(await portfolio.recordKpis(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));

@@ -215,6 +215,12 @@ export const COMPLIANCE_LABELS = {
   giftKinds: { gift: "Gift", entertainment: "Entertainment" } as Record<string, string>,
 };
 
+/** Why the firm passed on a company (decisions.reason_code). */
+export const PASS_REASON_LABELS: Record<string, string> = {
+  team: "Team", market_size: "Market size", timing: "Timing", competition: "Competition", technology_risk: "Technology risk",
+  traction: "Traction", valuation: "Valuation", capital_intensity: "Capital intensity", thesis_fit: "Thesis fit", deal_dynamics: "Deal dynamics", other: "Other",
+};
+
 export const EXIT_LABELS = {
   paths: { acquisition: "Sale to a buyer", ipo: "IPO", secondary: "Secondary sale of our stake", hold: "Hold for now", wind_down: "Wind down" } as Record<string, string>,
   kinds: { acquisition: "Sale of the company", ipo: "IPO", secondary: "Secondary sale of our shares", tender: "Tender offer", buyback: "Company buyback", wind_down: "Wind-down" } as Record<string, string>,
@@ -255,6 +261,7 @@ export function vocabulary(sourceNames: Record<string, string> = {}) {
     fundraising: FUNDRAISING_LABELS,
     compliance: COMPLIANCE_LABELS,
     exits: EXIT_LABELS,
+    passReasons: PASS_REASON_LABELS,
   };
 }
 

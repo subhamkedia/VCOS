@@ -16,7 +16,8 @@ firm's data is isolated by Postgres row-level security.
 connectors; multi-firm workspaces with Google, Microsoft and email sign-in;
 onboarding (firm, fund, mandate, sectors, scoring) with live portfolio
 construction math; connections you set up once and every module reuses;
-the **Sourcing** module (scheduled feeds, portfolio websites, thesis fit);
+the **Sourcing** module (scheduled feeds, portfolio websites, thesis fit,
+and triage: start diligence or pass with a reason);
 **Meetings** (Google Calendar and Meet, Outlook and Teams, Zoom, Granola,
 Fireflies, each call matched to the right company); the **Diligence**
 module (research across every connected and public source, a checklist
@@ -157,7 +158,11 @@ approval queue for anything outbound.
 ### How Portfolio & Value Creation works
 
 A company joins the portfolio when its deal closes in Execution (or a
-follow-on is recorded). Every number is a claim with its source, so the
+follow-on is recorded), booked to the fund that invests (chosen at the
+close; a later fund can follow on). The portfolio shows one fund at a time,
+or all of them; a company held by more than one fund is split between them
+by shares, and LP Reporting values each fund's holdings the same way
+(`modules/portfolio/value.ts`), so the two always agree. Every number is a claim with its source, so the
 same month from two sources never double counts: the company's books win
 over what a founder typed, which wins over a model's reading of an email.
 

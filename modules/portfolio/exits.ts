@@ -19,7 +19,7 @@ import { parseCsv } from "../../lib/csv.js";
 import { getProfile } from "../firm/profile.js";
 import { draftDistribution, previewDistribution } from "../lp/capital.js";
 import { holding, holdings, isDay, PortfolioInvalid, today, type Holding } from "./common.js";
-import { holdingValue, publicSharesLeft, valueInputs } from "./value.js";
+import { fundShare, holdingValue, publicSharesLeft, valueInputs } from "./value.js";
 
 /**
  * Exits and liquidity, inside Portfolio. Each company has an exit plan (the
@@ -627,7 +627,11 @@ export async function fundLifeView(db: Db, fundId: string) {
   const marks = await latestMarks(db);
   const allReal = await realizations(db);
   const mine = (await holdings(db)).filter((h) => h.investments.some((i) => i.fund_name.toLowerCase() === f.name.toLowerCase()));
-  const residual = mine.map((h) => ({ companyId: h.companyId, name: h.name, ...holdingValue(h, marks.get(h.companyId), allReal.filter((r) => r.company_id === h.companyId), inputs) })).filter((r) => r.value > 0);
+  const residual = mine.map((h) => {
+    const v = holdingValue(h, marks.get(h.companyId), allReal.filter((r) => r.company_id === h.companyId), inputs);
+    const share = fundShare(h.investments, f.name);
+    return { companyId: h.companyId, name: h.name, ...v, value: round2(v.value * share), privateUsd: round2(v.privateUsd * share), pendingUsd: round2(v.pendingUsd * share), publicUsd: round2(v.publicUsd * share) };
+  }).filter((r) => r.value > 0);
   const nav = round2(residual.reduce((a, r) => a + r.value, 0));
   const items = await windDownItems(db, fundId);
   const processes = [];

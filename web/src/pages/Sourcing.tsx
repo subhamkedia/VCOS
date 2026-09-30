@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, useApi } from "../api";
 import { useSession } from "../app";
 import type { Cadence, Connector, Feed, Hit, ParamSpec } from "../types";
@@ -87,7 +87,7 @@ export default function Sourcing() {
           <div className="panel table-wrap">
             <table className="t">
               <caption className="sr-only">Companies found by your feeds, best thesis fit first</caption>
-              <thead><tr><th scope="col">Company</th><th scope="col">Thesis fit</th><th scope="col">Why</th><th scope="col">Found by</th><th scope="col">Seen</th></tr></thead>
+              <thead><tr><th scope="col">Company</th><th scope="col">Thesis fit</th><th scope="col">Why</th><th scope="col">Found by</th><th scope="col">Seen</th><th scope="col">Where it stands</th></tr></thead>
               <tbody>
                 {shown.map((h) => (
                   <tr key={h.entity_id}>
@@ -103,6 +103,7 @@ export default function Sourcing() {
                     </td>
                     <td className="small">{h.feed_name ?? "—"}</td>
                     <td className="small muted"><Time at={h.created_at} /></td>
+                    <td><Triage h={h} onChange={() => void reloadHits()} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -267,5 +268,59 @@ export function FeedForm({ connector, onDone }: { connector: Connector; onDone: 
         <button type="button" className="btn ghost small" onClick={onDone}>Cancel</button>
       </div>
     </form>
+  );
+}
+
+const STAGE_LABEL: Record<string, string> = { screening: "Screening", diligence: "In diligence", ic: "At IC", approved: "Approved", passed: "Passed in diligence", closed: "Invested" };
+
+/** Start diligence on a company, or pass with a reason, from where it was found. */
+function Triage({ h, onChange }: { h: Hit; onChange: () => void }) {
+  const { can } = useSession();
+  const v = useVocab();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const nav = useNavigate();
+  if (h.deal_id) return <Link className="small" to={`/diligence/${h.deal_id}`}>{STAGE_LABEL[h.deal_stage ?? ""] ?? "Deal"}</Link>;
+  const start = async () => {
+    try {
+      const r = await api<{ id: string }>("/deals", { body: { companyId: h.entity_id } });
+      nav(`/diligence/${r.id}`);
+    } catch (e) {
+      toast("bad", (e as Error).message);
+    }
+  };
+  const pass = async () => {
+    let reason = "";
+    let why = "";
+    const ok = await confirm({
+      title: `Pass on ${h.name}?`,
+      confirm: "Pass",
+      body: (
+        <div className="section">
+          <label className="field"><span>Main reason</span>
+            <select className="input" defaultValue="" onChange={(e) => { reason = e.target.value; }}>
+              <option value="" disabled>Choose</option>
+              {v.passReasonIds.map((id) => <option key={id} value={id}>{v.passReason(id)}</option>)}
+            </select>
+          </label>
+          <label className="field"><span>Why, in a sentence</span><textarea className="input" onChange={(e) => { why = e.target.value; }} /></label>
+        </div>
+      ),
+    });
+    if (!ok) return;
+    try {
+      await api(`/discovered/${h.entity_id}/pass`, { body: { reasonCode: reason, rationale: why } });
+      toast("good", "Passed. The reason is on record.");
+      onChange();
+    } catch (e) {
+      toast("bad", (e as Error).message);
+    }
+  };
+  return (
+    <div className="row">
+      {h.passed_reason && <span className="small muted">Passed: {v.passReason(h.passed_reason)}</span>}
+      {can("work_deals") && <button className="btn small" onClick={() => void start()}>Start diligence</button>}
+      {can("decide_deals") && !h.passed_reason && <button className="btn small ghost" onClick={() => void pass()}>Pass</button>}
+    </div>
   );
 }

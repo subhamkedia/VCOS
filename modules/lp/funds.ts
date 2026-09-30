@@ -6,7 +6,7 @@ import {
   funds, getPartner, insertFund, insertLpPortalLink, insertPartner, partners, revokeLpPortalLinks, updateFund, updatePartner, upsertTaxDoc, type FundRow, type TaxDocRow,
 } from "../../ledger/lp.js";
 import { LP_LABELS } from "../../ledger/labels.js";
-import { getProfile } from "../firm/profile.js";
+import { fundName, getProfile } from "../firm/profile.js";
 import { addDays, EXPENSE_CATEGORIES, fundOr404, isDay, LpInvalid, PARTNER_KINDS, termsOf, today, type StoredTerms } from "./common.js";
 
 /**
@@ -53,8 +53,9 @@ const LABEL: Record<string, string> = {
 
 /** Set up a fund, from the firm profile's fund unless told otherwise. */
 export async function createFund(db: Db, input: Record<string, unknown>, by: string): Promise<FundRow> {
-  const profile = (await getProfile(db))?.profile.fund;
-  const name = String(input.name ?? profile?.name ?? "").trim();
+  const fullProfile = (await getProfile(db))?.profile;
+  const profile = fullProfile?.fund;
+  const name = String(input.name ?? fundName(fullProfile) ?? "").trim();
   if (!name) throw new LpInvalid("Name the fund.");
   if ((await funds(db)).some((f) => f.name.toLowerCase() === name.toLowerCase())) throw new LpInvalid(`There's already a fund called ${name}.`);
   const inception = isDay(input.inception) ? input.inception : profile?.firstCloseDate;

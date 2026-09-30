@@ -445,7 +445,7 @@ export function reportingCalendar(year: number): Deadline[] {
   const q = (n: number, end: string, days: number): Deadline => ({ key: `q${n}_${year}`, title: `Q${n} ${year} report to LPs`, due: addDays(end, days), basis: days === 45 ? "ILPA: within 45 days of quarter end" : "ILPA: annual report within 90 days of year end" });
   return [
     q(1, `${year}-03-31`, 45), q(2, `${year}-06-30`, 45), q(3, `${year}-09-30`, 45), q(4, `${year}-12-31`, 90),
-    { key: `adv_${year}`, title: `Form ADV annual amendment for ${year}`, due: `${year + 1}-03-31`, basis: "SEC: within 90 days of fiscal year end (registered and exempt reporting advisers)" },
+    { key: `adv_${year}`, title: `Form ADV annual amendment for ${year}`, due: addDays(`${year}-12-31`, 90), basis: "SEC: within 90 days of fiscal year end (registered and exempt reporting advisers)" },
     { key: `k1_${year}`, title: `Schedules K-1 for ${year}`, due: `${year + 1}-03-15`, basis: "IRS: March 15; September 15 with a Form 7004 extension" },
     { key: `audit_${year}`, title: `Audited financial statements for ${year}`, due: addDays(`${year}-12-31`, 120), basis: "SEC custody rule audit provision: within 120 days of year end (registered advisers; LPAs often require it too)" },
   ];

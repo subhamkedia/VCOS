@@ -4,7 +4,7 @@ import { api, useApi } from "../../api";
 import { useSession } from "../../app";
 import type { IcMeeting, IcTally, IcVote, Role } from "../../types";
 import { Chips, Field, Notice, Select, dateOnly, useConfirm, usePrompt, useToast } from "../../ui";
-import { REASON_LABELS } from "../deal/Decision";
+import { useVocab } from "../../vocab";
 import { PHASE_LABELS } from "../Execution";
 import { person, type ExecTabProps } from "../ExecutionDeal";
 
@@ -78,6 +78,7 @@ function Schedule({ data, onChange }: ExecTabProps) {
 }
 
 function Meeting({ m, data, onChange }: { m: IcMeeting } & ExecTabProps) {
+  const v = useVocab();
   const { me } = useSession();
   const toast = useToast();
   const confirm = useConfirm();
@@ -163,7 +164,7 @@ function Meeting({ m, data, onChange }: { m: IcMeeting } & ExecTabProps) {
             <>
               <Notice tone="warn">On the final votes the committee declines ({m.postTally!.detail}). Record the main reason; it goes in your pass data.</Notice>
               <div className="grid-2">
-                <Field label="Main reason" required><Select id={`reason-${m.id}`} value={reason} onChange={setReason} placeholder="Choose" options={data.passReasons.map((id) => ({ id, label: REASON_LABELS[id] ?? id }))} /></Field>
+                <Field label="Main reason" required><Select id={`reason-${m.id}`} value={reason} onChange={setReason} placeholder="Choose" options={data.passReasons.map((id) => ({ id, label: v.passReason(id) }))} /></Field>
                 <Field label="In a sentence"><input className="input" value={why} onChange={(e) => setWhy(e.target.value)} /></Field>
               </div>
             </>

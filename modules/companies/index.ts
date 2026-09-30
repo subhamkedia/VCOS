@@ -50,7 +50,7 @@ async function liveFit(db: Db, entityId: string, name: string): Promise<HitRow |
   const fit = thesisFit(current.profile, await currentClaims(db, entityId));
   return {
     entity_id: entityId, name, is_new: false, fit_score: fit.score, fit_verdict: fit.verdict, thesis_version: current.version,
-    fit, feed_name: null, connector_id: null, created_at: new Date().toISOString(),
+    fit, feed_name: null, connector_id: null, created_at: new Date().toISOString(), deal_id: null, deal_stage: null, passed_reason: null, passed_by: null, passed_at: null,
   };
 }
 

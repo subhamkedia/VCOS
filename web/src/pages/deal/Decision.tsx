@@ -4,11 +4,8 @@ import { api } from "../../api";
 import { useSession } from "../../app";
 import { Field, Notice, Select, dateOnly, useConfirm, useToast } from "../../ui";
 import type { TabProps } from "../Deal";
+import { useVocab } from "../../vocab";
 
-export const REASON_LABELS: Record<string, string> = {
-  team: "Team", market_size: "Market size", timing: "Timing", competition: "Competition", technology_risk: "Technology risk",
-  traction: "Traction", valuation: "Valuation", capital_intensity: "Capital intensity", thesis_fit: "Thesis fit", deal_dynamics: "Deal dynamics", other: "Other",
-};
 
 /**
  * Pass, or send to IC. Both are recorded as decisions with the reason and
@@ -16,6 +13,7 @@ export const REASON_LABELS: Record<string, string> = {
  */
 export default function Decision({ data, onChange }: TabProps) {
   const { can } = useSession();
+  const v = useVocab();
   const toast = useToast();
   const confirm = useConfirm();
   const [reason, setReason] = useState<string | undefined>();
@@ -43,7 +41,7 @@ export default function Decision({ data, onChange }: TabProps) {
             {data.decisions.map((d) => (
               <li key={d.id}>
                 <span className="muted">{dateOnly(d.created_at)}</span>
-                <span><strong>{d.kind === "pass" ? "Passed" : d.kind === "advance" ? "Sent to IC" : d.kind.replace(/_/g, " ")}</strong>{d.reason_code ? ` · ${REASON_LABELS[d.reason_code] ?? d.reason_code}` : ""} · {d.actor.replace(/^human:/, "")}<br />{d.rationale}</span>
+                <span><strong>{d.kind === "pass" ? "Passed" : d.kind === "advance" ? "Sent to IC" : d.kind.replace(/_/g, " ")}</strong>{d.reason_code ? ` · ${v.passReason(d.reason_code)}` : ""} · {d.actor.replace(/^human:/, "")}<br />{d.rationale}</span>
               </li>
             ))}
           </ul>
@@ -64,7 +62,7 @@ export default function Decision({ data, onChange }: TabProps) {
           <form className="panel panel-pad section" onSubmit={(e) => { e.preventDefault(); void decide({ kind: "pass", reasonCode: reason, rationale: why }, `Pass on ${data.deal.company_name}?`, "Pass", true); }} aria-labelledby="pass-h">
             <h2 id="pass-h">Pass</h2>
             <p className="small muted" style={{ margin: 0 }}>Pass reasons are data: they show where your funnel loses deals and which theses you keep passing on.</p>
-            <Field label="Main reason" required><Select id="pass-reason" value={reason} onChange={setReason} placeholder="Choose" options={data.passReasons.map((id) => ({ id, label: REASON_LABELS[id] ?? id }))} /></Field>
+            <Field label="Main reason" required><Select id="pass-reason" value={reason} onChange={setReason} placeholder="Choose" options={data.passReasons.map((id) => ({ id, label: v.passReason(id) }))} /></Field>
             <Field label="Why, in a sentence or two" required><textarea className="input" required minLength={10} value={why} onChange={(e) => setWhy(e.target.value)} /></Field>
             <div className="row"><button className="btn danger" disabled={!reason}>Pass</button></div>
           </form>

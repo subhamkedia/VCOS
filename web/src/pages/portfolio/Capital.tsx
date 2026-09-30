@@ -135,15 +135,17 @@ function FollowOnForm({ data, onChange }: PfTabProps) {
   const [round, setRound] = useState("");
   const [date, setDate] = useState("");
   const [why, setWhy] = useState("");
+  const [fund, setFund] = useState<string | undefined>(data.investments[0]?.fund_name);
   const { err, run } = useSubmit(`/portfolio/companies/${data.company.id}/follow-on`, onChange, "Decision recorded.");
   const m = (k: string, label: string) => <Field label={label}><MoneyInput id={`fo-${k}`} value={f[k]} onChange={(v) => setF({ ...f, [k]: v })} /></Field>;
   return (
-    <form className="section" style={{ gap: 8, borderTop: "1px solid var(--line)", paddingTop: 12 }} onSubmit={(e) => { e.preventDefault(); void run({ decision, roundName: round, roundDate: date, rationale: why, ...f }, () => { setF({}); setRound(""); setWhy(""); }); }}>
+    <form className="section" style={{ gap: 8, borderTop: "1px solid var(--line)", paddingTop: 12 }} onSubmit={(e) => { e.preventDefault(); void run({ decision, roundName: round, roundDate: date, rationale: why, fundName: fund, ...f }, () => { setF({}); setRound(""); setWhy(""); }); }}>
       <h3>Record a follow-on decision</h3>
       <Seg label="Decision" value={decision} onChange={setDecision} options={[{ id: "invest", label: "Invest pro rata or more" }, { id: "partial", label: "Invest less" }, { id: "pass", label: "Pass" }]} />
       <div className="form-grid">
         <Field label="Round" required><input className="input" required value={round} onChange={(e) => setRound(e.target.value)} placeholder="Series A Preferred" /></Field>
         <Field label="Closing date" required><input className="input" type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+        {decision !== "pass" && data.options.funds.length > 1 && <Field label="From fund" required><Select id="fo-fund" value={fund} onChange={setFund} options={data.options.funds.map((x) => ({ id: x, label: x }))} /></Field>}
         {decision !== "pass" && m("amountUsd", "Our check")}
         {m("proRataUsd", "Our pro rata")}
         {m("preMoneyUsd", "Pre-money")}

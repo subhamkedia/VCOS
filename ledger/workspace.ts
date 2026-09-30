@@ -222,17 +222,27 @@ export interface HitRow {
   feed_name: string | null;
   connector_id: string | null;
   created_at: unknown;
+  /** The company's latest deal, if the firm has started one. */
+  deal_id: string | null;
+  deal_stage: string | null;
+  /** The latest pass on the company outside a deal, if any. */
+  passed_reason: string | null;
+  passed_by: string | null;
+  passed_at: unknown;
 }
 
-/** The latest hit per company, best fit first, then newest. */
+/** The latest hit per company, best fit first, then newest, with where the firm stands on it. */
 export async function latestHits(db: Db, opts: { verdict?: string; limit?: number } = {}): Promise<HitRow[]> {
   const params: unknown[] = [opts.limit ?? 100];
   if (opts.verdict) params.push(opts.verdict);
   return (await db.query<HitRow>(
     `select * from (
        select distinct on (h.entity_id) h.entity_id, e.name, h.is_new, h.fit_score, h.fit_verdict, h.thesis_version, h.fit,
-              f.name as feed_name, f.connector_id, h.created_at
+              f.name as feed_name, f.connector_id, h.created_at,
+              d.id as deal_id, d.stage as deal_stage, p.reason_code as passed_reason, p.actor as passed_by, p.created_at as passed_at
          from sourcing_hits h join entities e on e.id = h.entity_id left join sourcing_feeds f on f.id = h.feed_id
+         left join lateral (select id, stage from deals where company_id = h.entity_id order by created_at desc limit 1) d on true
+         left join lateral (select reason_code, actor, created_at from decisions where entity_id = h.entity_id and kind = 'pass' and (value->>'dealId') is null order by created_at desc limit 1) p on true
         where e.merged_into is null
         order by h.entity_id, h.created_at desc
      ) latest ${opts.verdict ? "where fit_verdict = $2" : ""}

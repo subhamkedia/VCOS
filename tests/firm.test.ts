@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { Db } from "../lib/db.js";
 import { testDb } from "./helpers.js";
-import { checkProfile, getProfile, profileHistory, saveProfile, starterProfile, ProfileInvalid, type FirmProfile } from "../modules/firm/profile.js";
+import { checkProfile, fundName, getProfile, profileHistory, saveProfile, starterProfile, ProfileInvalid, type FirmProfile } from "../modules/firm/profile.js";
 import { geographyMatches, thesisFit } from "../modules/sourcing/fit.js";
 import type { ClaimRow } from "../ledger/contradictions.js";
 
@@ -46,6 +46,16 @@ describe("firm profile", () => {
     expect((await profileHistory(db)).map((h) => h.version)).toEqual([2, 1]);
     await expect(saveProfile(db, { ...p, mandate: { ...p.mandate, geographies: [] } }, "human:pat")).rejects.toThrow(ProfileInvalid);
     await expect(db.query("update thesis_versions set created_by='x'")).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe("the fund's name", () => {
+  it("joins the family name and the number, as the fund's records use it", async () => {
+    const p = await starterProfile("Northbeam");
+    expect(fundName({ fund: { ...p.fund, name: "Northbeam Fund", number: "II" } })).toBe("Northbeam Fund II");
+    expect(fundName({ fund: { ...p.fund, name: "Northbeam Fund II", number: "II" } })).toBe("Northbeam Fund II");
+    expect(fundName({ fund: { ...p.fund, name: "Northbeam Ventures", number: undefined } })).toBe("Northbeam Ventures");
+    expect(fundName(null)).toBeNull();
   });
 });
 

@@ -14,7 +14,8 @@ import { capTableFromCsv, cartaCapTableHoldings } from "../../connectors/carta.j
 import { closingStatusFor, docusignEnvelopes } from "../../connectors/docusign.js";
 import { sanctionsLists, screen, type SanctionsEntry } from "../../connectors/ofac.js";
 import { assertScreeningCleared, screeningStatus } from "../compliance/gate.js";
-import { getProfile, type FirmProfile } from "../firm/profile.js";
+import { funds as lpFunds } from "../../ledger/lp.js";
+import { fundName, getProfile, type FirmProfile } from "../firm/profile.js";
 import { isReady, withFirmCredentials } from "../connections/index.js";
 import { queue } from "../outbox/index.js";
 import { checkTerms, HOUSE_DEFAULTS, TermSheet, type TermCheck } from "./terms.js";
@@ -581,7 +582,7 @@ export async function closeDeal(db: Db, dealId: string, input: unknown, by: stri
   const amount = m.ours?.amount ?? t.ourAllocationUsd;
   if (!amount) throw new ExecutionInvalid("Set our allocation on the signed term sheet.");
   const inv = await insertInvestment(db, {
-    dealId, companyId: d.company_id, fundName: p.data.fundName ?? profile?.fund.name ?? "Fund", security: t.security, seriesName: t.seriesName, closeDate: p.data.closeDate,
+    dealId, companyId: d.company_id, fundName: p.data.fundName ?? fundName(profile) ?? "Fund", security: t.security, seriesName: t.seriesName, closeDate: p.data.closeDate,
     amountUsd: amount, shares: m.ours?.shares ?? null, pricePerShare: m.proForma?.pricePerShare ?? null, postMoneyUsd: m.proForma?.postMoneyImplied ?? (t.security !== "preferred" ? t.valuationCapUsd ?? null : null),
     ownershipFdPct: m.ours?.postPct ?? null, boardRole: p.data.boardRole ?? t.board.ours,
     rights: { proRata: t.proRata, informationRights: t.informationRights, managementRightsLetter: t.managementRightsLetter, liquidation: t.liquidation, antiDilution: t.antiDilution, mfn: t.mfn },
@@ -621,6 +622,8 @@ export async function executionView(db: Db, dealId: string, viewer: string) {
     icRule: RULE_LABELS[(profile?.fund.icApproval ?? "majority") as Rule],
     closing: { items, categories: CATEGORY_LABELS, ready: readyToClose(items) },
     regulatory: await screeningStatus(db, dealId),
+    // The funds a close can be booked to: LP Reporting's, and the profile's.
+    funds: [...new Set([fundName(profile), ...(await lpFunds(db)).map((f) => f.name)].filter((x): x is string => Boolean(x)))],
     wires: await wires(db, dealId),
     investments: await listInvestments(db, { dealId }),
     passReasons: PASS_REASONS,

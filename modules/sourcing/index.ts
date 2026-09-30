@@ -1,6 +1,6 @@
 import { scopedDb, type Db } from "../../lib/db.js";
 import type { Llm } from "../../lib/llm.js";
-import { currentClaims, entityIdentifiers } from "../../ledger/repository.js";
+import { currentClaims, entityIdentifiers, PASS_REASONS, recordDecision } from "../../ledger/repository.js";
 import {
   deleteFeed as removeFeed, dueFeeds, finishRun, getFeed, insertFeed, insertHit, latestHits, listFeeds, recentRuns, startRun,
   updateFeed as patchFeed, type Cadence, type FeedRow,
@@ -227,3 +227,17 @@ export async function discovered(db: Db, opts: { verdict?: string; limit?: numbe
 }
 
 export const runs = recentRuns;
+
+/**
+ * Pass on a company straight from sourcing, before any diligence: the
+ * reason code and a sentence are required (judgment is data). Starting
+ * diligence later is still possible; the pass stays on record.
+ */
+export async function passOnCompany(db: Db, entityId: string, input: { reasonCode?: unknown; rationale?: unknown }, by: string) {
+  const reason = String(input.reasonCode ?? "");
+  if (!(PASS_REASONS as readonly string[]).includes(reason)) throw new FeedInvalid("Pick the main reason for passing.");
+  const rationale = typeof input.rationale === "string" ? input.rationale.trim() : "";
+  if (rationale.length < 10) throw new FeedInvalid("Say why in a sentence: it's how the firm learns from what it passed on.");
+  const profile = await getProfile(db);
+  return { id: await recordDecision(db, { entityId, kind: "pass", actor: by, reasonCode: reason as (typeof PASS_REASONS)[number], rationale, value: { stage: "sourcing", thesisVersion: profile?.version ?? null } }) };
+}

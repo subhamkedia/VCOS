@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { useSession } from "../../app";
 import type { Wire, WireStatus } from "../../types";
-import { Field, MoneyInput, Notice, Time, dateOnly, useConfirm, usePrompt, useToast, usd } from "../../ui";
+import { Field, MoneyInput, Notice, Select, Time, dateOnly, useConfirm, usePrompt, useToast, usd } from "../../ui";
 import { SECURITY_LABELS } from "../Execution";
 import { person, type ExecTabProps } from "../ExecutionDeal";
 
@@ -150,6 +150,7 @@ function CloseForm({ data, onChange }: ExecTabProps) {
   const toast = useToast();
   const confirm = useConfirm();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [fund, setFund] = useState<string | undefined>(data.funds[0]);
   const [err, setErr] = useState<string | null>(null);
   const r = data.closing.ready;
   const titles = r.open.map((k) => data.closing.items.find((i) => i.key === k)?.title ?? k);
@@ -157,7 +158,7 @@ function CloseForm({ data, onChange }: ExecTabProps) {
   const submit = async () => {
     if (!(await confirm({ title: `Record the close of ${data.deal.company_name}?`, body: "The investment is recorded for Portfolio, with the figures from the signed terms and the pro forma. This can't be undone; corrections are new records.", confirm: "Record the close" }))) return;
     try {
-      await api(`/deals/${data.deal.id}/close`, { body: { closeDate: date } });
+      await api(`/deals/${data.deal.id}/close`, { body: { closeDate: date, fundName: fund } });
       toast("good", "Closed. The investment is on record.");
       onChange();
     } catch (e) {
@@ -173,7 +174,10 @@ function CloseForm({ data, onChange }: ExecTabProps) {
       {!data.regulatory.blocked && data.regulatory.screening && <p className="small muted" style={{ margin: 0 }}>Regulatory screening done {dateOnly(data.regulatory.screening.screenedAt)}. <Link to="/compliance?tab=deals">See it</Link></p>}
       {can("decide_deals") ? (
         <>
-          <Field label="Closing date" required><input className="input" type="date" required value={date} onChange={(e) => setDate(e.target.value)} style={{ maxWidth: 220 }} /></Field>
+          <div className="form-grid">
+            <Field label="Closing date" required><input className="input" type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+            {data.funds.length > 1 && <Field label="Investing fund" required><Select id="close-fund" value={fund} onChange={setFund} options={data.funds.map((f) => ({ id: f, label: f }))} /></Field>}
+          </div>
           {err && <Notice tone="bad">{err}</Notice>}
           <div className="row"><button className="btn primary" disabled={!r.ready || !signed || Boolean(data.regulatory.blocked)}>Record the close</button></div>
         </>

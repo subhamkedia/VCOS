@@ -211,3 +211,36 @@ describe("the fund's tail", () => {
     await expect(db.query("update exit_bids set value_usd = 1")).rejects.toThrow(); // bids are kept as made
   });
 });
+
+describe("one value across modules", () => {
+  it("values holdings in LP Reporting the way Portfolio does: escrows, earnouts and listed shares after a sale", async () => {
+    const { db, company } = await firm();
+    const fund = await lpFund(db);
+    const id = await company("Kestrel Robotics", "2021-03-31", "seat");
+    const x = await P.startExit(db, id, { kind: "acquisition", counterparty: "Acme Industrial" }, ANA);
+    await P.consentToExit(db, x.id, { choice: "approve", rationale: "A full process, above our mark, with clean terms and a modest escrow." }, PAT);
+    await P.closeExit(db, x.id, { closedOn: "2026-06-30", totalUsd: 9e6, stockUsd: 1e6, stockTicker: "ACME", stockShares: 50_000, escrowPct: 10 }, PAT);
+    const pf = (await P.overview(db)).companies.find((c) => c.companyId === id)!;
+    const lpRow = (await L.fundView(db, fund.id)).schedule.find((s) => s.companyId === id)!;
+    expect(pf).toMatchObject({ realized: 7.1e6, fairValue: 1.9e6 }); // $0.9M escrow + $1M of the buyer's shares
+    expect(lpRow).toMatchObject({ realized: 7.1e6, fairValue: 1.9e6, status: "exited" });
+    // As of the day before the sale, it's the private position at cost.
+    const before = (await L.fundView(db, fund.id, "2026-06-29")).schedule.find((s) => s.companyId === id)!;
+    expect(before).toMatchObject({ realized: 0, fairValue: 2e6, status: "held" });
+  });
+
+  it("splits a company held by two funds between them", async () => {
+    const { db, company } = await firm();
+    const id = await company("Weldloop", "2024-04-15", "seat");
+    const dealId = (await db.query<{ id: string }>("select id from deals where company_id = $1", [id])).rows[0]!.id;
+    await insertInvestment(db, { dealId, companyId: id, fundName: "Northbeam Fund II", security: "preferred", seriesName: "Series A Preferred", closeDate: "2026-01-15", amountUsd: 3e6, shares: 1_000_000, pricePerShare: 3, ownershipFdPct: 20, boardRole: "seat", rights: {}, roundKind: "follow_on" }, PAT);
+    const m = await P.proposeMark(db, id, { method: "recent_round", asOf: "2026-06-30", roundPrice: 3, roundDate: "2026-01-15", ourShares: 3_000_000, rationale: "Priced at the Series A." }, ANA);
+    await P.reviewMark(db, m.id, { approve: true }, PAT);
+    const f1 = await P.overview(db, "2026-09-30", "Northbeam Fund I");
+    const f2 = await P.overview(db, "2026-09-30", "Northbeam Fund II");
+    expect(f1.funds).toEqual(["Northbeam Fund I", "Northbeam Fund II"]);
+    expect(f1.companies[0]).toMatchObject({ invested: 2e6, fairValue: 6e6 }); // 2M of 3M shares at $3
+    expect(f2.companies[0]).toMatchObject({ invested: 3e6, fairValue: 3e6 });
+    expect((await P.overview(db, "2026-09-30", "all")).companies[0]).toMatchObject({ invested: 5e6, fairValue: 9e6 });
+  });
+});

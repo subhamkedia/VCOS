@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApi } from "../api";
 import type { InitiativeRow, KpiRequest, Mark, PortfolioOverview } from "../types";
-import { ErrorState, Loading, Notice, PageHead, Seg, dateOnly, usd } from "../ui";
+import { ErrorState, Loading, Notice, PageHead, Seg, Select, dateOnly, usd } from "../ui";
 import { HealthPill, SEVERITY_TONE, months, monthLabel, pctFmt, person, x2 } from "./portfolio/shared";
 
 type View = "all" | "attention" | "exited";
@@ -15,7 +15,8 @@ type View = "all" | "attention" | "exited";
 export default function Portfolio() {
   const nav = useNavigate();
   const [view, setView] = useState<View>("all");
-  const { data, error, reload } = useApi<PortfolioOverview>("/portfolio");
+  const [fund, setFund] = useState<string | undefined>();
+  const { data, error, reload } = useApi<PortfolioOverview>(`/portfolio${fund ? `?fund=${encodeURIComponent(fund)}` : ""}`);
   const queues = useApi<{ marksToReview: Mark[]; requests: KpiRequest[]; initiatives: InitiativeRow[] }>("/portfolio/queues");
   const head = (
     <PageHead
@@ -38,7 +39,11 @@ export default function Portfolio() {
       ) : (
         <>
           <section className="panel panel-pad section" aria-labelledby="perf-h">
-            <h2 id="perf-h">{data.fund.name}</h2>
+            <div className="spread">
+              <h2 id="perf-h">{data.fund.name}</h2>
+              {data.funds.length > 1 && <label className="sr-only" htmlFor="pf-fund">Fund</label>}
+              {data.funds.length > 1 && <Select id="pf-fund" value={fund ?? data.fund.name} onChange={(v) => setFund(v)} options={[...data.funds.map((f) => ({ id: f, label: f })), { id: "all", label: "All funds" }]} />}
+            </div>
             <div className="stats">
               <div className="stat"><b className="num">{usd(m.invested)}</b><span>Invested</span></div>
               <div className="stat"><b className="num">{usd(m.totalValue)}</b><span>Total value</span></div>

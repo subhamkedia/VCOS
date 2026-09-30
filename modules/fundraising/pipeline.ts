@@ -7,7 +7,7 @@ import { funds } from "../../ledger/lp.js";
 import { FUNDRAISING_LABELS, LP_LABELS } from "../../ledger/labels.js";
 import { STAGES, type Stage } from "../../engines/fundraising.js";
 import { affinityListOrgs } from "../../connectors/affinity.js";
-import { getProfile } from "../firm/profile.js";
+import { fundName, getProfile } from "../firm/profile.js";
 import { isReady, withFirmCredentials } from "../connections/index.js";
 import { kindFrom } from "../lp/index.js";
 import { EMAIL, emailsOf, FundraisingInvalid, isDay, money, raiseOr404, text, today } from "./common.js";
@@ -24,8 +24,9 @@ const EXEMPTIONS = ["3c1", "3c1_qvcf", "3c7"] as const;
 const OFFERINGS = ["506b", "506c"] as const;
 
 export async function createRaise(db: Db, input: Record<string, unknown>, by: string) {
-  const f = (await getProfile(db))?.profile.fund;
-  const name = text(input.name) ?? (f ? `${f.name}${f.number ? ` ${f.number}` : ""}` : null);
+  const full = (await getProfile(db))?.profile;
+  const f = full?.fund;
+  const name = text(input.name) ?? fundName(full);
   if (!name) throw new FundraisingInvalid("Name the raise.");
   if ((await raises(db)).some((r) => r.name.toLowerCase() === name.toLowerCase())) throw new FundraisingInvalid(`There's already a raise called ${name}.`);
   const target = money(input.targetUsd) ?? f?.targetSizeUsd ?? null;

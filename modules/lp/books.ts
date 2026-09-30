@@ -6,6 +6,7 @@ import { equalizationFor } from "../../ledger/fundraising.js";
 import { allocate, capitalAccounts, netReturns, type CapitalAccount, type FundBooks, type Movement } from "../../engines/fund-accounting.js";
 import { portfolioMetrics, type Flow, type Position } from "../../engines/fund-metrics.js";
 import { METHOD_LABELS } from "../../engines/valuation.js";
+import { fundShare, holdingValue, valueInputs, type ValueInputs } from "../portfolio/value.js";
 import { dayBefore, round2, sum, termsOf } from "./common.js";
 
 /**
@@ -21,9 +22,13 @@ import { dayBefore, round2, sum, termsOf } from "./common.js";
 export interface Holdings {
   companyId: string;
   name: string;
+  /** This fund's investments in the company. */
   investments: InvestmentRow[];
+  /** Every fund's, for the fund's share of a company held by several. */
+  allInvestments: InvestmentRow[];
   realizations: RealizationRow[];
   marks: ValuationRow[];
+  inputs: ValueInputs;
 }
 
 export interface Ledger {
@@ -45,19 +50,24 @@ export interface Ledger {
 async function fundHoldings(db: Db, fund: FundRow): Promise<Holdings[]> {
   const single = (await funds(db)).length === 1;
   const norm = (s: string) => s.trim().toLowerCase();
-  const inv = (await listInvestments(db)).filter((i) => single || norm(i.fund_name) === norm(fund.name));
+  const every = await listInvestments(db);
+  const inv = every.filter((i) => single || norm(i.fund_name) === norm(fund.name));
   const real = await realizations(db);
   const marks = await valuations(db, { status: "approved" });
+  const inputs = await valueInputs(db);
   const by = new Map<string, Holdings>();
   for (const i of [...inv].sort((a, b) => a.close_date.localeCompare(b.close_date))) {
     const h = by.get(i.company_id) ?? {
       companyId: i.company_id, name: i.company_name ?? "Company", investments: [],
+      allInvestments: single ? [] : every.filter((x) => x.company_id === i.company_id),
       realizations: real.filter((r) => r.company_id === i.company_id),
-      marks: marks.filter((m) => m.company_id === i.company_id),
+      marks: marks.filter((m) => m.company_id === i.company_id), inputs,
     };
     h.investments.push(i);
     by.set(i.company_id, h);
   }
+  // With one fund, the fund holds everything the firm holds.
+  for (const h of by.values()) if (single) h.allInvestments = h.investments;
   return [...by.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -110,31 +120,30 @@ export interface ScheduleRow {
   markDate: string | null;
 }
 
-/** Each investment at a date: cost, proceeds, and fair value (the latest approved mark on or before it, else cost; nothing after an exit). */
+/**
+ * Each investment at a date: cost, proceeds, and fair value, valued the way
+ * Portfolio values it (modules/portfolio/value.ts): the latest approved
+ * mark on or before the date, else cost, scaled for shares sold; after a
+ * sale, escrows and earnouts still expected; listed shares at the closing
+ * price. A company this fund holds alongside another fund is split by shares.
+ */
 export function scheduleAt(holdings: Holdings[], asOf: string): ScheduleRow[] {
   return holdings.flatMap((h) => {
     const inv = h.investments.filter((i) => i.close_date <= asOf);
     if (!inv.length) return [];
-    const real = h.realizations.filter((r) => r.occurred_on <= asOf);
+    const share = h.allInvestments.length === h.investments.length ? 1 : fundShare(h.allInvestments, inv[0]!.fund_name, asOf);
+    const v = holdingValue({ companyId: h.companyId, investments: h.allInvestments }, h.marks, h.realizations, h.inputs, asOf);
     const cost = sum(inv.map((i) => i.amount_usd));
-    const realized = sum(real.filter((r) => r.amount_usd > 0).map((r) => r.amount_usd));
-    const exit = real.filter((r) => r.kind === "sale" || r.kind === "write_off").map((r) => r.occurred_on).sort().pop();
-    const mark = h.marks.filter((m) => m.as_of <= asOf).sort((a, b) => b.as_of.localeCompare(a.as_of))[0];
-    let fairValue = cost;
-    let basis = "Cost (no approved mark yet)";
-    let markDate: string | null = null;
-    if (mark && (!exit || mark.as_of > exit)) {
-      fairValue = mark.fair_value_usd;
-      basis = METHOD_LABELS[mark.method as keyof typeof METHOD_LABELS] ?? mark.method;
-      markDate = mark.as_of;
-    } else if (exit) {
-      fairValue = 0;
-      basis = "Exited";
-    }
+    const realized = v.realizedUsd * share;
+    const fairValue = v.value * share;
+    const basis = v.basis === "mark" ? METHOD_LABELS[v.markMethod as keyof typeof METHOD_LABELS] ?? v.markMethod ?? "Mark"
+      : v.basis === "cost" ? "Cost (no approved mark yet)"
+      : v.basis === "public" ? "Quoted price"
+      : v.pendingUsd + v.publicUsd > 0 ? "Exited; escrows, earnouts or shares still held" : "Exited";
     const totalValue = realized + fairValue;
     return [{
       companyId: h.companyId, company: h.name, firstInvested: inv[0]!.close_date, cost: round2(cost), realized: round2(realized), fairValue: round2(fairValue),
-      totalValue: round2(totalValue), moic: cost > 0 ? totalValue / cost : null, status: exit && fairValue === 0 ? "exited" : "held", basis, markDate,
+      totalValue: round2(totalValue), moic: cost > 0 ? totalValue / cost : null, status: v.basis === "exited" ? "exited" : "held", basis, markDate: v.markDate,
     }];
   });
 }
@@ -145,8 +154,10 @@ export function gainsAt(holdings: Holdings[], asOf: string): { realized: number;
   let unrealized = 0;
   let investedCostHeld = 0;
   for (const r of scheduleAt(holdings, asOf)) {
-    if (r.status === "exited") realized += r.realized - r.cost;
-    else {
+    if (r.status === "exited") {
+      realized += r.realized - r.cost;
+      unrealized += r.fairValue; // escrows, earnouts and shares still to come
+    } else {
       realized += r.realized;
       unrealized += r.fairValue - r.cost;
       investedCostHeld += r.cost;
@@ -269,7 +280,7 @@ export function performance(l: Ledger, asOf: string) {
     return {
       company: h.name,
       invested: h.investments.filter((i) => i.close_date <= asOf).map((i) => ({ date: i.close_date, amount: i.amount_usd })),
-      realized: h.realizations.filter((r) => r.occurred_on <= asOf && r.amount_usd > 0).map((r) => ({ date: r.occurred_on, amount: r.amount_usd })),
+      realized: h.realizations.filter((r) => r.occurred_on <= asOf && r.amount_usd > 0).map((r) => ({ date: r.occurred_on, amount: r.amount_usd * (h.allInvestments.length === h.investments.length ? 1 : fundShare(h.allInvestments, h.investments[0]!.fund_name, asOf)) })),
       fairValue: row?.fairValue ?? 0,
     };
   }).filter((p) => p.invested.length);

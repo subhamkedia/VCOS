@@ -99,6 +99,7 @@ export interface Fit { score: number; verdict: "strong" | "possible" | "weak" | 
 export interface Hit {
   entity_id: string; name: string; is_new: boolean; fit_score: number | null; fit_verdict: Fit["verdict"] | null;
   thesis_version: number | null; fit: Fit | null; feed_name: string | null; connector_id: string | null; created_at: string;
+  deal_id: string | null; deal_stage: string | null; passed_reason: string | null; passed_by: string | null; passed_at: string | null;
 }
 
 export interface CompanyRow { id: string; name: string; claims: number; open_contradictions: number; domain: string | null; updated_at: string }
@@ -302,6 +303,7 @@ export interface ExecutionView {
   deal: Deal; termSheets: TermSheetVersion[]; house: HouseTerms; capTable: CapTable | null; model: ExecModel; meetings: IcMeeting[]; icRule: string;
   closing: { items: ClosingItem[]; categories: Record<string, string>; ready: { ready: boolean; open: string[] } };
   regulatory: { required: boolean; screening: { outbound: string; cfius: string; exportControl: string; screenedAt: string } | null; blocked: string | null };
+  funds: string[];
   wires: Wire[]; investments: Investment[]; passReasons: string[];
 }
 export interface ExecutionRow extends Deal {
@@ -323,13 +325,13 @@ export interface FundMetrics {
 export interface ReservePool { budget: number; deployed: number; committedRemaining: number; unallocated: number; overAllocated: boolean; byCompany: { company: string; planned: number; deployed: number; remaining: number }[] }
 export interface PortfolioRow {
   companyId: string; name: string; dealId: string; firstInvested: string; invested: number; realized: number; fairValue: number; valueBasis: ValueBasis; pendingUsd: number; publicUsd: number;
-  moic: number | null; ownershipPct: number | null; boardRole: string | null; status: "active" | "exited" | "public";
+  moic: number | null; ownershipPct: number | null; boardRole: string | null; funds: string[]; status: "active" | "exited" | "public";
   health: { rating: Health; by: string; at: string } | null; suggested: Health; signals: { key: string; severity: Severity; title: string }[];
   runwayMonths: number | null; notBurning: boolean; cash: number | null; revenue: number | null; revenueMoM: number | null; arr: number | null; latestMonth: string | null;
   mark: { value: number; asOf: string; method: string } | null; reservePlanned: number | null;
 }
 export interface PortfolioOverview {
-  asOf: string; fund: { name: string; sizeUsd: number; reservesPct: number }; metrics: FundMetrics; reserves: ReservePool; companies: PortfolioRow[];
+  asOf: string; fund: { name: string; sizeUsd: number; reservesPct: number }; funds: string[]; metrics: FundMetrics; reserves: ReservePool; companies: PortfolioRow[];
   counts: { companies: number; atRisk: number; watch: number; marksToReview: number; openRequests: number; overdueRequests: number };
   healthLabels: Record<Health, string>;
 }
@@ -368,7 +370,8 @@ export interface PortfolioCompanyView {
   accounting: { id: string; provider: "quickbooks" | "xero"; external_name: string | null; status: string; connected_at: string; last_sync_at: string | null; last_error: string | null }[];
   portalLinks: { id: string; createdAt: string; expiresAt: string; revokedAt: string | null; lastUsedAt: string | null; createdBy: string }[];
   sources: { id: string; name: string; summary: string; perCompany: boolean; ready: boolean }[];
-  options: { reportable: { id: string; label: string }[]; initiativeKinds: string[]; resolutionKinds: string[]; conflictKinds: string[]; healthLabels: Record<Health, string> };
+  options: {
+    funds: string[]; reportable: { id: string; label: string }[]; initiativeKinds: string[]; resolutionKinds: string[]; conflictKinds: string[]; healthLabels: Record<Health, string> };
 }
 export interface PortalInfo {
   company: string; firm: string;

@@ -149,5 +149,7 @@ describe("net returns and the calendar", () => {
   it("lists the year's deadlines", () => {
     const c = Object.fromEntries(reportingCalendar(2026).map((d) => [d.key, d.due]));
     expect(c).toMatchObject({ q1_2026: "2026-05-15", q3_2026: "2026-11-14", q4_2026: "2027-03-31", adv_2026: "2027-03-31", k1_2026: "2027-03-15", audit_2026: "2027-04-30" });
+    // Ninety days after December 31 is March 30 in a leap year.
+    expect(reportingCalendar(2027).find((d) => d.key === "adv_2027")!.due).toBe("2028-03-30");
   });
 });

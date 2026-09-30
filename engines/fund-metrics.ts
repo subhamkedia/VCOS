@@ -125,7 +125,7 @@ export function portfolioMetrics(positions: Position[], asOf: string): Portfolio
     lossRatioPct: invested > 0 ? (losers / invested) * 100 : null,
     topPositionPct: rows.length && totalValue > 0 ? rows[0]!.shareOfValuePct : null,
     positions: rows,
-    basis: "Gross, on capital invested in companies, before fees, expenses and carry. Unrealized value is the latest approved mark, or cost where there's none.",
+    basis: "Gross, on capital invested in companies, before fees, expenses and carry. Unrealized value is the latest approved mark (or cost where there's none), escrows and earnouts still expected, and listed shares at the closing price.",
   };
 }
 
