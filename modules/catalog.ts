@@ -74,4 +74,17 @@ export const MODULES: ModuleInfo[] = [
     ],
     reads: ["Fund terms from your firm profile", "Investments from Execution", "Marks and realizations from Portfolio", "Public-scope claims only"],
   },
+  {
+    id: "fundraising", name: "Fundraising & IR", path: "/fundraising", status: "live", phase: 4,
+    summary: "Raise the fund and look after its investors: the LP pipeline, a tracked data room, the DDQ, investor onboarding, closings, side letters, the LPAC and investor requests.",
+    does: [
+      "LP pipeline by stage with soft circles, weighted coverage of the target, next steps and the reason for every decline",
+      "A data room with private links, confidentiality acknowledgement and view tracking; documents reviewed by a second person first",
+      "A DDQ library in the ILPA DDQ 2.0's sections, drafted from your records with sources, approved before it's shared",
+      "Investor onboarding without an account: accreditation, qualified purchaser status, ERISA, tax and beneficial owners; OFAC and KYC checks",
+      "Closings checked against the hard cap, investor-count limits, 506(c) verification and the 25% ERISA test; equalization for later closings",
+      "Side letters with MFN elections, the LPAC's consents and votes, and investor requests with due dates",
+    ],
+    reads: ["Your firm profile and fund terms", "LP Reporting's approved reports", "Affinity, DocuSign, Parallel Markets, Gmail or Outlook"],
+  },
 ];

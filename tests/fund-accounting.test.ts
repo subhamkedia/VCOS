@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  allocate, capitalAccounts, carryPosition, cumulativeCarry, hurdleTarget, managementFee, netReturns, reportingCalendar, splitDistribution, type FundTerms,
+  allocate, capitalAccounts, carryPosition, cumulativeCarry, equalization, hurdleTarget, managementFee, netReturns, reportingCalendar, splitDistribution, type FundTerms,
 } from "../engines/fund-accounting.js";
 
 const TERMS: FundTerms = {
@@ -99,6 +99,42 @@ describe("capital accounts", () => {
     expect(r.nav).toBeCloseTo(0, 6);
     expect(r.gpCarry).toMatchObject({ entitled: 18, accrued: 0, clawbackExposure: 0 });
     expect(r.accounts.map((a) => a.balance)).toEqual([0, 0]);
+  });
+});
+
+describe("subsequent closings", () => {
+  it("re-split earlier calls across everyone, charge the newcomer's fee and interest, and refund earlier investors", () => {
+    // First close: A $60 and B $40 (both fee-paying). A $10 call for investments, plus a $2 fee split 60/40.
+    // Second close adds C at $100: everyone should have paid 30% / 20% / 50% of the $10.
+    const lines = equalization(
+      [{ date: "2025-01-01", capital: [{ partnerId: "A", amount: 6 }, { partnerId: "B", amount: 4 }], fees: 2 }],
+      [{ id: "A", commitment: 60, feePaying: true }, { id: "B", commitment: 40, feePaying: true }, { id: "C", commitment: 100, feePaying: true }],
+      ["C"], "2026-01-01", 8,
+    );
+    const by = Object.fromEntries(lines.map((l) => [l.partnerId, l]));
+    expect(by.C).toMatchObject({ capital: 5, fee: 2 }); // $5 catch-up; fee on $100 at the old rate (2 / 100 x 100)
+    expect(by.C!.interest).toBeCloseTo(0.4, 2); // $5 x 8% x 365/365
+    expect(by.A).toMatchObject({ capital: -3, fee: 0 });
+    expect(by.B).toMatchObject({ capital: -2, fee: 0 });
+    // Interest goes to the earlier investors in proportion to their refunds, and nets to zero.
+    expect(by.A!.interest + by.B!.interest + by.C!.interest).toBeCloseTo(0, 6);
+    expect(by.A!.interest).toBeCloseTo(-0.24, 2);
+    // No catch-up for the GP's own commitment's fee.
+    const gp = equalization([{ date: "2025-01-01", capital: [{ partnerId: "A", amount: 10 }], fees: 1 }], [{ id: "A", commitment: 100, feePaying: true }, { id: "GP", commitment: 100, feePaying: false }], ["GP"], "2025-01-01", 8);
+    expect(gp.find((l) => l.partnerId === "GP")).toMatchObject({ capital: 5, fee: 0, interest: 0 });
+  });
+
+  it("leaves NAV unchanged: interest passes between partners", () => {
+    const base = {
+      partners: [{ id: "A", commitment: 50, feePaying: true }, { id: "C", commitment: 50, feePaying: true }],
+      contributions: [{ partnerId: "A", date: "2025-01-01", amount: 10 }, { partnerId: "A", date: "2026-01-01", amount: -5.4 }, { partnerId: "C", date: "2026-01-01", amount: 5.4 }],
+      distributions: [], fees: [], expenses: [], carryPaid: [], realizedGain: 0, unrealizedGain: 0,
+      adjustments: [{ partnerId: "A", date: "2026-01-01", amount: -0.4 }, { partnerId: "C", date: "2026-01-01", amount: 0.4 }],
+    };
+    const r = capitalAccounts(base, "2026-06-30", TERMS);
+    expect(r.nav).toBeCloseTo(10, 6);
+    expect(r.accounts.map((a) => a.balance)).toEqual([5, 5]);
+    expect(r.accounts.find((a) => a.partnerId === "C")).toMatchObject({ contributed: 5.4, closeInterest: 0.4, unfunded: 45 });
   });
 });
 

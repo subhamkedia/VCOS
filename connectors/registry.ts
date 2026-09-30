@@ -27,6 +27,7 @@ import { accountingCheck } from "./accounting.js";
 import { standardMetricsCheck, standardMetricsFor, visibleCheck, visibleFor } from "./portfolio-platforms.js";
 import { ofacCheck } from "./ofac.js";
 import { mercuryCheck } from "./bank.js";
+import { parallelCheck } from "./parallel.js";
 import { outlookCheck, outlookSearch } from "./outlook.js";
 import { emailToRecord } from "./email.js";
 import { driveCheck } from "./gdrive.js";
@@ -130,6 +131,8 @@ export interface ConnectorInfo {
   portfolio?: PortfolioSpec;
   /** Used by LP Reporting: the fund's bank, fund administrators, LP notices. */
   lp?: { summary: string };
+  /** Used by Fundraising & Investor Relations: prospects, onboarding, signatures, notices. */
+  fundraising?: { summary: string };
   /** OAuth products that share one account consent (Gmail, Drive, Calendar, Meet). */
   product?: string;
   ingest: string;
@@ -321,6 +324,7 @@ export const CONNECTORS: ConnectorInfo[] = [
       },
     },
     ingest: "pnpm ingest affinity-list <list id> | affinity <org name>", check: affinityCheck,
+    fundraising: { summary: "Prospective LPs from an Affinity list" },
   },
 
   // --- Email --------------------------------------------------------------
@@ -346,6 +350,7 @@ export const CONNECTORS: ConnectorInfo[] = [
       run: async (c) => (await gmailSearch(`from:${c.domain} (update OR monthly OR quarterly OR investors OR KPIs OR board) newer_than:120d`, { max: 25 })).map((m) => emailToRecord(m, { company: c.name, companyDomain: c.domain })),
     },
     lp: { summary: "Capital call and distribution notices to LPs, as drafts you send" },
+    fundraising: { summary: "Invitations, data room links and closing notices, as drafts you send" },
     ingest: 'pnpm ingest gmail "<gmail query>"', check: gmailCheck,
   },
   {
@@ -370,6 +375,7 @@ export const CONNECTORS: ConnectorInfo[] = [
       run: async (c) => (await outlookSearch(`from:${c.domain} update`, { max: 25 })).map((m) => emailToRecord(m, { company: c.name, companyDomain: c.domain })),
     },
     lp: { summary: "Capital call and distribution notices to LPs, as drafts you send" },
+    fundraising: { summary: "Invitations, data room links and closing notices, as drafts you send" },
     ingest: 'pnpm ingest outlook "<search>"', check: outlookCheck,
   },
 
@@ -466,6 +472,7 @@ export const CONNECTORS: ConnectorInfo[] = [
     docsUrl: "https://developers.docusign.com/docs/esign-rest-api/", writes: "draft envelopes (never sent)",
     ingest: "Used on the Closing tab", check: () => docusignCheck(),
     execution: { summary: "Signature status on closing documents; draft envelopes after approval" },
+    fundraising: { summary: "Subscription documents as draft envelopes you send" },
   },
   {
     id: "carta", name: "Carta", category: "closing", scope: "vendor",
@@ -482,6 +489,7 @@ export const CONNECTORS: ConnectorInfo[] = [
     auth: { kind: "none" }, docsUrl: "https://ofac.treasury.gov/sanctions-list-service",
     ingest: "Used on the Closing tab", check: () => ofacCheck(),
     execution: { summary: "Sanctions screening before closing" },
+    fundraising: { summary: "Sanctions screening of investors and their owners" },
   },
 
   // --- Portfolio --------------------------------------------------------------
@@ -543,6 +551,16 @@ export const CONNECTORS: ConnectorInfo[] = [
     auth: { kind: "none" },
     ingest: "LP Reporting → Investors → Import",
     lp: { summary: "Import the LP register from your fund administrator" },
+    fundraising: { summary: "Import prospects from a spreadsheet or CRM export" },
+  },
+  {
+    id: "parallel", name: "Parallel Markets", category: "fund", scope: "confidential",
+    description: "Investor accreditation (for 506(c) offerings), KYC and KYB, AML and sanctions monitoring. The investor completes Parallel's flow once; VC OS reads the result. Read only.",
+    auth: { kind: "api_key", fields: [key("parallelApiKey", "API key", "Parallel Markets → Developer settings")] },
+    docsUrl: "https://developer.parallelmarkets.com/",
+    ingest: "Fundraising → Subscriptions → Check with Parallel", check: () => parallelCheck(),
+    fundraising: { summary: "Accreditation and KYC status for subscribing investors" },
+    notes: "API paths sit in PARALLEL_PATHS; check them once with pnpm connectors --check.",
   },
 ];
 
@@ -586,5 +604,5 @@ export const ENV_NAMES: Record<ConfigKey, string> = {
   quickbooksClientId: "QUICKBOOKS_CLIENT_ID", quickbooksClientSecret: "QUICKBOOKS_CLIENT_SECRET", quickbooksEnvironment: "QUICKBOOKS_ENVIRONMENT",
   xeroClientId: "XERO_CLIENT_ID", xeroClientSecret: "XERO_CLIENT_SECRET",
   standardMetricsClientId: "STANDARD_METRICS_CLIENT_ID", standardMetricsClientSecret: "STANDARD_METRICS_CLIENT_SECRET", visibleApiToken: "VISIBLE_API_TOKEN",
-  mercuryApiToken: "MERCURY_API_TOKEN",
+  mercuryApiToken: "MERCURY_API_TOKEN", parallelApiKey: "PARALLEL_API_KEY", parallelApiBase: "PARALLEL_API_BASE",
 };

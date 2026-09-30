@@ -4,7 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import { scopedDb, type Db } from "../lib/db.js";
 import type { Llm } from "../lib/llm.js";
 import type { Mailer } from "../lib/mailer.js";
-import { endSession, lpPortalByToken, portalLinkByToken, readSession, removeMember, renameFirm, switchFirm, takePortalOAuth, team, SESSION_DAYS, ROLES, type Role, type SessionInfo } from "../ledger/platform.js";
+import { dataRoomByToken, endSession, lpPortalByToken, subscriptionByToken, portalLinkByToken, readSession, removeMember, renameFirm, switchFirm, takePortalOAuth, team, SESSION_DAYS, ROLES, type Role, type SessionInfo } from "../ledger/platform.js";
 import * as auth from "../modules/auth/index.js";
 import * as connections from "../modules/connections/index.js";
 import * as sourcing from "../modules/sourcing/index.js";
@@ -15,6 +15,7 @@ import * as diligence from "../modules/diligence/index.js";
 import * as execution from "../modules/execution/index.js";
 import * as portfolio from "../modules/portfolio/index.js";
 import * as lp from "../modules/lp/index.js";
+import * as fundraising from "../modules/fundraising/index.js";
 import type { MeetingStatus } from "../ledger/meetings.js";
 import type { DealStage } from "../ledger/diligence.js";
 import { checkProfile, construction, getProfile, profileHistory, profileOptions, saveProfile, ProfileInvalid } from "../modules/firm/profile.js";
@@ -58,7 +59,7 @@ export function createApp(deps: AppDeps) {
   app.onError((err, c) => {
     if (err instanceof ProfileInvalid) return c.json({ error: err.message, errors: err.errors }, 422);
     if (err instanceof auth.Forbidden) return c.json({ error: err.message }, 403);
-    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid || err instanceof execution.ExecutionInvalid || err instanceof portfolio.PortfolioInvalid || err instanceof lp.LpInvalid) {
+    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid || err instanceof execution.ExecutionInvalid || err instanceof portfolio.PortfolioInvalid || err instanceof lp.LpInvalid || err instanceof fundraising.FundraisingInvalid) {
       return c.json({ error: err.message }, /^No such/.test(err.message) ? 404 : 400);
     }
     const msg = err.message || "Something went wrong.";
@@ -187,6 +188,50 @@ export function createApp(deps: AppDeps) {
     const ref = await investorRef(c);
     const out = await lp.lpPortalStatementCsv(scopedDb(root, ref.firmId), ref, c.req.param("id"));
     return csvResponse(c, out);
+  });
+
+  // -------------------------------------------------------------------------
+  // Data room and subscriptions for prospective investors (no session: the
+  // token finds the firm and the prospect). A prospect sees only approved
+  // documents, after acknowledging confidentiality; every open is recorded.
+  // -------------------------------------------------------------------------
+
+  const roomRef = async (c: Context) => {
+    const ref = await dataRoomByToken(root, c.req.param("token") ?? "");
+    if (!ref) throw new fundraising.FundraisingInvalid("No such link: it may have expired. Ask the fund for a new one.");
+    return ref;
+  };
+  const fileResponse = (c: Context, f: { fileName: string; mimeType: string; content: Uint8Array }, download: boolean) =>
+    c.body(f.content as unknown as ArrayBuffer, 200, {
+      "Content-Type": f.mimeType, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${f.fileName.replace(/[^A-Za-z0-9._-]/g, "_")}"`,
+    });
+  app.get("/api/data-room/:token", async (c) => {
+    const ref = await roomRef(c);
+    return c.json(await fundraising.dataRoomView(scopedDb(root, ref.firmId), ref));
+  });
+  app.post("/api/data-room/:token/acknowledge", async (c) => {
+    const ref = await roomRef(c);
+    await fundraising.acknowledgeDataRoom(scopedDb(root, ref.firmId), ref);
+    return c.json({ ok: true });
+  });
+  app.get("/api/data-room/:token/docs/:id", async (c) => {
+    const ref = await roomRef(c);
+    const download = c.req.query("download") === "1";
+    return fileResponse(c, await fundraising.openDoc(scopedDb(root, ref.firmId), ref, c.req.param("id"), download ? "download" : "view"), download);
+  });
+  const subRef = async (c: Context) => {
+    const ref = await subscriptionByToken(root, c.req.param("token") ?? "");
+    if (!ref) throw new fundraising.FundraisingInvalid("No such link: it may have expired or the subscription is complete. Ask the fund for a new one.");
+    return ref;
+  };
+  app.get("/api/subscribe/:token", async (c) => {
+    const ref = await subRef(c);
+    return c.json(await fundraising.subscriptionView(scopedDb(root, ref.firmId), ref));
+  });
+  app.post("/api/subscribe/:token", async (c) => {
+    const ref = await subRef(c);
+    return c.json(await fundraising.subscriptionSubmit(scopedDb(root, ref.firmId), ref, await c.req.json()));
   });
 
   app.post("/api/auth/logout", async (c) => {
@@ -619,6 +664,71 @@ export function createApp(deps: AppDeps) {
     return c.json({ ok: true });
   });
   firm.post("/lp/reports/:id/notices", allow("queue"), async (c) => c.json(await lp.queueReportNotices(c.get("db"), param(c, "id"), who(c), appUrl), 201));
+
+  // Fundraising & Investor Relations. Analysts keep the pipeline, the data
+  // room, the DDQ and subscriptions; partners set up raises, approve
+  // documents and DDQ answers (never their own), accept subscriptions,
+  // approve closings, grant side letter terms and run the LPAC.
+  const ok = (c: Context<Env>) => c.json({ ok: true });
+  firm.get("/fundraising", async (c) => c.json(await fundraising.overview(c.get("db"))));
+  firm.post("/fundraising/raises", allow("decide_deals"), async (c) => c.json(await fundraising.createRaise(c.get("db"), await c.req.json(), who(c)), 201));
+  firm.get("/fundraising/raises/:id", async (c) => c.json(await fundraising.raiseView(c.get("db"), param(c, "id"))));
+  firm.patch("/fundraising/raises/:id", allow("decide_deals"), async (c) => { await fundraising.editRaise(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return ok(c); });
+  firm.post("/fundraising/raises/:id/prospects", allow("work_deals"), async (c) => c.json(await fundraising.addProspect(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/fundraising/raises/:id/prospects/uploads", uploadLimit, allow("work_deals"), async (c) => {
+    const body = await c.req.parseBody();
+    const file = body.file;
+    if (!(file instanceof File)) return c.json({ error: "Attach a CSV file." }, 400);
+    return c.json(await fundraising.importProspectsCsv(c.get("db"), param(c, "id"), { name: file.name, text: await file.text() }, who(c)), 201);
+  });
+  firm.post("/fundraising/raises/:id/prospects/affinity", allow("work_deals"), async (c) => c.json(await fundraising.importAffinityList(c.get("db"), param(c, "id"), (await c.req.json<{ listId?: unknown }>()).listId, who(c)), 201));
+  firm.patch("/fundraising/prospects/:id", allow("work_deals"), async (c) => { await fundraising.editProspect(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return ok(c); });
+  firm.get("/fundraising/prospects/:id/activity", async (c) => c.json(await fundraising.prospectActivity(c.get("db"), param(c, "id"))));
+  firm.post("/fundraising/prospects/:id/activity", allow("work_deals"), async (c) => { await fundraising.logActivity(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return c.json({ ok: true }, 201); });
+  firm.post("/fundraising/prospects/:id/data-room", allow("queue"), async (c) => c.json(await fundraising.shareDataRoom(c.get("db"), param(c, "id"), await c.req.json(), who(c), appUrl), 201));
+  firm.post("/fundraising/prospects/:id/data-room/revoke", allow("work_deals"), async (c) => c.json(await fundraising.revokeDataRoom(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/fundraising/raises/:id/docs/uploads", uploadLimit, allow("upload"), async (c) => {
+    const body = await c.req.parseBody();
+    const file = body.file;
+    if (!(file instanceof File)) return c.json({ error: "Attach a file." }, 400);
+    return c.json(await fundraising.uploadDoc(c.get("db"), param(c, "id"), { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) }, { title: body.title, category: body.category, marketing: body.marketing }, who(c)), 201);
+  });
+  firm.get("/fundraising/docs/:id/file", async (c) => fileResponse(c, await fundraising.downloadDocInternal(c.get("db"), param(c, "id")), true));
+  firm.post("/fundraising/docs/:id/approve", allow("decide_deals"), async (c) => { await fundraising.approveDoc(c.get("db"), param(c, "id"), who(c)); return ok(c); });
+  firm.post("/fundraising/docs/:id/archive", allow("work_deals"), async (c) => { await fundraising.archiveDoc(c.get("db"), param(c, "id"), who(c)); return ok(c); });
+  firm.get("/fundraising/ddq", async (c) => c.json({ sections: await fundraising.ddqView(c.get("db")) }));
+  firm.post("/fundraising/ddq/draft", allow("work_deals"), async (c) => c.json(await fundraising.draftFromRecords(c.get("db"), who(c))));
+  firm.put("/fundraising/ddq/:key", allow("work_deals"), async (c) => { await fundraising.saveAnswer(c.get("db"), param(c, "key"), await c.req.json(), who(c)); return ok(c); });
+  firm.post("/fundraising/ddq/:key/approve", allow("decide_deals"), async (c) => { await fundraising.approveDdqAnswer(c.get("db"), param(c, "key"), who(c)); return ok(c); });
+  firm.post("/fundraising/ddq/export", allow("queue"), async (c) => {
+    const b = await c.req.json<{ prospectId?: string; format?: "markdown" | "csv" }>();
+    return c.json(await fundraising.exportDdq(c.get("db"), { prospectId: b.prospectId || undefined, format: b.format }, who(c)));
+  });
+  firm.post("/fundraising/raises/:id/subscriptions", allow("queue"), async (c) => c.json(await fundraising.inviteSubscriber(c.get("db"), param(c, "id"), await c.req.json(), who(c), appUrl), 201));
+  firm.post("/fundraising/subscriptions/:id/screen", allow("work_deals"), async (c) => c.json(await fundraising.screenSubscriber(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/fundraising/subscriptions/:id/parallel", allow("work_deals"), async (c) => c.json(await fundraising.checkWithParallel(c.get("db"), param(c, "id"), who(c))));
+  firm.patch("/fundraising/subscriptions/:id", allow("work_deals"), async (c) => { await fundraising.reviewSubscription(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return ok(c); });
+  firm.post("/fundraising/subscriptions/:id/decide", allow("decide_deals"), async (c) => c.json(await fundraising.decideSubscription(c.get("db"), param(c, "id"), await c.req.json(), who(c))));
+  firm.post("/fundraising/subscriptions/:id/withdraw", allow("decide_deals"), async (c) => { await fundraising.withdrawSubscription(c.get("db"), param(c, "id"), who(c)); return ok(c); });
+  firm.post("/fundraising/subscriptions/:id/documents", allow("queue"), async (c) => c.json(await fundraising.sendSubscriptionDocs(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/fundraising/subscriptions/:id/terms", allow("decide_deals"), async (c) => c.json(await fundraising.addTerm(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/fundraising/raises/:id/closings", allow("work_deals"), async (c) => c.json(await fundraising.draftClosing(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.get("/fundraising/closings/:id", async (c) => c.json(await fundraising.closingView(c.get("db"), param(c, "id"))));
+  firm.post("/fundraising/closings/:id/approve", allow("decide_deals"), async (c) => c.json(await fundraising.approveClosing(c.get("db"), param(c, "id"), who(c))));
+  firm.post("/fundraising/closings/:id/cancel", allow("decide_deals"), async (c) => { await fundraising.cancelClosing(c.get("db"), param(c, "id"), who(c)); return ok(c); });
+  firm.post("/fundraising/equalization/:id/settle", allow("work_deals"), async (c) => { await fundraising.settle(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return ok(c); });
+  firm.get("/fundraising/raises/:id/side-letters", async (c) => c.json(await fundraising.sideLetterView(c.get("db"), param(c, "id"))));
+  firm.post("/fundraising/raises/:id/mfn", allow("queue"), async (c) => c.json(await fundraising.mfnPackage(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/fundraising/mfn/:id", allow("work_deals"), async (c) => c.json(await fundraising.decideMfn(c.get("db"), param(c, "id"), await c.req.json(), who(c))));
+  firm.get("/ir/funds/:id/lpac", async (c) => c.json(await fundraising.lpacView(c.get("db"), param(c, "id"))));
+  firm.post("/ir/funds/:id/lpac/members", allow("decide_deals"), async (c) => { await fundraising.addLpacMember(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return c.json({ ok: true }, 201); });
+  firm.post("/ir/lpac/members/:id/end", allow("decide_deals"), async (c) => { await fundraising.endLpacMember(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return ok(c); });
+  firm.post("/ir/funds/:id/lpac/consents", allow("decide_deals"), async (c) => c.json(await fundraising.requestConsent(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/ir/lpac/consents/:id/votes", allow("work_deals"), async (c) => { await fundraising.castVote(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return c.json({ ok: true }, 201); });
+  firm.post("/ir/lpac/consents/:id/decide", allow("decide_deals"), async (c) => c.json(await fundraising.decideLpacConsent(c.get("db"), param(c, "id"), await c.req.json(), who(c))));
+  firm.get("/ir/requests", async (c) => c.json(await fundraising.requestQueue(c.get("db"))));
+  firm.post("/ir/requests", allow("work_deals"), async (c) => c.json(await fundraising.logRequest(c.get("db"), await c.req.json(), who(c)), 201));
+  firm.post("/ir/requests/:id/answer", allow("work_deals"), async (c) => { await fundraising.answerInvestorRequest(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return ok(c); });
 
   // Approvals
   firm.get("/outbox", async (c) => c.json(await outbox.pending(c.get("db"), (c.req.query("status") as never) || "pending")));

@@ -282,7 +282,7 @@ const csv = (rows: unknown[][]) => rows.map((r) => r.map(csvCell).join(",")).joi
 
 const LINES: [keyof StatementColumn, string, number][] = [
   ["beginning", "Beginning balance", 1], ["contributions", "Capital contributions", 1], ["distributions", "Distributions", -1],
-  ["managementFees", "Management fees (net of offsets)", -1], ["expenses", "Partnership expenses", -1], ["realizedGain", "Realized gain (loss)", 1],
+  ["managementFees", "Management fees (net of offsets)", -1], ["expenses", "Partnership expenses", -1], ["closeInterest", "Subsequent-close interest", -1], ["realizedGain", "Realized gain (loss)", 1],
   ["unrealizedGain", "Change in unrealized gain (loss)", 1], ["carriedInterest", "Carried interest allocated", -1], ["ending", "Ending balance", 1],
 ];
 

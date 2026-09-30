@@ -34,6 +34,7 @@ export interface CatalogEntry {
   execution?: { summary: string };
   portfolio?: { summary: string; perCompany: boolean };
   lp?: { summary: string };
+  fundraising?: { summary: string };
   status: "available" | "connected" | "error" | "not_configured";
   accountLabel: string | null;
   connectedBy: string | null;
@@ -70,6 +71,7 @@ export async function catalog(db: Db): Promise<CatalogEntry[]> {
       execution: c.execution,
       portfolio: c.portfolio ? { summary: c.portfolio.summary, perCompany: Boolean(c.portfolio.perCompany) } : undefined,
       lp: c.lp,
+      fundraising: c.fundraising,
       status, accountLabel: r?.account_label ?? null, connectedBy: r?.connected_by ?? null, connectedAt: r?.connected_at ?? null,
       lastCheckedAt: r?.last_checked_at ?? null, lastError: r?.last_error ?? null,
     };

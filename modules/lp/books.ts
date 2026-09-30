@@ -2,6 +2,7 @@ import type { Db } from "../../lib/db.js";
 import { callItems, calls, distributionItems, distributions, expenses, funds, partners, type FundRow, type PartnerRow } from "../../ledger/lp.js";
 import { listInvestments, type InvestmentRow } from "../../ledger/execution.js";
 import { realizations, valuations, type RealizationRow, type ValuationRow } from "../../ledger/portfolio.js";
+import { equalizationFor } from "../../ledger/fundraising.js";
 import { allocate, capitalAccounts, netReturns, type CapitalAccount, type FundBooks, type Movement } from "../../engines/fund-accounting.js";
 import { portfolioMetrics, type Flow, type Position } from "../../engines/fund-metrics.js";
 import { METHOD_LABELS } from "../../engines/valuation.js";
@@ -35,6 +36,8 @@ export interface Ledger {
   expenseRows: Awaited<ReturnType<typeof expenses>>;
   distributions: Movement[];
   carryPaid: { date: string; amount: number; escrow: number }[];
+  /** Subsequent-close interest: paid (positive) or received (negative). */
+  adjustments: Movement[];
   holdings: Holdings[];
 }
 
@@ -68,6 +71,14 @@ export async function readLedger(db: Db, fund: FundRow): Promise<Ledger> {
   const dItems = (await distributionItems(db, { fundId: fund.id })).filter((i) => paid.has(i.distribution_id));
   const dists = dItems.map((i) => ({ partnerId: i.partner_id, date: paid.get(i.distribution_id)!.paid_on, amount: i.net_usd }));
   const carryPaid = [...paid.values()].filter((d) => d.carry_usd > 0).map((d) => ({ date: d.paid_on, amount: d.carry_usd, escrow: d.escrow_usd }));
+  // Subsequent closings: catch-up capital (refunds are negative), the newcomers' fee from the first closing, and interest between partners.
+  const adjustments: Movement[] = [];
+  for (const e of await equalizationFor(db, fund.id)) {
+    const cash = e.capital_usd + e.fee_usd + e.interest_usd;
+    if (cash) contributions.push({ partnerId: e.partner_id, date: e.closing_date, amount: cash });
+    if (e.fee_usd) fees.push({ partnerId: e.partner_id, date: e.closing_date, amount: e.fee_usd });
+    if (e.interest_usd) adjustments.push({ partnerId: e.partner_id, date: e.closing_date, amount: e.interest_usd });
+  }
   const expenseRows = await expenses(db, fund.id);
   const expenseMoves: Movement[] = [];
   if (ps.length) {
@@ -78,7 +89,7 @@ export async function readLedger(db: Db, fund: FundRow): Promise<Ledger> {
       }
     }
   }
-  return { fund, partners: ps, contributions, fees, expenses: expenseMoves, expenseRows, distributions: dists, carryPaid, holdings: await fundHoldings(db, fund) };
+  return { fund, partners: ps, contributions, fees, expenses: expenseMoves, expenseRows, distributions: dists, carryPaid, adjustments, holdings: await fundHoldings(db, fund) };
 }
 
 // ---------------------------------------------------------------------------
@@ -150,7 +161,7 @@ export function booksAt(l: Ledger, asOf: string): FundBooks {
     partners: l.partners.map((p) => ({ id: p.id, commitment: p.commitment_usd, feePaying: p.fee_paying })),
     contributions: l.contributions, distributions: l.distributions, fees: l.fees, expenses: l.expenses,
     carryPaid: l.carryPaid.map((c) => ({ date: c.date, amount: c.amount })),
-    realizedGain: g.realized, unrealizedGain: g.unrealized,
+    realizedGain: g.realized, unrealizedGain: g.unrealized, adjustments: l.adjustments,
   };
 }
 
@@ -168,6 +179,8 @@ export interface StatementColumn {
   distributions: number;
   managementFees: number;
   expenses: number;
+  /** Subsequent-close interest paid (positive) or received (negative). */
+  closeInterest: number;
   realizedGain: number;
   unrealizedGain: number;
   carriedInterest: number;
@@ -190,13 +203,13 @@ export interface Statement {
 }
 
 const ZERO: CapitalAccount = {
-  partnerId: "", commitment: 0, contributed: 0, unfunded: 0, distributed: 0, fees: 0, expenses: 0, realizedGain: 0, unrealizedGain: 0, carryAccrued: 0, carryPaid: 0, balance: 0,
+  partnerId: "", commitment: 0, contributed: 0, unfunded: 0, distributed: 0, fees: 0, expenses: 0, realizedGain: 0, unrealizedGain: 0, carryAccrued: 0, carryPaid: 0, closeInterest: 0, balance: 0,
 };
 
 function column(start: CapitalAccount, end: CapitalAccount): StatementColumn {
   const d = (k: keyof CapitalAccount) => round2((end[k] as number) - (start[k] as number));
   return {
-    beginning: start.balance, contributions: d("contributed"), distributions: d("distributed"), managementFees: d("fees"), expenses: d("expenses"),
+    beginning: start.balance, contributions: d("contributed"), distributions: d("distributed"), managementFees: d("fees"), expenses: d("expenses"), closeInterest: d("closeInterest"),
     realizedGain: d("realizedGain"), unrealizedGain: d("unrealizedGain"),
     carriedInterest: round2(end.carryPaid + end.carryAccrued - start.carryPaid - start.carryAccrued), ending: end.balance,
   };

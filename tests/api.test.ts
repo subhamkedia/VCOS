@@ -91,7 +91,7 @@ describe("the API", () => {
     expect(feeds[0]).toMatchObject({ connector_id: "yc", cadence: "weekly", params: { batches: ["W26"] } });
     expect((await pat.post("/api/feeds", { connectorId: "yc", params: {} })).status).toBe(400);
     expect((await (await pat.get("/api/modules")).json()).map((m: { name: string }) => m.name)).toEqual(
-      ["Sourcing", "Diligence", "Investment Execution", "Portfolio & Value Creation", "LP Reporting"],
+      ["Sourcing", "Diligence", "Investment Execution", "Portfolio & Value Creation", "LP Reporting", "Fundraising & IR"],
     );
   });
 
@@ -335,5 +335,40 @@ describe("limits", () => {
     expect((await app.request("/api/investor/definitely-not-a-valid-token-000000000")).status).toBe(404);
     expect((await ana.post(`/api/lp/investors/${harbor.id}/portal/revoke`)).status).toBe(200);
     expect((await app.request(`/api/investor/${token}`)).status).toBe(404);
+  });
+  it("runs fundraising over HTTP: partners set up and approve, analysts work the pipeline, prospects use the data room without an account", async () => {
+    const pat = await signIn("pat@alpha.example");
+    await pat.post("/api/firms", { name: "Alpha Ventures" });
+    const firmId = (await readSession(root, pat.cookie.split("=")[1]))!.firm!.id;
+    const ana = await signIn("ana@alpha.example");
+    await addMembership(root, firmId, (await readSession(root, ana.cookie.split("=")[1]))!.user.id, "analyst");
+    await ana.post("/api/firms/switch", { firmId });
+    const p = await starterProfile("Alpha Ventures");
+    await pat.put("/api/profile", { ...p, fund: { ...p.fund, name: "Alpha Fund II", targetSizeUsd: 30e6 } });
+    expect((await ana.post("/api/fundraising/raises", {})).status).toBe(403);
+    const raise = await (await pat.post("/api/fundraising/raises", {})).json();
+    const prospect = await (await ana.post(`/api/fundraising/raises/${raise.id}/prospects`, { name: "Three Rivers Foundation", kind: "endowment_foundation" })).json();
+    expect((await ana.patch(`/api/fundraising/prospects/${prospect.id}`, { stage: "declined" })).status).toBe(400);
+    const form = new FormData();
+    form.append("file", new File([new TextEncoder().encode("%PDF-1.4 deck")], "deck.pdf", { type: "application/pdf" }));
+    form.append("category", "deck");
+    const up = await app.request(`/api/fundraising/raises/${raise.id}/docs/uploads`, { method: "POST", headers: { cookie: ana.cookie, "x-vcos": "1" }, body: form });
+    expect(up.status).toBe(201);
+    const doc = await up.json();
+    expect((await ana.post(`/api/fundraising/docs/${doc.id}/approve`)).status).toBe(403);
+    expect((await pat.post(`/api/fundraising/docs/${doc.id}/approve`)).status).toBe(200);
+    const { url } = await (await ana.post(`/api/fundraising/prospects/${prospect.id}/data-room`, {})).json();
+    const token = url.split("/data-room/")[1];
+    const room = await app.request(`/api/data-room/${token}`);
+    expect(await room.json()).toMatchObject({ investor: "Three Rivers Foundation", acknowledged: false, documents: [] });
+    expect((await app.request(`/api/data-room/${token}/docs/${doc.id}`)).status).toBe(400);
+    expect((await app.request(`/api/data-room/${token}/acknowledge`, { method: "POST", headers: { "x-vcos": "1" } })).status).toBe(200);
+    const file = await app.request(`/api/data-room/${token}/docs/${doc.id}?download=1`);
+    expect(file.headers.get("content-type")).toBe("application/pdf");
+    expect(file.headers.get("content-disposition")).toMatch(/^attachment/);
+    expect((await app.request("/api/data-room/definitely-not-a-valid-token-000000000")).status).toBe(404);
+    expect((await app.request("/api/subscribe/definitely-not-a-valid-token-000000000")).status).toBe(404);
+    const view = await (await ana.get(`/api/fundraising/raises/${raise.id}`)).json();
+    expect(view.prospects[0].engagement).toMatchObject({ downloads: 1 });
   });
 });

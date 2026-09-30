@@ -78,6 +78,7 @@ export interface Connector {
   execution?: { summary: string };
   portfolio?: { summary: string; perCompany: boolean };
   lp?: { summary: string };
+  fundraising?: { summary: string };
   status: "available" | "connected" | "error" | "not_configured";
   accountLabel: string | null; connectedBy: string | null; connectedAt: string | null; lastCheckedAt: string | null; lastError: string | null;
 }
@@ -395,7 +396,7 @@ export interface LpFundSummary {
   pending: { calls: number; distributions: number; reports: number }; lastReport: string | null;
 }
 export interface LpOverview { asOf: string; funds: LpFundSummary[]; profileFund: { name: string; exists: boolean } | null }
-export interface StatementColumn { beginning: number; contributions: number; distributions: number; managementFees: number; expenses: number; realizedGain: number; unrealizedGain: number; carriedInterest: number; ending: number }
+export interface StatementColumn { beginning: number; contributions: number; distributions: number; managementFees: number; expenses: number; closeInterest: number; realizedGain: number; unrealizedGain: number; carriedInterest: number; ending: number }
 export interface LpStatement {
   partnerId: string; name: string; kind: string; feePaying: boolean; commitment: number; contributedToDate: number; unfunded: number; distributedToDate: number; carryAccrued: number;
   quarter: StatementColumn; year: StatementColumn; inception: StatementColumn;

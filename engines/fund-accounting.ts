@@ -247,6 +247,12 @@ export interface FundBooks {
   /** Investment gains to the date: realized (proceeds less cost of exits) and unrealized (fair value less cost of holdings). */
   realizedGain: number;
   unrealizedGain: number;
+  /**
+   * Subsequent-close interest: paid by investors admitted at a later closing
+   * (positive) and received by earlier investors (negative). It passes
+   * between partners, so it never changes NAV.
+   */
+  adjustments?: Movement[];
 }
 
 export interface CapitalAccount {
@@ -263,6 +269,8 @@ export interface CapitalAccount {
   carryAccrued: number;
   /** Carry already taken out of this LP's distributions. */
   carryPaid: number;
+  /** Subsequent-close interest paid (positive) or received (negative). */
+  closeInterest: number;
   /** Ending balance: this partner's share of NAV. */
   balance: number;
 }
@@ -287,11 +295,12 @@ export function capitalAccounts(b: FundBooks, asOf: string, t: FundTerms): { acc
     const distributed = by(b.distributions, p.id);
     const fees = by(b.fees, p.id);
     const expenses = by(b.expenses, p.id);
+    const closeInterest = by(b.adjustments ?? [], p.id);
     const realizedGain = b.realizedGain * share(p);
     const unrealizedGain = b.unrealizedGain * share(p);
     // Carry already paid came out of these LPs' share of the proceeds.
     const paid = carryPaid * carryShare(p);
-    return { p, contributed, distributed, fees, expenses, realizedGain, unrealizedGain, paid, before: contributed - distributed - fees - expenses + realizedGain + unrealizedGain - paid };
+    return { p, contributed, distributed, fees, expenses, closeInterest, realizedGain, unrealizedGain, paid, before: contributed - distributed - fees - expenses - closeInterest + realizedGain + unrealizedGain - paid };
   });
   const lpRows = pre.filter((r) => r.p.feePaying);
   const gpCarry = carryPosition({
@@ -302,13 +311,92 @@ export function capitalAccounts(b: FundBooks, asOf: string, t: FundTerms): { acc
   const accounts = pre.map((r) => {
     const carryAccrued = round2(gpCarry.accrued * carryShare(r.p));
     return {
-      partnerId: r.p.id, commitment: r.p.commitment, contributed: round2(r.contributed), unfunded: round2(Math.max(0, r.p.commitment - r.contributed)),
+      // Interest paid at a later closing is on top of the commitment; a refund of excess capital to an earlier investor is callable again.
+      partnerId: r.p.id, commitment: r.p.commitment, contributed: round2(r.contributed), unfunded: round2(Math.max(0, r.p.commitment - (r.contributed - r.closeInterest))),
       distributed: round2(r.distributed), fees: round2(r.fees), expenses: round2(r.expenses), realizedGain: round2(r.realizedGain), unrealizedGain: round2(r.unrealizedGain),
-      carryAccrued, carryPaid: round2(r.paid), balance: round2(r.before - carryAccrued),
+      carryAccrued, carryPaid: round2(r.paid), closeInterest: round2(r.closeInterest), balance: round2(r.before - carryAccrued),
     };
   });
   const nav = round2(sum(accounts.map((a) => a.balance)) + gpCarry.accrued);
   return { accounts, gpCarry, nav };
+}
+
+// ---------------------------------------------------------------------------
+// Subsequent closings
+// ---------------------------------------------------------------------------
+
+export interface PriorCall {
+  date: string;
+  /** Amounts each existing partner paid toward investments and expenses in this call. */
+  capital: { partnerId: string; amount: number }[];
+  /** The management fee in this call, on the fee-paying commitments at the time. */
+  fees: number;
+}
+
+export interface EqualizationLine {
+  partnerId: string;
+  /** Catch-up capital paid (positive, new investors) or refunded (negative, earlier investors). */
+  capital: number;
+  /** Management fee a new investor owes from the first closing (positive only). */
+  fee: number;
+  /** Interest paid (positive) or received (negative), on the capital catch-up. */
+  interest: number;
+  lines: string[];
+}
+
+/**
+ * Admit investors at a later closing as if they had been in from the start.
+ * For each earlier call, the investment and expense capital is re-split by
+ * commitment across everyone, so new investors pay in their share and
+ * earlier investors get their excess back (callable again). New fee-paying
+ * investors owe the management fee on their commitment from the first
+ * closing; that goes to the manager, not to other investors. New investors
+ * also pay interest on their capital catch-up, at the LPA's rate from each
+ * call's date to the closing, to the earlier investors in proportion to
+ * their refunds.
+ */
+export function equalization(
+  calls: PriorCall[],
+  partners: Partner[],
+  newcomers: string[],
+  closeDate: string,
+  ratePct: number,
+): EqualizationLine[] {
+  const isNew = new Set(newcomers);
+  const out = new Map<string, EqualizationLine>(partners.map((p) => [p.id, { partnerId: p.id, capital: 0, fee: 0, interest: 0, lines: [] }]));
+  const oldPayers = partners.filter((p) => p.feePaying && !isNew.has(p.id));
+  const oldPayerTotal = sum(oldPayers.map((p) => p.commitment));
+  for (const c of calls) {
+    const total = sum(c.capital.map((x) => x.amount));
+    const target = total > 0 ? allocate(total, partners.map((p) => ({ id: p.id, weight: p.commitment }))) : [];
+    const days = Math.max(0, (Date.parse(closeDate) - Date.parse(c.date)) / DAY);
+    const refunds: { id: string; amount: number }[] = [];
+    let interestIn = 0;
+    for (const p of partners) {
+      const paid = sum(c.capital.filter((x) => x.partnerId === p.id).map((x) => x.amount));
+      const diff = round2((target.find((t) => t.id === p.id)?.amount ?? 0) - paid);
+      const line = out.get(p.id)!;
+      line.capital = round2(line.capital + diff);
+      if (isNew.has(p.id)) {
+        const interest = round2(Math.max(0, diff) * (ratePct / 100) * (days / 365));
+        line.interest = round2(line.interest + interest);
+        interestIn += interest;
+        const fee = p.feePaying && oldPayerTotal > 0 ? round2(c.fees * (p.commitment / oldPayerTotal)) : 0;
+        line.fee = round2(line.fee + fee);
+        if (diff || fee) line.lines.push(`Call of ${c.date}: $${diff.toLocaleString("en-US")} capital${fee ? ` and $${fee.toLocaleString("en-US")} fee` : ""}${interest ? `, $${interest.toLocaleString("en-US")} interest at ${ratePct}% for ${Math.round(days)} days` : ""}`);
+      } else if (diff < 0) {
+        refunds.push({ id: p.id, amount: -diff });
+        line.lines.push(`Call of ${c.date}: $${(-diff).toLocaleString("en-US")} returned`);
+      }
+    }
+    if (interestIn > 0 && refunds.length) {
+      for (const a of allocate(interestIn, refunds.map((r) => ({ id: r.id, weight: r.amount })))) {
+        const line = out.get(a.id)!;
+        line.interest = round2(line.interest - a.amount);
+      }
+    }
+  }
+  return [...out.values()].filter((l) => l.capital || l.fee || l.interest);
 }
 
 export interface NetReturns {

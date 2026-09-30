@@ -274,7 +274,7 @@ describe("capital accounts and returns", () => {
     for (const s of [...st.statements, { ...st.total, name: "total" }]) {
       for (const k of ["quarter", "year", "inception"] as const) {
         const c = s[k];
-        const rolled = c.beginning + c.contributions - c.distributions - c.managementFees - c.expenses + c.realizedGain + c.unrealizedGain - c.carriedInterest;
+        const rolled = c.beginning + c.contributions - c.distributions - c.managementFees - c.expenses - c.closeInterest + c.realizedGain + c.unrealizedGain - c.carriedInterest;
         expect(rolled, `${s.name} ${k}`).toBeCloseTo(c.ending, 1);
       }
     }

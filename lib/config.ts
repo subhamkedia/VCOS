@@ -65,6 +65,10 @@ export const config = {
   // The fund's bank, read only, for reconciling capital calls and distributions
   mercuryApiToken: env("MERCURY_API_TOKEN"),
 
+  // Investor onboarding: accreditation and KYC (the firm's own key)
+  parallelApiKey: env("PARALLEL_API_KEY"),
+  parallelApiBase: env("PARALLEL_API_BASE", "https://api.parallelmarkets.com/v1"),
+
   // Meeting notetakers (API keys belong to one firm)
   granolaApiKey: env("GRANOLA_API_KEY"),
   firefliesApiKey: env("FIREFLIES_API_KEY"),
@@ -81,7 +85,7 @@ export const PLATFORM_KEYS: ReadonlySet<ConfigKey> = new Set<ConfigKey>([
   "anthropicApiKey", "extractionModel", "reasoningModel", "secUserAgent",
   "googleClientId", "googleClientSecret", "msClientId", "msClientSecret", "msTenant",
   "zoomClientId", "zoomClientSecret", "patentsviewApiKey", "docusignClientId", "docusignClientSecret", "docusignAuthServer", "cartaApiBase",
-  "quickbooksClientId", "quickbooksClientSecret", "quickbooksEnvironment", "xeroClientId", "xeroClientSecret",
+  "quickbooksClientId", "quickbooksClientSecret", "quickbooksEnvironment", "xeroClientId", "xeroClientSecret", "parallelApiBase",
 ]);
 
 type Creds = Partial<Record<ConfigKey, string>>;

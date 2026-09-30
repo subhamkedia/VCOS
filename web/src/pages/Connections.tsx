@@ -102,7 +102,7 @@ export function ConnectorCard({ c, all = [], onChange }: { c: Connector; all?: C
         <span className={`pill ${s.tone}`}>{s.label}</span>
       </div>
       <p className="small" style={{ margin: 0 }}>{c.description}</p>
-      {(c.sourcing || c.research || c.meetings || c.execution || c.portfolio || c.lp) && (
+      {(c.sourcing || c.research || c.meetings || c.execution || c.portfolio || c.lp || c.fundraising) && (
         <div className="row small" aria-label="Used in">
           <span className="muted">Used in</span>
           {c.sourcing && <span className="pill quiet">Sourcing</span>}
@@ -110,6 +110,7 @@ export function ConnectorCard({ c, all = [], onChange }: { c: Connector; all?: C
           {c.meetings && <span className="pill quiet">Meetings</span>}
           {c.execution && <span className="pill quiet">Execution</span>}
           {c.portfolio && <span className="pill quiet">Portfolio</span>}
+          {c.fundraising && <span className="pill quiet">Fundraising</span>}
           {c.lp && <span className="pill quiet">LP Reporting</span>}
         </div>
       )}

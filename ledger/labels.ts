@@ -137,6 +137,62 @@ export const LP_LABELS = {
   feeBasis: { committed: "Committed capital", invested: "Invested capital" } as Record<string, string>,
 };
 
+/** Fundraising and investor relations enums. */
+export const FUNDRAISING_LABELS = {
+  stages: {
+    identified: "Identified", contacted: "Contacted", meeting: "First meeting", diligence: "In diligence", soft_circle: "Soft-circled",
+    committed: "Committed", closed: "Closed", declined: "Declined",
+  } as Record<string, string>,
+  activityKinds: { note: "Note", meeting: "Meeting", call: "Call", email: "Email", stage: "Stage change", data_room: "Data room", document: "Documents", ddq: "DDQ" } as Record<string, string>,
+  docCategories: {
+    deck: "Fund presentation", ppm: "Private placement memorandum", lpa: "Limited partnership agreement", subscription: "Subscription documents", ddq: "Due diligence questionnaire",
+    track_record: "Track record", financials: "Financial statements", legal: "Other legal documents", other: "Other",
+  } as Record<string, string>,
+  docStatus: { draft: "Waiting for review", approved: "Approved for investors", archived: "Archived" } as Record<string, string>,
+  exemptions: { "3c1": "3(c)(1): up to 100 investors", "3c1_qvcf": "3(c)(1) qualifying venture capital fund: up to 250 investors, $12M", "3c7": "3(c)(7): qualified purchasers only" } as Record<string, string>,
+  offerings: { "506b": "Rule 506(b): no general solicitation", "506c": "Rule 506(c): general solicitation, verified investors" } as Record<string, string>,
+  verification: {
+    self_certified: "Self-certified in the questionnaire", minimum_investment: "Minimum investment with written representations (SEC staff, March 2025)",
+    third_party_letter: "Letter from a CPA, attorney, broker-dealer or adviser", documents_reviewed: "Tax returns or statements reviewed", platform: "Verification platform",
+  } as Record<string, string>,
+  subscriptionStatus: { invited: "Invited", submitted: "Submitted", accepted: "Accepted", rejected: "Rejected", withdrawn: "Withdrawn", admitted: "Admitted" } as Record<string, string>,
+  kycStatus: { pending: "Not yet cleared", cleared: "Cleared", flagged: "Flagged" } as Record<string, string>,
+  taxForms: { w9: "Form W-9 (US person)", w8ben: "Form W-8BEN (non-US individual)", w8bene: "Form W-8BEN-E (non-US entity)", w8imy: "Form W-8IMY (intermediary)", w8exp: "Form W-8EXP (foreign government or exempt)" } as Record<string, string>,
+  // Rule 501(a), as amended in 2020.
+  accreditedBases: {
+    income: "Income over $200,000 ($300,000 with a spouse) in each of the last two years",
+    net_worth: "Net worth over $1 million, excluding the primary residence",
+    professional: "Holds a Series 7, 65 or 82 license in good standing",
+    knowledgeable_employee: "Knowledgeable employee of the fund",
+    insider: "Director or executive officer of the general partner",
+    institution: "Bank, insurance company, registered investment company, broker-dealer or investment adviser",
+    plan: "Employee benefit plan, charity or trust with over $5 million in assets",
+    entity_assets: "Entity with over $5 million in assets, not formed to make this investment",
+    entity_investments: "Entity with over $5 million in investments, not formed to make this investment",
+    family_office: "Family office with over $5 million under management, or its family client",
+    all_owners: "Entity whose equity owners are all accredited investors",
+  } as Record<string, string>,
+  // Investment Company Act section 2(a)(51).
+  qpBases: {
+    individual: "Natural person with at least $5 million in investments",
+    family_company: "Family-owned company with at least $5 million in investments",
+    trust: "Trust sponsored and managed by qualified purchasers",
+    institution: "Invests at least $25 million on its own account or for other qualified purchasers",
+    all_owners: "Entity whose owners are all qualified purchasers",
+  } as Record<string, string>,
+  closingStatus: { draft: "Draft", approved: "Approved", cancelled: "Cancelled" } as Record<string, string>,
+  termCategories: {
+    mfn: "Most favored nation", fee: "Fee terms", reporting: "Reporting", lpac_seat: "LPAC seat", co_invest: "Co-investment rights", excuse: "Excuse rights",
+    esg: "ESG and responsible investment", transfer: "Transfers", confidentiality: "Confidentiality and public records", tax_regulatory: "Tax and regulatory", other: "Other",
+  } as Record<string, string>,
+  electionStatus: { offered: "Offered", elected: "Elected", declined: "Not elected" } as Record<string, string>,
+  consentKinds: { conflict: "Conflict of interest", valuation: "Valuation", extension: "Term or investment period extension", key_person: "Key person", amendment: "LPA amendment", other: "Other" } as Record<string, string>,
+  consentStatus: { open: "Open", approved: "Approved", declined: "Declined", withdrawn: "Withdrawn" } as Record<string, string>,
+  votes: { approve: "Approve", decline: "Decline", abstain: "Abstain" } as Record<string, string>,
+  requestCategories: { ddq: "Due diligence", reporting: "Reporting", tax: "Tax", capital_account: "Capital account", side_letter: "Side letter", transfer: "Transfer", other: "Other" } as Record<string, string>,
+  requestStatus: { open: "Open", answered: "Answered", closed: "Closed" } as Record<string, string>,
+};
+
 export function vocabulary(sourceNames: Record<string, string> = {}) {
   return {
     predicates: Object.fromEntries([...PREDICATES.keys()].map((id) => [id, { label: predicateLabel(id), description: getPredicate(id).description, kind: getPredicate(id).kind }])),
@@ -152,6 +208,7 @@ export function vocabulary(sourceNames: Record<string, string> = {}) {
     fitCriteria: FIT_CRITERION_LABELS,
     severities: SEVERITY_LABELS,
     lp: LP_LABELS,
+    fundraising: FUNDRAISING_LABELS,
   };
 }
 

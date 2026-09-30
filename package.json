@@ -18,6 +18,7 @@
     "outbox": "tsx cli/outbox.ts",
     "portfolio": "tsx cli/portfolio.ts",
     "lp": "tsx cli/lp.ts",
+    "fundraising": "tsx cli/fundraising.ts",
     "worker": "tsx cli/worker.ts",
     "web": "tsx server/index.ts",
     "dev": "WEB_PORT=5173 tsx watch server/index.ts & vite --config web/vite.config.ts",

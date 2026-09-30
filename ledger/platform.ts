@@ -324,6 +324,42 @@ export async function lpPortalByToken(root: Db, token: string): Promise<LpPortal
   return r ? { id: r.id, firmId: r.firm_id, partnerId: r.partner_id } : null;
 }
 
+export interface DataRoomRef {
+  id: string;
+  firmId: string;
+  prospectId: string;
+}
+
+/** A prospect's live data room link by its token (only the hash is stored). */
+export async function dataRoomByToken(root: Db, token: string): Promise<DataRoomRef | null> {
+  if (!token || token.length < 20) return null;
+  const { rows } = await root.query<{ id: string; firm_id: string; prospect_id: string }>(
+    `update dataroom_links set last_used_at = now()
+      where token_hash = $1 and revoked_at is null and expires_at > now()
+      returning id, firm_id, prospect_id`,
+    [sha256(token)],
+  );
+  const r = rows[0];
+  return r ? { id: r.id, firmId: r.firm_id, prospectId: r.prospect_id } : null;
+}
+
+export interface SubscriptionRef {
+  firmId: string;
+  subscriptionId: string;
+}
+
+/** An investor's live subscription link by its token. It stops working once the subscription is decided. */
+export async function subscriptionByToken(root: Db, token: string): Promise<SubscriptionRef | null> {
+  if (!token || token.length < 20) return null;
+  const { rows } = await root.query<{ id: string; firm_id: string }>(
+    `select id, firm_id from subscriptions
+      where token_hash = $1 and token_revoked_at is null and token_expires_at > now() and status in ('invited', 'submitted')`,
+    [sha256(token)],
+  );
+  const r = rows[0];
+  return r ? { firmId: r.firm_id, subscriptionId: r.id } : null;
+}
+
 /** The accounting OAuth flow a portal link started. Single use, within fifteen minutes. */
 export async function takePortalOAuth(root: Db, state: string): Promise<(PortalRef & { provider: "quickbooks" | "xero"; verifier: string }) | null> {
   const { rows } = await root.query<{ id: string; firm_id: string; company_id: string; oauth_provider: "quickbooks" | "xero"; oauth_verifier: string }>(

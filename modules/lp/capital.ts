@@ -4,6 +4,7 @@ import {
   insertExpense, matchBankTxn, partners, recordReceipt, setCallStatus, setDistributionStatus, type CallItemRow, type FundRow, type PartnerRow,
 } from "../../ledger/lp.js";
 import { getEntity } from "../../ledger/repository.js";
+import { equalizationFor } from "../../ledger/fundraising.js";
 import { LP_LABELS } from "../../ledger/labels.js";
 import { allocate, managementFee, splitDealDistribution, splitDistribution, type FeeResult } from "../../engines/fund-accounting.js";
 import { mercuryAccounts, mercuryTransactions, parseBankCsv, type BankTxn } from "../../connectors/bank.js";
@@ -94,6 +95,8 @@ export async function previewCall(db: Db, fundId: string, input: Record<string, 
   const approvedIds = new Set((await calls(db, fundId)).filter((x) => x.status === "approved").map((x) => x.id));
   const called = new Map<string, number>();
   for (const i of await callItems(db, { fundId })) if (approvedIds.has(i.call_id)) called.set(i.partner_id, (called.get(i.partner_id) ?? 0) + i.amount_usd);
+  // Catch-up capital and fees from later closings count against commitments too (interest doesn't).
+  for (const e of await equalizationFor(db, fundId)) called.set(e.partner_id, (called.get(e.partner_id) ?? 0) + e.capital_usd + e.fee_usd);
   const items = ps.map((p) => {
     const investment = got(inv, p.id);
     const feeUsd = got(fees, p.id);
