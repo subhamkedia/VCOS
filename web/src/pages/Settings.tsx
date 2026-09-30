@@ -13,7 +13,7 @@ export default function Settings() {
   const tab = (to: string, label: string) => <NavLink to={to} className={({ isActive }) => `btn small ${isActive ? "primary" : ""}`}>{label}</NavLink>;
   return (
     <>
-      <PageHead title="Firm settings" lead="Your fund, mandate and thesis drive sourcing and scoring. Every save is kept as a version, so each score records the thesis it was measured against." />
+      <PageHead title="Firm settings" lead="Your fund, mandate and thesis. Every save is a new version, so each score records the thesis it used." />
       <nav className="row" aria-label="Settings sections">
         {ALL.map((s) => <span key={s.id}>{tab(`/settings/${s.id}`, s.label)}</span>)}
         {tab("/settings/team", "Team")}

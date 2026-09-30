@@ -40,7 +40,7 @@ export default function Sourcing() {
     <>
       <PageHead
         title="Sourcing"
-        lead="Feeds check the sources you choose on a schedule. Every company found is matched against your ledger and scored against your current thesis, with the reason for each point."
+        lead="Feeds scan the sources you choose and score every company against your thesis, with the reason for each point."
         actions={can("manage_feeds") && <button className="btn primary" onClick={() => setAdding(!adding)} aria-expanded={adding}>{adding ? "Close" : "Add a feed"}</button>}
       />
       <ModuleSources module="sourcing" />
@@ -169,11 +169,11 @@ function FeedRow({ f, connector, onChange }: { f: Feed; connector?: Connector; o
         ) : CADENCES.find((c) => c.id === f.cadence)?.label}
         {!f.enabled && <div><span className="pill quiet">Paused</span></div>}
       </td>
-      <td className="small">
+      <td className="small" style={{ minWidth: 170 }}>
         {!r ? <span className="muted">Never</span> : (
           <>
-            <span className={`pill ${r.status === "done" ? "good" : r.status === "failed" ? "bad" : "info"}`}>{r.status === "done" ? "Done" : r.status === "failed" ? "Failed" : "Running"}</span>{" "}
-            <span className="muted"><Time at={r.finished_at} /></span>
+            {/* A finished run just says when; only a failure or a run in progress gets a pill. */}
+            {r.status === "done" ? <Time at={r.finished_at} /> : <><span className={`pill ${r.status === "failed" ? "bad" : "info"}`}>{r.status === "failed" ? "Failed" : "Running"}</span>{r.status === "failed" && <> <span className="muted"><Time at={r.finished_at} /></span></>}</>}
             {r.stats && r.status !== "running" && (
               <div className="muted">{r.stats.records} found · {r.stats.newCompanies} new · {r.stats.strongFits} strong{r.stats.errors ? ` · ${r.stats.errors} errors` : ""}</div>
             )}
@@ -184,7 +184,7 @@ function FeedRow({ f, connector, onChange }: { f: Feed; connector?: Connector; o
       <td className="small muted">{f.enabled && f.next_run_at ? <Time at={f.next_run_at} /> : "—"}</td>
       <td>
         {manage && (
-          <div className="row">
+          <div className="row" style={{ flexWrap: "nowrap" }}>
             <button className="btn small" disabled={Boolean(busy)} aria-busy={busy === "run"} onClick={() => void run()}>{busy === "run" ? "Running…" : "Run now"}</button>
             <button className="btn ghost small" disabled={Boolean(busy)} onClick={() => void act("pause", () => api(`/feeds/${f.id}`, { method: "PATCH", body: { enabled: !f.enabled } }), f.enabled ? "Feed paused." : "Feed resumed.")}>{f.enabled ? "Pause" : "Resume"}</button>
             <button className="btn ghost small danger" disabled={Boolean(busy)} onClick={() => void remove()}>Delete</button>

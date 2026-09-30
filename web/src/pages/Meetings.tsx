@@ -40,7 +40,7 @@ export default function Meetings() {
     <>
       <PageHead
         title="Meetings"
-        lead="Calls from your connected meeting tools, each filed under the company it was with. Their notes and transcripts become confidential sources on that company. When VC OS isn't sure, it asks here, and remembers your answer."
+        lead="Calls from your meeting tools, filed under the right company. When VC OS isn't sure, it asks here and remembers your answer."
       />
       <ModuleSources module="meetings" />
       <SyncPanel syncs={syncs} onRun={() => { void reloadSyncs(); refresh(); }} canRun={can("triage_meetings")} />

@@ -44,7 +44,7 @@ export default function Connections() {
     <>
       <PageHead
         title="Connections"
-        lead="Every outside tool, in one place. Connect each once and every module that can use it does. Keys are encrypted and stay with your firm; nothing is sent from your accounts: email can only create drafts, and every draft or CRM note waits for approval."
+        lead="Connect each tool once and every module that can use it will. Keys stay encrypted with your firm, and nothing is ever sent for you."
       />
       {connected && <Notice tone="good">Connected {data?.find((c) => c.id === connected)?.name ?? connected}.</Notice>}
       {failed && <Notice tone="bad">Couldn't connect {failed}: {params.get("detail")}</Notice>}

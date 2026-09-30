@@ -52,7 +52,7 @@ export default function Approvals() {
     <>
       <PageHead
         title="Approvals"
-        lead="Everything VC OS wants to write outside itself waits here: CRM notes, email drafts and signature envelopes. Approving creates the note or the draft; nothing is ever sent for you."
+        lead="Everything VC OS would write outside itself waits here. Approving creates a draft or a note; nothing is ever sent for you."
         actions={<Seg options={[{ id: "pending", label: "Waiting" }, { id: "done", label: "Done" }, { id: "rejected", label: "Rejected" }, { id: "failed", label: "Failed" }]} value={status} onChange={setStatus} />}
       />
       {!can("approve_outbox") && status === "pending" && <Notice>Partners and admins approve these. You can see what's waiting.</Notice>}

@@ -17,7 +17,7 @@ export default function Fundraising() {
     <>
     <PageHead
       title="Fundraising & IR"
-      lead="Raise the fund and look after its investors: the LP pipeline, a tracked data room, the DDQ, onboarding and closings, side letters, the LPAC and investor requests. Nothing is sent without a person's approval."
+      lead="Raise the fund and look after its investors, from the first meeting to the final close. Nothing is sent without approval."
     />
     <ModuleSources module="fundraising" />
     </>

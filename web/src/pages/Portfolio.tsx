@@ -23,7 +23,7 @@ export default function Portfolio() {
     <>
     <PageHead
       title="Portfolio & Value Creation"
-      lead="Every company the fund holds: numbers from the books and the founders, early warnings, fair value marks, reserves and follow-ons, board meetings, the help you give, and exits."
+      lead="Every company the fund holds: numbers, early warnings, marks, reserves, board work and exits."
       actions={<Link className="btn small" to="/portfolio/liquidity">Exits and liquidity</Link>}
     />
     <ModuleSources module="portfolio" />

@@ -207,6 +207,13 @@ asks for bank details.
 
 Connectors are connected once per firm and reused by every module: a
 connector declares what it can do (`sourcing`, `research`, `meetings`,
-`execution`, `portfolio`, `lp`, `fundraising`) in
+`execution`, `portfolio`, `lp`, `fundraising`, `compliance`) in
 `connectors/registry.ts`. Never ask a firm to connect the same tool again
-for a new module.
+for a new module: module pages show the tools they use (`ModuleSources`)
+and link to `/connections?module=<id>`, never to a setup of their own.
+
+Hand-offs between modules (a closing that admits investors to LP
+Reporting, a close that becomes a holding, a mark or a sale that both
+Portfolio and LP Reporting value, proceeds that become a distribution, a
+raise that dates Form D) are checked end to end in
+`tests/lifecycle.test.ts`. Change a hand-off and that test must still pass.

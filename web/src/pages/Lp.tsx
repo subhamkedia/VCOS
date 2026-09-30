@@ -22,7 +22,7 @@ export default function Lp() {
     <>
     <PageHead
       title="LP Reporting"
-      lead="Your investors, capital calls and distributions, capital accounts, and quarterly reports in ILPA formats. Every number is computed in code; nothing goes to an investor until a second person approves it."
+      lead="Capital calls, distributions, capital accounts and ILPA reports, computed in code and approved by a second person."
     />
     <ModuleSources module="lp" />
     </>
