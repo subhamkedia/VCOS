@@ -6,14 +6,14 @@ import { FundMath, SECTIONS, TERMS_SECTION, errorsFrom, type Errors } from "../p
 
 const ALL = [...SECTIONS, TERMS_SECTION];
 import type { Profile, ProfileResponse, Role } from "../types";
-import { ErrorState, Field, Loading, Notice, PageHead, Time, useConfirm, useToast } from "../ui";
+import { ErrorState, Field, Loading, Notice, PageHead, Time, actor, useConfirm, useToast } from "../ui";
 import { useLiveCheck } from "./Onboarding";
 
 export default function Settings() {
   const tab = (to: string, label: string) => <NavLink to={to} className={({ isActive }) => `btn small ${isActive ? "primary" : ""}`}>{label}</NavLink>;
   return (
     <>
-      <PageHead eyebrow="Workspace" title="Firm settings" lead="Your fund, mandate and thesis drive sourcing and scoring. Every save is kept as a version, so each score records the thesis it was measured against." />
+      <PageHead title="Firm settings" lead="Your fund, mandate and thesis drive sourcing and scoring. Every save is kept as a version, so each score records the thesis it was measured against." />
       <nav className="row" aria-label="Settings sections">
         {ALL.map((s) => <span key={s.id}>{tab(`/settings/${s.id}`, s.label)}</span>)}
         {tab("/settings/team", "Team")}
@@ -176,7 +176,7 @@ function History() {
         <table className="t">
           <caption className="sr-only">Profile versions</caption>
           <thead><tr><th scope="col">Version</th><th scope="col">Saved by</th><th scope="col">When</th></tr></thead>
-          <tbody>{data.map((h) => <tr key={h.version}><td className="num">v{h.version}</td><td>{h.created_by.replace(/^human:/, "")}</td><td className="small muted"><Time at={h.created_at} /></td></tr>)}</tbody>
+          <tbody>{data.map((h) => <tr key={h.version}><td className="num">v{h.version}</td><td>{actor(h.created_by)}</td><td className="small muted"><Time at={h.created_at} /></td></tr>)}</tbody>
         </table>
       </div>
     </div>

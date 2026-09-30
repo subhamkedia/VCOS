@@ -12,8 +12,9 @@ its source, date, confidence and the exact characters it came from. Scores,
 diligence flags, memos and LP letters are all queries over that ledger. Each
 firm's data is isolated by Postgres row-level security.
 
-**Built so far:** the ledger, entity resolver and cited extractor; 37
-connectors; multi-firm workspaces with Google, Microsoft and email sign-in;
+**Built so far:** the ledger, entity resolver and cited extractor; 38
+connectors, all connected from one Connections page that shows what each
+module uses; multi-firm workspaces with Google, Microsoft and email sign-in;
 onboarding (firm, fund, mandate, sectors, scoring) with live portfolio
 construction math; connections you set up once and every module reuses;
 the **Sourcing** module (scheduled feeds, portfolio websites, thesis fit,

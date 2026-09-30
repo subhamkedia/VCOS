@@ -283,6 +283,20 @@ export const when = (s: string | null | undefined) => {
 };
 
 /** A relative time with the exact time on hover and for assistive tech. */
+/**
+ * Who did something, as a person reads it: "pat@firm.vc" for a person,
+ * "Diligence agent" for an agent (never "agent:diligence@0.1").
+ */
+export const actor = (a: string | null | undefined): string => {
+  if (!a) return "—";
+  if (a.startsWith("human:")) return a.slice(6);
+  if (a.startsWith("agent:")) {
+    const name = a.slice(6).split(/[@/:]/)[0]!.replace(/-/g, " ");
+    return `${name.charAt(0).toUpperCase()}${name.slice(1)} agent`;
+  }
+  return a.replace(/^[a-z]+:/, "");
+};
+
 export function Time({ at }: { at: string | null | undefined }) {
   if (!at) return <span className="muted">—</span>;
   const d = new Date(at);

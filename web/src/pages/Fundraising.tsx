@@ -1,3 +1,4 @@
+import { ModuleSources } from "./ModuleSources";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, useApi } from "../api";
@@ -13,10 +14,13 @@ export default function Fundraising() {
   const [busy, setBusy] = useState(false);
   const { data, error, reload } = useApi<{ raises: RaiseSummary[] }>("/fundraising");
   const head = (
+    <>
     <PageHead
       title="Fundraising & IR"
       lead="Raise the fund and look after its investors: the LP pipeline, a tracked data room, the DDQ, onboarding and closings, side letters, the LPAC and investor requests. Nothing is sent without a person's approval."
     />
+    <ModuleSources module="fundraising" />
+    </>
   );
   if (error) return <>{head}<ErrorState error={error} retry={() => void reload()} /></>;
   if (!data) return <>{head}<Loading what="Loading your raises" /></>;

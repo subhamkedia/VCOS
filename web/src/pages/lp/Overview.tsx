@@ -82,7 +82,7 @@ export default function Overview({ data, onChange, go }: LpTabProps & { go: (t: 
             </li>
           ))}
         </ul>
-        <p className="small muted" style={{ margin: 0 }}>Connect Mercury and your mailbox once in <Link to="/connections">Connections</Link>. VC OS reads the bank and drafts notices; it never moves money or sends.</p>
+        <p className="small muted" style={{ margin: 0 }}>Connect Mercury and your mailbox once in <Link to="/connections?module=lp">Connections</Link>. VC OS reads the bank and drafts notices; it never moves money or sends.</p>
       </section>
     </>
   );

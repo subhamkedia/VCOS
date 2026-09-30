@@ -69,4 +69,4 @@ export interface ExecTabProps {
   onChange: () => void;
 }
 
-export const person = (actor: string | null | undefined) => (actor ?? "").replace(/^human:/, "");
+export { actor as person } from "../ui";

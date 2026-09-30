@@ -2,7 +2,7 @@ import { Fragment, useState } from "react";
 import { api, useApi } from "../../api";
 import { useSession } from "../../app";
 import type { Memo } from "../../types";
-import { ErrorState, Loading, Notice, Time, useToast } from "../../ui";
+import { ErrorState, Loading, Notice, Time, actor, useToast } from "../../ui";
 import { useVocab } from "../../vocab";
 import { SourceViewer } from "../Company";
 import type { TabProps } from "../Deal";
@@ -77,7 +77,7 @@ function MemoView({ dealId, version }: { dealId: string; version: number }) {
           <h2 style={{ fontSize: 20, marginTop: 0 }}>{m.body.title}</h2>
           <a className="btn small" href={`/api/deals/${dealId}/memos/${version}?format=md`} download>Download Markdown</a>
         </div>
-        <p className="small muted">Version {m.version}, drafted <Time at={m.created_at} /> by {m.created_by.replace(/^human:/, "")}{m.drafted_by.startsWith("agent:") ? " with Claude" : ""}.</p>
+        <p className="small muted">Version {m.version}, drafted <Time at={m.created_at} /> by {actor(m.created_by)}{m.drafted_by.startsWith("agent:") ? " with Claude" : ""}.</p>
         {m.body.sections.map((s) => (
           <section key={s.id} aria-label={s.heading} className="section" style={{ gap: 6 }}>
             <h2>{s.heading}</h2>

@@ -3,6 +3,7 @@ import { updateConnectionCredentials } from "../../ledger/workspace.js";
 import { decryptJson, encryptJson } from "../../lib/secrets.js";
 import type { Db } from "../../lib/db.js";
 import { disconnect as markDisconnected, getConnection, listConnections, recordConnectionCheck, saveConnection } from "../../ledger/workspace.js";
+import { problemText } from "../../connectors/http.js";
 import { CONNECTORS, getConnector, missingKeys, type Category, type ConnectorAuth, type ParamSpec, type Cadence } from "../../connectors/registry.js";
 import { providerConfigured } from "../../connectors/oauth.js";
 
@@ -35,6 +36,9 @@ export interface CatalogEntry {
   portfolio?: { summary: string; perCompany: boolean };
   lp?: { summary: string };
   fundraising?: { summary: string };
+  compliance?: { summary: string };
+  /** For files and per-company tools: where in the app they come in. */
+  where?: string;
   status: "available" | "connected" | "error" | "not_configured";
   accountLabel: string | null;
   connectedBy: string | null;
@@ -72,6 +76,8 @@ export async function catalog(db: Db): Promise<CatalogEntry[]> {
       portfolio: c.portfolio ? { summary: c.portfolio.summary, perCompany: Boolean(c.portfolio.perCompany) } : undefined,
       lp: c.lp,
       fundraising: c.fundraising,
+      compliance: c.compliance,
+      where: c.manual || c.portfolio?.perCompany ? c.ingest : undefined,
       status, accountLabel: r?.account_label ?? null, connectedBy: r?.connected_by ?? null, connectedAt: r?.connected_at ?? null,
       lastCheckedAt: r?.last_checked_at ?? null, lastError: r?.last_error ?? null,
     };
@@ -119,12 +125,16 @@ export async function testConnection(db: Db, connectorId: string): Promise<{ ok:
   const c = getConnector(connectorId);
   const outcome = await withFirmCredentials(db, [connectorId], async () => {
     const missing = missingKeys(c);
-    if (missing.length) return { ok: false, detail: `Missing ${missing.join(", ")}` };
+    if (missing.length) {
+      // Name what's missing in the firm's words: the field it fills in, or the platform setup it can't.
+      const fields = c.auth.kind === "api_key" ? c.auth.fields.filter((f) => missing.includes(f.key)).map((f) => f.label) : [];
+      return { ok: false, detail: fields.length ? `Enter the ${fields.join(" and ").toLowerCase()}.` : "The server isn't set up for this source yet. Ask your administrator." };
+    }
     if (!c.check) return { ok: true, detail: "Saved. This source has no test call; run it once to confirm." };
     try {
       return { ok: true, detail: await c.check() };
     } catch (err) {
-      return { ok: false, detail: (err as Error).message };
+      return { ok: false, detail: problemText(err, c.name) };
     }
   });
   if (await getConnection(db, connectorId)) await recordConnectionCheck(db, connectorId, outcome);

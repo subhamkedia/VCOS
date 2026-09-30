@@ -273,6 +273,12 @@ export const EXIT_LABELS = {
   priceMethods: { close: "Closing price on the date", average: "Average closing price over trading days" } as Record<string, string>,
 };
 
+/** Things waiting in Approvals: what approving one creates. */
+export const OUTBOX_LABELS = {
+  channels: { affinity_note: "Affinity note", gmail_draft: "Gmail draft", outlook_draft: "Outlook draft", docusign_draft: "DocuSign envelope draft" } as Record<string, string>,
+  approve: { affinity_note: "Approve: add the note", gmail_draft: "Approve: create the draft", outlook_draft: "Approve: create the draft", docusign_draft: "Approve: create the envelope draft" } as Record<string, string>,
+};
+
 export function vocabulary(sourceNames: Record<string, string> = {}) {
   return {
     predicates: Object.fromEntries([...PREDICATES.keys()].map((id) => [id, { label: predicateLabel(id), description: getPredicate(id).description, kind: getPredicate(id).kind }])),
@@ -295,6 +301,7 @@ export function vocabulary(sourceNames: Record<string, string> = {}) {
     actions: ACTION_LABELS,
     decisions: DECISION_LABELS,
     dealStages: DEAL_STAGE_LABELS,
+    outbox: OUTBOX_LABELS,
   };
 }
 

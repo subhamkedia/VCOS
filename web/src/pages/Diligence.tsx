@@ -1,9 +1,10 @@
+import { ModuleSources } from "./ModuleSources";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, useApi } from "../api";
 import { useSession } from "../app";
 import type { CompanyRow, DealListRow, DealStage } from "../types";
-import { ErrorState, Field, Loading, Notice, PageHead, Seg, Time, useToast } from "../ui";
+import { ErrorState, Field, Loading, Notice, PageHead, Seg, Time, actor, useToast } from "../ui";
 import { useVocab } from "../vocab";
 
 /** A deal stage's name, from the vocabulary. */
@@ -27,6 +28,7 @@ export default function Diligence() {
         lead="One workspace per company you're seriously looking at: everything your connected tools and public sources know, meetings and calls, a checklist that fills in from the ledger, questions for the founders, and a memo where every fact is cited."
         actions={can("work_deals") && <button className="btn primary" onClick={() => setStarting(!starting)} aria-expanded={starting}>{starting ? "Close" : "Start diligence"}</button>}
       />
+      <ModuleSources module="diligence" />
       {starting && <StartDeal onDone={(id) => nav(`/diligence/${id}`)} />}
       <Seg label="Which deals" options={[{ id: "active", label: "Active" }, { id: "decided", label: "Decided" }]} value={view} onChange={setView} />
       {error ? <ErrorState error={error} retry={() => void reload()} /> : !data ? <Loading what="Loading deals" /> : data.length === 0 ? (
@@ -56,7 +58,7 @@ export default function Diligence() {
                   <td className="num">{d.open_questions || <span className="muted">—</span>}</td>
                   <td>{d.open_contradictions ? <span className="pill warn">{d.open_contradictions}</span> : <span className="muted">—</span>}</td>
                   <td className="num">{d.meetings || <span className="muted">—</span>}</td>
-                  <td className="small">{d.lead?.replace(/^human:/, "") ?? "—"}</td>
+                  <td className="small">{actor(d.lead)}</td>
                   <td className="small muted"><Time at={d.last_activity ?? d.updated_at} /></td>
                 </tr>
               ))}

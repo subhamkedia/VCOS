@@ -172,7 +172,7 @@ function CartaImport({ dealId, onDone }: { dealId: string; onDone: () => void })
   const f = (k: keyof typeof ids, label: string) => <Field label={label} required><input className="input mono" required value={ids[k]} onChange={(e) => setIds({ ...ids, [k]: e.target.value.trim() })} /></Field>;
   return (
     <form className="section" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-      <p className="small muted" style={{ margin: 0 }}>Carta's investor API shares a portfolio company's cap table once the company grants your fund access. The identifiers are in the Carta investor portal. <Link to="/connections">Connect Carta</Link> first.</p>
+      <p className="small muted" style={{ margin: 0 }}>Carta's investor API shares a portfolio company's cap table once the company grants your fund access. The identifiers are in the Carta investor portal. <Link to="/connections?module=execution">Connect Carta</Link> first.</p>
       <div className="form-grid">{f("firmId", "Carta firm")}{f("fundId", "Carta fund")}{f("companyId", "Company")}{f("capTableId", "Cap table")}</div>
       {err && <Notice tone="bad">{err}</Notice>}
       <div className="row"><button className="btn primary">Pull cap table</button></div>

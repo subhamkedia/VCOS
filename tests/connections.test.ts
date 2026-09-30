@@ -50,6 +50,15 @@ describe("credential scope", () => {
 });
 
 describe("connections", () => {
+  it("lists every tool for every module in one catalog, with where files and per-company tools come in", async () => {
+    const all = await catalog(a);
+    expect(all.find((c) => c.id === "sec-edgar")?.compliance?.summary).toMatch(/Form D/);
+    expect(all.find((c) => c.id === "prices-csv")).toMatchObject({ manual: true, where: expect.stringMatching(/Exit and liquidity/), portfolio: { perCompany: false } });
+    expect(all.find((c) => c.id === "quickbooks")?.where).toMatch(/portal/);
+    // Every module that talks to the outside names at least one tool.
+    for (const k of ["sourcing", "research", "meetings", "execution", "portfolio", "lp", "fundraising", "compliance"] as const) expect(all.some((c) => c[k]), k).toBe(true);
+  });
+
   it("stores API keys encrypted and never returns them", async () => {
     const r = await connectWithKeys(a, "harmonic", { harmonicApiKey: "hm-alpha-secret" }, "human:pat");
     expect(r.ok).toBe(true); // Harmonic has no test call

@@ -3,7 +3,7 @@ import { usd } from "../../ui";
 
 export const x2 = (n: number | null | undefined) => (n === null || n === undefined ? "—" : `${n.toFixed(2)}x`);
 export const irr = (n: number | null | undefined) => (n === null || n === undefined ? "—" : `${(n * 100).toFixed(1)}%`);
-export const person = (a: string | null | undefined) => (a ?? "").replace(/^human:/, "");
+export { actor as person } from "../../ui";
 export const longDate = (d: string | null | undefined) =>
   d ? new Date(`${d.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "—";
 export const quarterLabel = (p: string) => p.replace("-", " ");

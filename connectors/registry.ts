@@ -133,6 +133,8 @@ export interface ConnectorInfo {
   lp?: { summary: string };
   /** Used by Fundraising & Investor Relations: prospects, onboarding, signatures, notices. */
   fundraising?: { summary: string };
+  /** Used by Compliance: filings lookups and screening. */
+  compliance?: { summary: string };
   /** OAuth products that share one account consent (Gmail, Drive, Calendar, Meet). */
   product?: string;
   ingest: string;
@@ -210,7 +212,8 @@ export const CONNECTORS: ConnectorInfo[] = [
   },
   {
     id: "sec-edgar", name: "SEC EDGAR (Form D)", category: "public", scope: "public",
-    description: "Form D filings: US private raises, often before any announcement.",
+    description: "Form D filings: US private raises, often before any announcement, and your own funds' filings.",
+    compliance: { summary: "Look up a fund's Form D filings to confirm and record them" },
     auth: { kind: "platform", keys: ["secUserAgent"], note: "Uses the platform's SEC contact string." },
     sourcing: {
       mode: "discover", summary: "Recent Form D filings matching your keywords", defaultCadence: "daily",
@@ -490,6 +493,7 @@ export const CONNECTORS: ConnectorInfo[] = [
     ingest: "Used on the Closing tab", check: () => ofacCheck(),
     execution: { summary: "Sanctions screening before closing" },
     fundraising: { summary: "Sanctions screening of investors and their owners" },
+    compliance: { summary: "Sanctions checks on record for every deal and investor" },
   },
 
   // --- Portfolio --------------------------------------------------------------
@@ -537,6 +541,13 @@ export const CONNECTORS: ConnectorInfo[] = [
     docsUrl: "https://docs.mercury.com/reference/getaccount",
     ingest: "LP Reporting → Calls → Sync the bank", check: () => mercuryCheck(),
     lp: { summary: "Capital call receipts and distributions, reconciled" },
+  },
+  {
+    id: "prices-csv", name: "Share prices", category: "portfolio", scope: "public", manual: true,
+    description: "Daily closing prices of listed holdings (an IPO, or a buyer's shares from a sale), typed in or from a CSV export from your broker or a market data site (Date, Close and Volume columns).",
+    auth: { kind: "none" },
+    ingest: "Portfolio → a company → Exit and liquidity → Add closing prices",
+    portfolio: { summary: "Prices for listed holdings: marks, sales, in-kind distributions and Rule 144 volume" },
   },
   {
     id: "bank-csv", name: "Bank statements", category: "fund", scope: "confidential", manual: true,

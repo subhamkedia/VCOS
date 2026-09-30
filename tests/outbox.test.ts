@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { Db } from "../lib/db.js";
 import { testDb } from "./helpers.js";
 import { approve, queue, reject, pending, type Executor, EXECUTORS } from "../modules/outbox/index.js";
+import { HttpError } from "../connectors/http.js";
 import { getOutboxItem, type OutboxChannel } from "../ledger/repository.js";
 
 let db: Db;
@@ -63,5 +64,20 @@ describe("outbox", () => {
 
   it("has no channel that sends a message", () => {
     expect(Object.keys(EXECUTORS).sort()).toEqual(["affinity_note", "docusign_draft", "gmail_draft", "outlook_draft"]);
+  });
+
+  it("lists an envelope's documents by name and size, never their contents", async () => {
+    const base64 = Buffer.from("x".repeat(3000)).toString("base64");
+    await queue(db, "docusign_draft", { subject: "Kestrel Series A", documents: [{ name: "SPA.pdf", base64 }], signers: [{ name: "Maya Lindqvist", email: "maya@kestrel.example" }] }, { summary: "Signature packet", proposedBy: "human:pat" });
+    const [item] = await pending(db);
+    expect(item!.payload.documents).toEqual([{ name: "SPA.pdf", bytes: 3000 }]);
+    expect(JSON.stringify(item)).not.toContain(base64);
+  });
+
+  it("says in plain words why an outside tool refused", async () => {
+    const id = await queue(db, "gmail_draft", draft, { summary: "Follow-up", proposedBy: "human:pat" });
+    const failing = { ...recorder().executors, gmail_draft: async () => { throw new HttpError("gmail", 401, "{\"error\":\"invalid_grant\"}"); } };
+    const r = await approve(db, id, "human:lee", failing);
+    expect(r.outcome.detail).toBe("Gmail didn't accept the credentials (HTTP 401). Reconnect it or enter a new key, then test again.");
   });
 });

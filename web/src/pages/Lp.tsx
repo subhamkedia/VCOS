@@ -1,3 +1,4 @@
+import { ModuleSources } from "./ModuleSources";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, useApi } from "../api";
@@ -18,10 +19,13 @@ export default function Lp() {
   const [busy, setBusy] = useState(false);
   const { data, error, reload } = useApi<LpOverview>("/lp");
   const head = (
+    <>
     <PageHead
       title="LP Reporting"
       lead="Your investors, capital calls and distributions, capital accounts, and quarterly reports in ILPA formats. Every number is computed in code; nothing goes to an investor until a second person approves it."
     />
+    <ModuleSources module="lp" />
+    </>
   );
   if (error) return <>{head}<ErrorState error={error} retry={() => void reload()} /></>;
   if (!data) return <>{head}<Loading what="Loading your funds" /></>;

@@ -152,7 +152,7 @@ function calcsFor(s: Snapshot): Calc[] {
     out.push({
       id: `calc:inv:${r.companyId}`, label: `Schedule of investments: ${r.company}`,
       text: r.status === "exited"
-        ? `${r.company}: exited; ${m(r.cost)} invested returned ${m(r.realized)}${r.moic === null ? "" : ` (${mult(r.moic)})`}.`
+        ? `${r.company}: exited; ${m(r.cost)} invested returned ${m(r.realized)}${r.fairValue > 0 ? `, with ${m(r.fairValue)} still to come from escrows, earnouts or shares received` : ""}${r.moic === null ? "" : ` (${mult(r.moic)})`}.`
         : `${r.company}: ${m(r.cost)} invested, held at ${m(r.fairValue)}${r.realized ? ` with ${m(r.realized)} realized` : ""}${r.moic === null ? "" : ` (${mult(r.moic)})`}; ${r.basis.toLowerCase()}.`,
     });
   }

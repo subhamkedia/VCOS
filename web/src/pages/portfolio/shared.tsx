@@ -11,7 +11,7 @@ export const x2 = (n: number | null | undefined) => (n === null || n === undefin
 export const pctFmt = (n: number | null | undefined, digits = 1) => (n === null || n === undefined ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(digits)}%`);
 export const months = (n: number | null | undefined) => (n === null || n === undefined ? "—" : `${n.toFixed(1)} mo`);
 export const monthLabel = (m: string) => new Date(`${m}-15T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
-export const person = (a: string | null | undefined) => (a ?? "").replace(/^human:/, "");
+export { actor as person } from "../../ui";
 
 export function HealthPill({ rating, suggested, labels }: { rating: Health | null | undefined; suggested: Health; labels: Record<Health, string> }) {
   if (rating) return <span className={`pill ${HEALTH_TONE[rating]}`}>{labels[rating]}</span>;

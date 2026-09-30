@@ -1,3 +1,4 @@
+import { ModuleSources } from "./ModuleSources";
 import { useSearchParams } from "react-router-dom";
 import { useApi } from "../api";
 import type { ComplianceOverview } from "../types";
@@ -41,6 +42,7 @@ export default function Compliance() {
         title="Compliance"
         lead={`${data.labels.adviserStatus[data.profile.adviser_status]}. Every module feeds it: closings and investors' states date Form D and state notices, closed deals date outbound notices, funds size Form PF.`}
       />
+      <ModuleSources module="compliance" />
       {!data.profile.configured && <Notice tone="warn">Set the regulatory profile so the calendar matches your status. Until then it assumes an exempt reporting adviser, and deals can close without a screening.</Notice>}
       <Tabs tabs={tabs} value={tab} onChange={setTab} label="Compliance sections" idBase="co" />
       <div {...tabPanelProps("co", tab)} className="section">

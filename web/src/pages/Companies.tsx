@@ -14,7 +14,6 @@ export default function Companies() {
   return (
     <>
       <PageHead
-        eyebrow="Workspace"
         title="Companies"
         lead="Every company in your firm's ledger. Each fact is a claim with its source, date and exact quote."
         actions={<button className="btn primary" onClick={() => setAdding(!adding)} aria-expanded={adding}>{adding ? "Close" : "Add a deck or transcript"}</button>}

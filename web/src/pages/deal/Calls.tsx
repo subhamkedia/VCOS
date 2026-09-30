@@ -21,7 +21,7 @@ export default function Calls({ data, onChange }: TabProps) {
         <section className="section" aria-labelledby="mtg-h">
           <h2 id="mtg-h">Meetings</h2>
           {data.meetings.length === 0 ? (
-            <Notice>No meetings with {data.deal.company_name} yet. Connect your calendar and notetaker under <Link to="/connections">Connections</Link>; calls are matched to companies by who attended. Unsure matches wait on the <Link to="/meetings">Meetings</Link> screen.</Notice>
+            <Notice>No meetings with {data.deal.company_name} yet. Connect your calendar and notetaker under <Link to="/connections?module=meetings">Connections</Link>; calls are matched to companies by who attended. Unsure matches wait on the <Link to="/meetings">Meetings</Link> screen.</Notice>
           ) : (
             <ul className="panel timeline" style={{ padding: "0 14px" }}>
               {data.meetings.map((m) => (

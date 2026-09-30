@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, useApi } from "../../api";
 import { useSession } from "../../app";
 import type { ChecklistItem, ItemStatus, Workstream } from "../../types";
-import { Field, Notice, Seg, usePrompt, useToast } from "../../ui";
+import { Field, Notice, Seg, actor, usePrompt, useToast } from "../../ui";
 import { Progress } from "../Diligence";
 import type { TabProps } from "../Deal";
 
@@ -90,8 +90,8 @@ function Item({ item, dealId, onChange }: { item: ChecklistItem; dealId: string;
         <p className="small muted">{item.why}</p>
         <p className="small">{item.detail}</p>
         {item.note && <p className="small"><strong>Note:</strong> {item.note}</p>}
-        {item.person && <p className="small muted">Set by {item.person.by.replace(/^human:/, "")}</p>}
-        {item.assignee && <p className="small">Assigned to {item.assignee.replace(/^human:/, "")}</p>}
+        {item.person && <p className="small muted">Set by {actor(item.person.by)}</p>}
+        {item.assignee && <p className="small">Assigned to {actor(item.assignee)}</p>}
       </div>
       {can("work_deals") && (
         <div className="actions">

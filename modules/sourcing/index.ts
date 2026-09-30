@@ -6,6 +6,7 @@ import {
   updateFeed as patchFeed, type Cadence, type FeedRow,
 } from "../../ledger/workspace.js";
 import { ingest } from "../../connectors/ingest.js";
+import { problemText } from "../../connectors/http.js";
 import { getConnector, type ParamSpec, type Params } from "../../connectors/registry.js";
 import type { SourceRecord } from "../../connectors/types.js";
 import { isReady, withFirmCredentials } from "../connections/index.js";
@@ -188,13 +189,13 @@ export async function runFeed(db: Db, feedId: string, triggeredBy: string, deps:
           try {
             await take(await enrich(feed, domain));
           } catch (err) {
-            fail(`${h.name}: ${(err as Error).message}`);
+            fail(`${h.name}: ${problemText(err, c.name)}`);
           }
         }
       }
     });
   } catch (err) {
-    error = (err as Error).message;
+    error = problemText(err, c.name);
   }
   const ok = !error;
   await finishRun(db, runId, { ok, stats: stats as unknown as Record<string, unknown>, error });

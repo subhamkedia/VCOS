@@ -12,32 +12,74 @@ const CATEGORY_LABEL: Record<string, string> = {
   "data vendor": "Data vendors", public: "Public sources", crm: "CRM", email: "Email", documents: "Documents", meetings: "Meetings and notetakers", closing: "Signatures, cap tables and compliance", portfolio: "Portfolio monitoring", fund: "Fund banking and administration",
 };
 
+/** The modules a tool can serve, and what each needs from it. */
+export const MODULE_USES: { id: string; label: string; uses: (c: Connector) => string | undefined }[] = [
+  { id: "sourcing", label: "Sourcing", uses: (c) => c.sourcing?.summary },
+  { id: "diligence", label: "Diligence", uses: (c) => c.research?.summary ?? (c.meetings ? "Call notes and transcripts for the company" : undefined) },
+  { id: "meetings", label: "Meetings", uses: (c) => c.meetings?.summary },
+  { id: "execution", label: "Execution", uses: (c) => c.execution?.summary },
+  { id: "portfolio", label: "Portfolio", uses: (c) => c.portfolio?.summary },
+  { id: "lp", label: "LP Reporting", uses: (c) => c.lp?.summary },
+  { id: "fundraising", label: "Fundraising", uses: (c) => c.fundraising?.summary },
+  { id: "compliance", label: "Compliance", uses: (c) => c.compliance?.summary },
+];
+
+const ready = (c: Connector) => c.status === "connected" || c.status === "available" || c.manual;
+
+/**
+ * The one place to connect every outside tool. Each is connected once and
+ * serves every module that can use it; filter by module to see what one
+ * module draws on.
+ */
 export default function Connections() {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const { data, error, reload } = useApi<Connector[]>("/connections");
   const connected = params.get("connected");
   const failed = params.get("failed");
+  const module = params.get("module") ?? "all";
+  const pick = (id: string) => setParams(id === "all" ? {} : { module: id }, { replace: true });
+  const use = MODULE_USES.find((m) => m.id === module);
+  const shown = (data ?? []).filter((c) => !use || use.uses(c));
   return (
     <>
       <PageHead
-        eyebrow="Workspace"
         title="Connections"
-        lead="The tools VC OS reads from. Connect each once: sourcing, diligence and meetings all use it. Keys are encrypted and stay with your firm. Nothing is sent from your accounts: email connections can only create drafts, and every draft or CRM note waits for approval."
+        lead="Every outside tool, in one place. Connect each once and every module that can use it does. Keys are encrypted and stay with your firm; nothing is sent from your accounts: email can only create drafts, and every draft or CRM note waits for approval."
       />
       {connected && <Notice tone="good">Connected {data?.find((c) => c.id === connected)?.name ?? connected}.</Notice>}
       {failed && <Notice tone="bad">Couldn't connect {failed}: {params.get("detail")}</Notice>}
-      {error ? <ErrorState error={error} retry={() => void reload()} /> : !data ? <Loading /> : CATEGORY_ORDER.map((cat) => {
-        const list = data.filter((c) => c.category === cat);
-        if (!list.length) return null;
-        return (
-          <section className="section" key={cat} aria-labelledby={`cat-${cat.replace(" ", "-")}`}>
-            <h2 id={`cat-${cat.replace(" ", "-")}`}>{CATEGORY_LABEL[cat]}</h2>
-            <div className="cards">
-              {list.map((c) => <ConnectorCard key={c.id} c={c} all={data} onChange={reload} />)}
+      {error ? <ErrorState error={error} retry={() => void reload()} /> : !data ? <Loading /> : (
+        <>
+          <section className="panel panel-pad section" aria-labelledby="by-module-h">
+            <h2 id="by-module-h">By module</h2>
+            <div className="module-grid">
+              {MODULE_USES.map((m) => {
+                const list = data.filter((c) => m.uses(c));
+                const on = list.filter(ready).length;
+                return (
+                  <button key={m.id} type="button" className="module-tile" aria-pressed={module === m.id} onClick={() => pick(module === m.id ? "all" : m.id)}>
+                    <strong>{m.label}</strong>
+                    <span className="small muted">{on} of {list.length} ready</span>
+                  </button>
+                );
+              })}
             </div>
+            {use && <p className="small muted" style={{ margin: 0 }}>Showing the tools {use.label} uses. <button type="button" className="linkish" onClick={() => pick("all")}>Show all</button></p>}
           </section>
-        );
-      })}
+          {CATEGORY_ORDER.map((cat) => {
+            const list = shown.filter((c) => c.category === cat);
+            if (!list.length) return null;
+            return (
+              <section className="section" key={cat} aria-labelledby={`cat-${cat.replace(" ", "-")}`}>
+                <h2 id={`cat-${cat.replace(" ", "-")}`}>{CATEGORY_LABEL[cat]}</h2>
+                <div className="cards">
+                  {list.map((c) => <ConnectorCard key={c.id} c={c} all={data} onChange={reload} focus={use?.uses(c)} />)}
+                </div>
+              </section>
+            );
+          })}
+        </>
+      )}
     </>
   );
 }
@@ -45,13 +87,14 @@ export default function Connections() {
 function statusOf(c: Connector): { tone: string; label: string } {
   if (c.status === "connected") return { tone: "good", label: "Connected" };
   if (c.status === "error") return { tone: "bad", label: "Needs attention" };
+  if (c.manual) return { tone: "info", label: "Ready: add files" };
   if (c.status === "available") return { tone: "info", label: "Ready, no key needed" };
   return { tone: "quiet", label: "Not connected" };
 }
 
 const PROVIDER: Record<string, string> = { google: "Google", microsoft: "Microsoft", zoom: "Zoom", docusign: "DocuSign" };
 
-export function ConnectorCard({ c, all = [], onChange }: { c: Connector; all?: Connector[]; onChange: () => void }) {
+export function ConnectorCard({ c, all = [], onChange, focus }: { c: Connector; all?: Connector[]; onChange: () => void; focus?: string }) {
   const { can } = useSession();
   const v = useVocab();
   const toast = useToast();
@@ -102,18 +145,14 @@ export function ConnectorCard({ c, all = [], onChange }: { c: Connector; all?: C
         <span className={`pill ${s.tone}`}>{s.label}</span>
       </div>
       <p className="small" style={{ margin: 0 }}>{c.description}</p>
-      {(c.sourcing || c.research || c.meetings || c.execution || c.portfolio || c.lp || c.fundraising) && (
+      {focus && <p className="small" style={{ margin: 0 }}><strong>Here:</strong> {focus}</p>}
+      {MODULE_USES.some((m) => m.uses(c)) && (
         <div className="row small" aria-label="Used in">
           <span className="muted">Used in</span>
-          {c.sourcing && <span className="pill quiet">Sourcing</span>}
-          {(c.research || c.meetings) && <span className="pill quiet">Diligence</span>}
-          {c.meetings && <span className="pill quiet">Meetings</span>}
-          {c.execution && <span className="pill quiet">Execution</span>}
-          {c.portfolio && <span className="pill quiet">Portfolio</span>}
-          {c.fundraising && <span className="pill quiet">Fundraising</span>}
-          {c.lp && <span className="pill quiet">LP Reporting</span>}
+          {MODULE_USES.filter((m) => m.uses(c)).map((m) => <span key={m.id} className="pill quiet">{m.label}</span>)}
         </div>
       )}
+      {c.where && <p className="small muted" style={{ margin: 0 }}>{c.manual ? "Add files at" : "Connected from"}: {c.where}</p>}
       <div className="row small muted">
         <span className="pill outline">{v.scope(c.scope)}</span>
         <span>{v.scopeHelp(c.scope)}</span>

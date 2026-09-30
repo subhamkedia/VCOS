@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 import { api } from "../../api";
 import { useSession } from "../../app";
-import { Field, Notice, Select, dateOnly, useConfirm, useToast } from "../../ui";
+import { Field, Notice, Select, actor, dateOnly, useConfirm, useToast } from "../../ui";
 import type { TabProps } from "../Deal";
 import { useVocab } from "../../vocab";
 
@@ -41,7 +41,7 @@ export default function Decision({ data, onChange }: TabProps) {
             {data.decisions.map((d) => (
               <li key={d.id}>
                 <span className="muted">{dateOnly(d.created_at)}</span>
-                <span><strong>{v.decision(d.kind)}</strong>{d.reason_code ? ` · ${v.passReason(d.reason_code)}` : ""} · {d.actor.replace(/^human:/, "")}<br />{d.rationale}</span>
+                <span><strong>{v.decision(d.kind)}</strong>{d.reason_code ? ` · ${v.passReason(d.reason_code)}` : ""} · {actor(d.actor)}<br />{d.rationale}</span>
               </li>
             ))}
           </ul>

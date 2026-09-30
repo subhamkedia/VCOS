@@ -1,3 +1,4 @@
+import { ModuleSources } from "./ModuleSources";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApi } from "../api";
@@ -19,11 +20,14 @@ export default function Portfolio() {
   const { data, error, reload } = useApi<PortfolioOverview>(`/portfolio${fund ? `?fund=${encodeURIComponent(fund)}` : ""}`);
   const queues = useApi<{ marksToReview: Mark[]; requests: KpiRequest[]; initiatives: InitiativeRow[] }>("/portfolio/queues");
   const head = (
+    <>
     <PageHead
       title="Portfolio & Value Creation"
       lead="Every company the fund holds: numbers from the books and the founders, early warnings, fair value marks, reserves and follow-ons, board meetings, the help you give, and exits."
       actions={<Link className="btn small" to="/portfolio/liquidity">Exits and liquidity</Link>}
     />
+    <ModuleSources module="portfolio" />
+    </>
   );
   if (error) return <>{head}<ErrorState error={error} retry={() => void reload()} /></>;
   if (!data) return <>{head}<Loading what="Loading the portfolio" /></>;

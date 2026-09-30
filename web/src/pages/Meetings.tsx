@@ -1,3 +1,4 @@
+import { ModuleSources } from "./ModuleSources";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, useApi } from "../api";
@@ -41,10 +42,10 @@ export default function Meetings() {
   return (
     <>
       <PageHead
-        eyebrow="Workspace"
         title="Meetings"
         lead="Calls from your connected meeting tools, each filed under the company it was with. Their notes and transcripts become confidential sources on that company. When VC OS isn't sure, it asks here, and remembers your answer."
       />
+      <ModuleSources module="meetings" />
       <SyncPanel syncs={syncs} onRun={() => { void reloadSyncs(); refresh(); }} canRun={can("triage_meetings")} />
       <div className="spread">
         <Seg label="Which meetings" options={tabs} value={status} onChange={setStatus} />
@@ -56,7 +57,7 @@ export default function Meetings() {
       </div>
       {error ? <ErrorState error={error} retry={() => void reload()} /> : !data ? <Loading what="Loading meetings" /> : data.length === 0 ? (
         <Notice tone={status === "needs_review" ? "good" : "info"}>
-          {status === "needs_review" ? "Nothing needs you. Every synced meeting is matched, internal or ignored." : search ? `No ${status.replace("_", " ")} meetings match “${search}”.` : syncs?.length ? "None yet." : <>No meeting tools connected yet. <Link to="/connections">Connect Google Calendar, Outlook, Zoom, Granola or Fireflies</Link>.</>}
+          {status === "needs_review" ? "Nothing needs you. Every synced meeting is matched, internal or ignored." : search ? `No ${status.replace("_", " ")} meetings match “${search}”.` : syncs?.length ? "None yet." : <>No meeting tools connected yet. <Link to="/connections?module=meetings">Connect Google Calendar, Outlook, Zoom, Granola or Fireflies</Link>.</>}
         </Notice>
       ) : (
         <ul className="section" style={{ listStyle: "none", margin: 0, padding: 0 }} aria-label={`${TABS.find((t) => t.id === status)!.label} meetings`}>

@@ -1,3 +1,4 @@
+import { ModuleSources } from "./ModuleSources";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, useApi } from "../api";
@@ -42,6 +43,7 @@ export default function Sourcing() {
         lead="Feeds check the sources you choose on a schedule. Every company found is matched against your ledger and scored against your current thesis, with the reason for each point."
         actions={can("manage_feeds") && <button className="btn primary" onClick={() => setAdding(!adding)} aria-expanded={adding}>{adding ? "Close" : "Add a feed"}</button>}
       />
+      <ModuleSources module="sourcing" />
       <div className="stats" role="group" aria-label="Summary">
         <div className="stat"><b className="num">{feeds?.length ?? "–"}</b><span>feeds</span></div>
         <div className="stat"><b className="num">{hits?.length ?? "–"}</b><span>companies found</span></div>
@@ -53,7 +55,7 @@ export default function Sourcing() {
         <div className="panel panel-pad section">
           <h2>New feed</h2>
           {usable.length ? <NewFeed connectors={usable} onDone={() => { setAdding(false); refresh(); }} />
-            : <Notice>Connect a source first. <Link to="/connections">Go to Connections</Link></Notice>}
+            : <Notice>Connect a source first. <Link to="/connections?module=sourcing">Go to Connections</Link></Notice>}
         </div>
       )}
 

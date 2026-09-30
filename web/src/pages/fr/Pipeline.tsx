@@ -1,8 +1,9 @@
+import { Link } from "react-router-dom";
 import { useRef, useState } from "react";
 import { api, useApi } from "../../api";
 import { useSession } from "../../app";
 import type { Activity, Prospect, ProspectStage } from "../../types";
-import { Field, MoneyInput, Notice, NumberInput, Seg, Select, useToast, usd } from "../../ui";
+import { Field, MoneyInput, Notice, NumberInput, Seg, Select, actor, usd, useToast } from "../../ui";
 import type { FrTabProps } from "../Raise";
 import { longDate } from "../lp/shared";
 
@@ -157,7 +158,7 @@ function ProspectPanel({ data, prospect: x, onChange }: FrTabProps & { prospect:
       )}
       <h3>History</h3>
       {log.error ? <Notice tone="bad">{log.error.message}</Notice> : !log.data ? <p className="small muted">Loading…</p> : (
-        <ul className="timeline small">{log.data.map((a) => <li key={a.id}><span>{longDate(a.occurred_on)}</span><span><strong>{L.activityKinds[a.kind]}</strong> · {a.summary} <span className="muted">({a.actor.replace(/^human:/, "")})</span></span></li>)}</ul>
+        <ul className="timeline small">{log.data.map((a) => <li key={a.id}><span>{longDate(a.occurred_on)}</span><span><strong>{L.activityKinds[a.kind]}</strong> · {a.summary} <span className="muted">({actor(a.actor)})</span></span></li>)}</ul>
       )}
     </section>
   );
@@ -231,7 +232,7 @@ function ImportProspects({ data, onChange }: FrTabProps) {
         <div className="row"><button className="btn">Import file</button></div>
       </form>
       <form className="section" onSubmit={(e) => { e.preventDefault(); void fromAffinity(); }}>
-        <Field label="From an Affinity list" hint={affinity?.ready ? "The number in the list's address" : "Connect Affinity in Connections first"}><input className="input" inputMode="numeric" value={list} onChange={(e) => setList(e.target.value)} disabled={!affinity?.ready} /></Field>
+        <Field label="From an Affinity list" hint={affinity?.ready ? "The number in the list's address" : <>Connect Affinity in <Link to="/connections?module=fundraising">Connections</Link> first</>}><input className="input" inputMode="numeric" value={list} onChange={(e) => setList(e.target.value)} disabled={!affinity?.ready} /></Field>
         <div className="row"><button className="btn" disabled={!affinity?.ready || !list}>Import list</button></div>
       </form>
     </section>

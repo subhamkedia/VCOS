@@ -118,6 +118,8 @@ async function facts(db: Db, p: ComplianceProfile, extra: Partial<Facts> = {}): 
  * obligation; the code of ethics reports close once every access person on
  * the team has filed for the period, and until then the item says who hasn't.
  */
+const OFFERING_FORMS = new Set(["form_d", "blue_sky"]);
+
 export async function calendar(db: Db, opts: { extra?: Partial<Facts>; team?: string[] } = {}) {
   const p = await profile(db);
   const f = await facts(db, p, opts.extra);
@@ -143,7 +145,8 @@ export async function calendar(db: Db, opts: { extra?: Partial<Facts>; team?: st
       const complete = Boolean(filing) || (missing !== null && missing.length === 0);
       return { ...o, filing, waitingOn: missing && missing.length ? missing : null, state: complete ? "done" : o.due < now ? "overdue" : "upcoming" };
     })
-    .filter((o) => (o.state === "done" ? o.due >= `${y - 1}-10-01` : o.due >= yearAgo));
+    // An offering's own filings stay until filed, however late; the firm-wide cycle shows the last year.
+    .filter((o) => (o.state === "done" ? o.due >= `${y - 1}-10-01` : o.due >= yearAgo || (o.state === "overdue" && OFFERING_FORMS.has(o.form))));
 }
 
 export async function recordFiling(db: Db, input: Record<string, unknown>, by: string) {

@@ -218,6 +218,7 @@ table.t tr.click:hover td, table.t tr.click:hover th { background: var(--fill); 
 .quote { background: var(--mark); padding: 0 3px; border-radius: 3px; }
 pre.evidence { white-space: pre-wrap; word-break: break-word; font-family: var(--mono); font-size: 12.5px; line-height: 1.65; margin: 0; padding: 16px; background: var(--sunk); border-radius: var(--radius); max-height: 420px; overflow: auto; }
 pre.evidence mark { background: var(--mark); color: inherit; border-radius: 3px; }
+pre.evidence.mail { font-family: inherit; font-size: 14px; line-height: 1.55; }
 
 /* ---- Sign-in and setup ---------------------------------------------------------------- */
 .center-page { min-height: 100%; display: grid; place-items: center; padding: 48px 16px; background: radial-gradient(1200px 600px at 50% -10%, var(--panel), var(--bg)); }
@@ -458,3 +459,15 @@ input[type="file"]::file-selector-button {
 }
 input[type="file"]::file-selector-button:hover { background: var(--line-strong); }
 input[type="range"] { accent-color: var(--accent); }
+
+/* Connections: the modules as tiles that filter the tools. */
+.module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.module-tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); padding: 12px 14px; transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.module-tile:hover { border-color: var(--line-strong); }
+.module-tile[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.sources-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 0 0; border-top: 1px solid var(--line); }
+.source-chip { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); }
+.status-dot.quiet { background: var(--line-strong); }

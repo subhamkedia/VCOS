@@ -437,7 +437,8 @@ export interface ReportRow {
   version: number;
   as_of: string;
   snapshot: Record<string, unknown>;
-  letter: { blocks: unknown[] };
+  /** The drafted letter: sections of cited sentences (see modules/lp/reports.ts). */
+  letter: { title: string; sections: { id: string; heading: string; sentences: { text: string; cites: string[]; kind: string }[] }[]; sources: Record<string, { label: string; detail: string }> };
   commentary: string | null;
   status: "draft" | "approved" | "withdrawn";
   prepared_by: string;

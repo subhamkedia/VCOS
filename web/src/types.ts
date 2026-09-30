@@ -79,6 +79,8 @@ export interface Connector {
   portfolio?: { summary: string; perCompany: boolean };
   lp?: { summary: string };
   fundraising?: { summary: string };
+  compliance?: { summary: string };
+  where?: string;
   status: "available" | "connected" | "error" | "not_configured";
   accountLabel: string | null; connectedBy: string | null; connectedAt: string | null; lastCheckedAt: string | null; lastError: string | null;
 }

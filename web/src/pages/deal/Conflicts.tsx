@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../../api";
 import { useSession } from "../../app";
 import type { Claim } from "../../types";
-import { Field, Notice, Time, dateOnly, useToast } from "../../ui";
+import { Field, Notice, Time, actor, dateOnly, useToast } from "../../ui";
 import { useVocab } from "../../vocab";
 import { SourceViewer } from "../Company";
 import type { TabProps } from "../Deal";
@@ -30,7 +30,7 @@ export default function Conflicts({ data, onChange }: TabProps) {
             {data.settled.map((s) => (
               <li key={s.id}>
                 <span className="muted"><Time at={s.resolved_at} /></span>
-                <span><span className={`pill ${s.status === "resolved" ? "good" : "info"}`}>{s.status === "resolved" ? "Settled" : "Explained"}</span> {s.detail} <br /><span className="muted">{s.resolved_by?.replace(/^human:/, "")}: “{s.resolution_note}”</span></span>
+                <span><span className={`pill ${s.status === "resolved" ? "good" : "info"}`}>{s.status === "resolved" ? "Settled" : "Explained"}</span> {s.detail} <br /><span className="muted">{actor(s.resolved_by)}: “{s.resolution_note}”</span></span>
               </li>
             ))}
           </ul>

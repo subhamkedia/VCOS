@@ -244,7 +244,7 @@ function Bank({ data, onChange }: LpTabProps) {
       <p className="small" style={{ margin: 0 }}>Incoming wires are matched to what each investor owes: by amount, then by the sender's name when two investors owe the same. VC OS reads the account; it can't move money.</p>
       {can("work_deals") && (
         <div className="row">
-          {mercury?.ready ? <button className="btn" disabled={busy} onClick={() => void sync()}>Sync Mercury</button> : <span className="small muted"><Link to="/connections">Connect Mercury</Link> (read-only token), or upload a statement:</span>}
+          {mercury?.ready ? <button className="btn" disabled={busy} onClick={() => void sync()}>Sync Mercury</button> : <span className="small muted"><Link to="/connections?module=lp">Connect Mercury</Link> (read-only token), or upload a statement:</span>}
           <form className="row" onSubmit={(e) => { e.preventDefault(); void upload(); }}>
             <label className="sr-only" htmlFor="bank-file">Bank statement (CSV)</label>
             <input id="bank-file" ref={file} className="input" type="file" accept=".csv,text/csv" />

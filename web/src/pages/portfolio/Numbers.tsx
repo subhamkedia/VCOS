@@ -54,7 +54,7 @@ export default function Numbers({ data, onChange }: PfTabProps) {
             <li key={a.id}><strong>{a.provider === "quickbooks" ? "QuickBooks Online" : "Xero"}</strong>{a.external_name ? ` (${a.external_name})` : ""}: connected by the founder{a.last_sync_at ? `, last read ${new Date(a.last_sync_at).toLocaleDateString()}` : ""}{a.last_error ? <span style={{ color: "var(--bad)" }}> · {a.last_error}</span> : null}</li>
           ))}
           {data.sources.filter((s) => !s.perCompany).map((s) => (
-            <li key={s.id}><strong>{s.name}</strong>: {s.summary}{s.ready ? "" : <span className="muted"> · not connected (<Link to="/connections">connect</Link>)</span>}</li>
+            <li key={s.id}><strong>{s.name}</strong>: {s.summary}{s.ready ? "" : <span className="muted"> · not connected (<Link to="/connections?module=portfolio">connect</Link>)</span>}</li>
           ))}
         </ul>
         {!data.accounting.length && <Notice>The founder can connect QuickBooks or Xero (read only) from the link on the Reporting tab. The books are the best source: they win over figures typed in.</Notice>}

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api, useApi } from "../../api";
 import { useSession } from "../../app";
 import type { DealFlags, DealRun, ResearchSource, SourceResult } from "../../types";
-import { Field, MoneyInput, Notice, Select, Time, useToast, usd } from "../../ui";
+import { Field, MoneyInput, Notice, Select, Time, actor, usd, useToast } from "../../ui";
 import { useVocab } from "../../vocab";
 import { Progress } from "../Diligence";
 import type { TabProps } from "../Deal";
@@ -100,7 +100,7 @@ function Gather({ data, onChange }: TabProps) {
       <div aria-live="polite">
         {last ? (
           <>
-            <p className="small muted" style={{ margin: 0 }}>{last.status === "running" ? "Running now" : "Last run"} <Time at={last.started_at} /> by {last.triggered_by.replace(/^human:/, "")}.</p>
+            <p className="small muted" style={{ margin: 0 }}>{last.status === "running" ? "Running now" : "Last run"} <Time at={last.started_at} /> by {actor(last.triggered_by)}.</p>
             {results.length > 0 && (
               <div className="table-wrap">
                 <table className="t small">
@@ -113,7 +113,7 @@ function Gather({ data, onChange }: TabProps) {
                         <td><span className={`pill ${STATUS[s.status].tone}`}>{STATUS[s.status].label}</span></td>
                         <td className="num">{s.records || "—"}</td>
                         <td className="num">{s.claims || "—"}</td>
-                        <td className="muted">{s.detail ?? ""}{s.status === "skipped" && s.detail === "Not connected" && <> · <Link to="/connections">Connect</Link></>}</td>
+                        <td className="muted">{s.detail ?? ""}{s.status === "skipped" && s.detail === "Not connected" && <> · <Link to="/connections?module=diligence">Connect</Link></>}</td>
                       </tr>
                     ))}
                   </tbody>

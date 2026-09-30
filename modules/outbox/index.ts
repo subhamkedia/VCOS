@@ -7,6 +7,8 @@ import { affinityCreateNote } from "../../connectors/affinity.js";
 import { gmailCreateDraft } from "../../connectors/gmail.js";
 import { outlookCreateDraft } from "../../connectors/outlook.js";
 import { docusignCreateDraft } from "../../connectors/docusign.js";
+import { problemText } from "../../connectors/http.js";
+import { OUTBOX_LABELS } from "../../ledger/labels.js";
 
 /**
  * The approval outbox. Agents and workflows call `queue*`; nothing leaves
@@ -60,7 +62,14 @@ export const EXECUTORS: Record<OutboxChannel, Executor> = {
   docusign_draft: (p) => docusignCreateDraft(PAYLOADS.docusign_draft.parse(p)),
 };
 
-export const pending = (db: Db, status: OutboxStatus = "pending") => listOutbox(db, status);
+/** Items for review. Attached documents are listed by name and size; their contents stay in the ledger. */
+export async function pending(db: Db, status: OutboxStatus = "pending"): Promise<OutboxItem[]> {
+  return (await listOutbox(db, status)).map((i) => {
+    const docs = (i.payload as { documents?: { name: string; base64?: string }[] }).documents;
+    if (!Array.isArray(docs)) return i;
+    return { ...i, payload: { ...i.payload, documents: docs.map((d) => ({ name: d.name, bytes: Math.floor(((d.base64 ?? "").length * 3) / 4) })) } };
+  });
+}
 
 /**
  * A person approves an item; then it runs once. The approval is saved first,
@@ -77,9 +86,9 @@ export async function approve(
     const payload = PAYLOADS[item.channel].parse(item.payload) as Record<string, unknown>;
     const result = await executors[item.channel](payload);
     await completeOutboxItem(db, id, { ok: true, result });
-    return { ...item, status: "done", outcome: { ok: true, detail: `created ${item.channel.replace("_", " ")} ${result.id}` } };
+    return { ...item, status: "done", outcome: { ok: true, detail: `${OUTBOX_LABELS.channels[item.channel] ?? "Item"} created` } };
   } catch (err) {
-    const error = (err as Error).message;
+    const error = problemText(err, (OUTBOX_LABELS.channels[item.channel] ?? "The tool").split(" ")[0]);
     await completeOutboxItem(db, id, { ok: false, error });
     return { ...item, status: "failed", outcome: { ok: false, detail: error } };
   }

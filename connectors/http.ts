@@ -11,6 +11,25 @@ export class HttpError extends Error {
   }
 }
 
+/**
+ * A failure from an outside tool as a sentence a person can act on:
+ * who answered, what it means, and what to do. Other errors pass through.
+ */
+export function problemText(err: unknown, source = "The source"): string {
+  if (err instanceof HttpError) {
+    const s = err.status;
+    if (s === 401) return `${source} didn't accept the credentials (HTTP 401). Reconnect it or enter a new key, then test again.`;
+    if (s === 403) return `${source} refused access (HTTP 403). Check the account's permissions and the network, then test again.`;
+    if (s === 404) return `${source} couldn't find what was asked for (HTTP 404).`;
+    if (s === 429) return `${source} is limiting requests (HTTP 429). Try again later.`;
+    if (s >= 500) return `${source} had a problem on its side (HTTP ${s}). Try again later.`;
+    return `${source} rejected the request (HTTP ${s}).`;
+  }
+  const m = err instanceof Error ? err.message : String(err);
+  if (/fetch failed|ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|network error/i.test(m)) return `${source} couldn't be reached. Check the network and try again.`;
+  return m;
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../api";
 import { useSession } from "../app";
 import type { Claim, CompanyProfile, DealListRow, Evidence } from "../types";
-import { ErrorState, Field, FitBadge, Loading, Notice, PageHead, Seg, dateOnly, useToast } from "../ui";
+import { ErrorState, Field, FitBadge, Loading, Notice, PageHead, Seg, actor, dateOnly, useToast } from "../ui";
 import { useVocab } from "../vocab";
 
 const SOURCE_TYPE_TONE: Record<string, string> = { primary: "good", third_party: "info", self_reported: "warn", inference: "quiet", internal: "quiet" };
@@ -162,7 +162,7 @@ export default function Company() {
             <div key={d.id} className="small">
               <strong>{v.decision(d.kind)}</strong>{" "}
               {d.reason_code && <span className="pill outline">{v.passReason(d.reason_code)}</span>} {d.rationale}{" "}
-              <span className="muted">by {d.actor.replace(/^human:/, "")}, {dateOnly(d.created_at)}</span>
+              <span className="muted">by {actor(d.actor)}, {dateOnly(d.created_at)}</span>
             </div>
           ))}
         </section>

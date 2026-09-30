@@ -1,3 +1,4 @@
+import { ModuleSources } from "./ModuleSources";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApi } from "../api";
@@ -28,6 +29,7 @@ export default function Execution() {
         title="Investment Execution"
         lead="From IC to a closed investment: independent committee votes, term sheets checked against NVCA and your house terms, the round and your returns modelled in code, and a closing checklist with signature, sanctions and wire controls. VC OS never sends a document or moves money."
       />
+      <ModuleSources module="execution" />
       <Seg label="Which deals" options={[{ id: "active", label: "In progress" }, { id: "closed", label: "Closed investments" }]} value={view} onChange={setView} />
       {view === "active" ? (
         error ? <ErrorState error={error} retry={() => void reload()} /> : !data ? <Loading what="Loading deals" /> : active.length === 0 ? (
