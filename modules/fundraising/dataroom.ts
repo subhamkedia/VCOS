@@ -6,6 +6,7 @@ import {
 } from "../../ledger/fundraising.js";
 import { FUNDRAISING_LABELS } from "../../ledger/labels.js";
 import { queue } from "../outbox/index.js";
+import { marketingGate } from "../compliance/gate.js";
 import { FundraisingInvalid, firmName, longDate, mailChannel, raiseOr404, text, today } from "./common.js";
 
 /**
@@ -38,11 +39,17 @@ export async function uploadDoc(db: Db, raiseId: string, file: { name: string; b
   return insertDoc(db, { raiseId, title, category, fileName: file.name, mimeType: TYPES[ext]!, content: file.bytes, sha256: sha256(Buffer.from(file.bytes).toString("base64")), marketing }, by);
 }
 
-export async function approveDoc(db: Db, docId: string, by: string) {
+export async function approveDoc(db: Db, docId: string, by: string, checklist?: Record<string, unknown>) {
   const d = await getDoc(db, docId);
   if (!d) throw new FundraisingInvalid("No such document.");
   if (d.status !== "draft") throw new FundraisingInvalid(`This document is already ${FUNDRAISING_LABELS.docStatus[d.status]!.toLowerCase()}.`);
   if (d.uploaded_by === by) throw new FundraisingInvalid("Someone other than the person who uploaded it reviews a document before investors see it.");
+  // Compliance: the Marketing Rule review of an advertisement (required of a registered adviser).
+  try {
+    await marketingGate(db, d, checklist, by);
+  } catch (err) {
+    throw new FundraisingInvalid((err as Error).message);
+  }
   await setDocStatus(db, docId, "approved", by);
 }
 

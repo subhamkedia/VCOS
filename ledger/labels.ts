@@ -193,6 +193,28 @@ export const FUNDRAISING_LABELS = {
   requestStatus: { open: "Open", answered: "Answered", closed: "Closed" } as Record<string, string>,
 };
 
+/** Compliance enums. */
+export const COMPLIANCE_LABELS = {
+  adviserStatus: {
+    registered: "Registered with the SEC (RIA)", era: "Exempt reporting adviser (venture capital or under $150M)", state: "Registered with a state", none: "Not an adviser (e.g., a family office)",
+  } as Record<string, string>,
+  forms: {
+    form_adv: "Form ADV", form_d: "Form D", blue_sky: "State notice filing", form_pf: "Form PF", audit: "Audited financial statements", annual_review: "Annual compliance review",
+    coe_holdings: "Holdings reports", coe_transactions: "Transaction reports", outbound_notice: "Treasury outbound notification", cfius: "CFIUS filing",
+    schedule_13g: "Schedule 13G", schedule_13d: "Schedule 13D", form_345: "Forms 3, 4 and 5", form_13f: "Form 13F", other: "Other",
+  } as Record<string, string>,
+  outbound: { not_covered: "Not covered", notifiable: "Notifiable: tell Treasury within 30 days of closing", prohibited: "Prohibited" } as Record<string, string>,
+  cfius: { none: "No CFIUS trigger identified", review: "Counsel to assess a filing", declaration_likely: "Mandatory declaration likely" } as Record<string, string>,
+  exportControl: { none: "Not export-controlled (EAR99)", ear: "Controlled under the EAR", itar: "ITAR (defense article or service)" } as Record<string, string>,
+  preclearanceKinds: { ipo: "Initial public offering", private_placement: "Private placement", public_security: "Listed security" } as Record<string, string>,
+  requestStatus: { pending: "Waiting for review", logged: "Logged", approved: "Approved", denied: "Denied" } as Record<string, string>,
+  conflictKinds: { cross_fund: "Investment by more than one fund", related_party: "Related-party charge", allocation: "Allocation of an opportunity", personal: "Personal interest", outside_activity: "Outside business activity", other: "Other" } as Record<string, string>,
+  conflictStatus: { open: "Open", mitigated: "Mitigated", closed: "Closed" } as Record<string, string>,
+  policies: { code_of_ethics: "Code of ethics", compliance_manual: "Compliance manual", insider_trading: "Insider trading policy" } as Record<string, string>,
+  reportKinds: { holding: "Holding", transaction: "Transaction", no_activity: "No reportable activity" } as Record<string, string>,
+  giftKinds: { gift: "Gift", entertainment: "Entertainment" } as Record<string, string>,
+};
+
 export function vocabulary(sourceNames: Record<string, string> = {}) {
   return {
     predicates: Object.fromEntries([...PREDICATES.keys()].map((id) => [id, { label: predicateLabel(id), description: getPredicate(id).description, kind: getPredicate(id).kind }])),
@@ -209,6 +231,7 @@ export function vocabulary(sourceNames: Record<string, string> = {}) {
     severities: SEVERITY_LABELS,
     lp: LP_LABELS,
     fundraising: FUNDRAISING_LABELS,
+    compliance: COMPLIANCE_LABELS,
   };
 }
 

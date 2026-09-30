@@ -13,6 +13,7 @@ import { exitScenarios, type CommonClass, type PreferredSeries } from "../../eng
 import { capTableFromCsv, cartaCapTableHoldings } from "../../connectors/carta.js";
 import { closingStatusFor, docusignEnvelopes } from "../../connectors/docusign.js";
 import { sanctionsLists, screen, type SanctionsEntry } from "../../connectors/ofac.js";
+import { assertScreeningCleared } from "../compliance/gate.js";
 import { getProfile, type FirmProfile } from "../firm/profile.js";
 import { isReady, withFirmCredentials } from "../connections/index.js";
 import { queue } from "../outbox/index.js";
@@ -568,6 +569,12 @@ export async function closeDeal(db: Db, dealId: string, input: unknown, by: stri
   if (!ready.ready) throw new ExecutionInvalid(`Still open: ${ready.open.map((k) => items.find((i) => i.key === k)?.title ?? k).join("; ")}.`);
   const signed = (await termSheets(db, dealId)).find((x) => x.status === "signed");
   if (!signed) throw new ExecutionInvalid("Mark the signed term sheet first.");
+  // Compliance: the deal's regulatory screening (outbound investment, CFIUS, export controls).
+  try {
+    await assertScreeningCleared(db, dealId);
+  } catch (err) {
+    throw new ExecutionInvalid((err as Error).message);
+  }
   const t = TermSheet.parse(signed.terms);
   const m = await model(db, dealId);
   const profile = (await getProfile(db))?.profile;

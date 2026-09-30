@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
+import { screenDeal, setProfile as setComplianceProfile } from "../modules/compliance/index.js";
 import { scopedDb, type Db } from "../lib/db.js";
 import { testFirm, testRoot } from "./helpers.js";
 import { createFirm } from "../ledger/platform.js";
@@ -298,6 +299,10 @@ describe("closing", () => {
     await approveWire(db, w.id, PAT);
     await approveWire(db, w.id, SAM);
     await markWireSent(db, w.id, { bankReference: "REF1" }, PAT);
+    // Compliance: once the firm's profile asks for it, a deal needs its regulatory screening before it closes.
+    await setComplianceProfile(db, { adviserStatus: "era" }, PAT);
+    await expect(closeDeal(db, id, { closeDate: "2026-10-22" }, PAT)).rejects.toThrow(/regulatory screening/);
+    await screenDeal(db, id, { outbound: { countryOfConcern: false, sector: "ai", aiNotifiable: true }, exportControl: "none" }, PAT);
     const inv = await closeDeal(db, id, { closeDate: "2026-10-22" }, PAT);
     expect(inv).toMatchObject({ amount_usd: 3e6, security: "preferred", series_name: "Series A Preferred", board_role: "seat" });
     expect(inv.ownership_fd_pct).toBeCloseTo(9.375, 1);

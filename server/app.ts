@@ -16,6 +16,7 @@ import * as execution from "../modules/execution/index.js";
 import * as portfolio from "../modules/portfolio/index.js";
 import * as lp from "../modules/lp/index.js";
 import * as fundraising from "../modules/fundraising/index.js";
+import * as compliance from "../modules/compliance/index.js";
 import type { MeetingStatus } from "../ledger/meetings.js";
 import type { DealStage } from "../ledger/diligence.js";
 import { checkProfile, construction, getProfile, profileHistory, profileOptions, saveProfile, ProfileInvalid } from "../modules/firm/profile.js";
@@ -59,7 +60,7 @@ export function createApp(deps: AppDeps) {
   app.onError((err, c) => {
     if (err instanceof ProfileInvalid) return c.json({ error: err.message, errors: err.errors }, 422);
     if (err instanceof auth.Forbidden) return c.json({ error: err.message }, 403);
-    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid || err instanceof execution.ExecutionInvalid || err instanceof portfolio.PortfolioInvalid || err instanceof lp.LpInvalid || err instanceof fundraising.FundraisingInvalid) {
+    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid || err instanceof execution.ExecutionInvalid || err instanceof portfolio.PortfolioInvalid || err instanceof lp.LpInvalid || err instanceof fundraising.FundraisingInvalid || err instanceof compliance.ComplianceInvalid || err instanceof compliance.ComplianceBlocked) {
       return c.json({ error: err.message }, /^No such/.test(err.message) ? 404 : 400);
     }
     const msg = err.message || "Something went wrong.";
@@ -694,7 +695,11 @@ export function createApp(deps: AppDeps) {
     return c.json(await fundraising.uploadDoc(c.get("db"), param(c, "id"), { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) }, { title: body.title, category: body.category, marketing: body.marketing }, who(c)), 201);
   });
   firm.get("/fundraising/docs/:id/file", async (c) => fileResponse(c, await fundraising.downloadDocInternal(c.get("db"), param(c, "id")), true));
-  firm.post("/fundraising/docs/:id/approve", allow("decide_deals"), async (c) => { await fundraising.approveDoc(c.get("db"), param(c, "id"), who(c)); return ok(c); });
+  firm.post("/fundraising/docs/:id/approve", allow("decide_deals"), async (c) => {
+    const b = await c.req.json<{ checklist?: Record<string, unknown> }>().catch(() => ({} as { checklist?: Record<string, unknown> }));
+    await fundraising.approveDoc(c.get("db"), param(c, "id"), who(c), b.checklist);
+    return ok(c);
+  });
   firm.post("/fundraising/docs/:id/archive", allow("work_deals"), async (c) => { await fundraising.archiveDoc(c.get("db"), param(c, "id"), who(c)); return ok(c); });
   firm.get("/fundraising/ddq", async (c) => c.json({ sections: await fundraising.ddqView(c.get("db")) }));
   firm.post("/fundraising/ddq/draft", allow("work_deals"), async (c) => c.json(await fundraising.draftFromRecords(c.get("db"), who(c))));
@@ -729,6 +734,32 @@ export function createApp(deps: AppDeps) {
   firm.get("/ir/requests", async (c) => c.json(await fundraising.requestQueue(c.get("db"))));
   firm.post("/ir/requests", allow("work_deals"), async (c) => c.json(await fundraising.logRequest(c.get("db"), await c.req.json(), who(c)), 201));
   firm.post("/ir/requests/:id/answer", allow("work_deals"), async (c) => { await fundraising.answerInvestorRequest(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return ok(c); });
+
+  // Compliance, shared by every module. Everyone files their own reports,
+  // requests and attestations; partners (the CCO) decide requests (never
+  // their own), screen deals, keep the restricted list and record filings;
+  // an admin sets the regulatory profile.
+  firm.get("/compliance", async (c) => {
+    const t = await team(root, c.get("session").firm!.id);
+    return c.json(await compliance.overview(c.get("db"), { person: who(c), team: t.members.map((m) => `human:${m.email.toLowerCase()}`) }));
+  });
+  firm.put("/compliance/profile", allow("manage_firm"), async (c) => { await compliance.setProfile(c.get("db"), await c.req.json(), who(c)); return ok(c); });
+  firm.post("/compliance/filings", allow("decide_deals"), async (c) => c.json(await compliance.recordFiling(c.get("db"), await c.req.json(), who(c)), 201));
+  firm.get("/compliance/form-d", async (c) => c.json(await compliance.findFormD(c.req.query("name") ?? "")));
+  firm.post("/compliance/deals/:id/screening", allow("work_deals"), async (c) => c.json(await compliance.screenDeal(c.get("db"), param(c, "id"), await c.req.json(), who(c)), 201));
+  firm.post("/compliance/restricted", allow("decide_deals"), async (c) => { await compliance.addRestricted(c.get("db"), await c.req.json(), who(c)); return c.json({ ok: true }, 201); });
+  firm.post("/compliance/restricted/:id/remove", allow("decide_deals"), async (c) => { await compliance.dropRestricted(c.get("db"), param(c, "id"), who(c)); return ok(c); });
+  firm.post("/compliance/reports", allow("read"), async (c) => c.json(await compliance.fileReport(c.get("db"), who(c), await c.req.json()), 201));
+  firm.post("/compliance/preclearances", allow("read"), async (c) => c.json(await compliance.requestPreclearance(c.get("db"), who(c), await c.req.json()), 201));
+  firm.post("/compliance/preclearances/:id/decide", allow("decide_deals"), async (c) => { await compliance.decidePreclearance(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return ok(c); });
+  firm.post("/compliance/contributions", allow("read"), async (c) => c.json(await compliance.requestContribution(c.get("db"), who(c), await c.req.json()), 201));
+  firm.post("/compliance/contributions/:id/decide", allow("decide_deals"), async (c) => { await compliance.decideContribution(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return ok(c); });
+  firm.post("/compliance/gifts", allow("read"), async (c) => c.json(await compliance.logGift(c.get("db"), who(c), await c.req.json()), 201));
+  firm.post("/compliance/gifts/:id/decide", allow("decide_deals"), async (c) => { await compliance.decideGift(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return ok(c); });
+  firm.post("/compliance/conflicts/detect", allow("work_deals"), async (c) => c.json(await compliance.detectConflicts(c.get("db"), who(c))));
+  firm.post("/compliance/conflicts", allow("work_deals"), async (c) => { await compliance.addConflict(c.get("db"), await c.req.json(), who(c)); return c.json({ ok: true }, 201); });
+  firm.patch("/compliance/conflicts/:id", allow("decide_deals"), async (c) => { await compliance.resolveConflict(c.get("db"), param(c, "id"), await c.req.json(), who(c)); return ok(c); });
+  firm.post("/compliance/attestations", allow("read"), async (c) => c.json(await compliance.attest(c.get("db"), who(c), await c.req.json()), 201));
 
   // Approvals
   firm.get("/outbox", async (c) => c.json(await outbox.pending(c.get("db"), (c.req.query("status") as never) || "pending")));
