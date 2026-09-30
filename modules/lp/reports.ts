@@ -75,7 +75,7 @@ export async function snapshot(db: Db, fundId: string, period: string) {
       id: f.id, name: f.name, vintage: f.vintage, currency: f.currency, inception: f.inception, terms,
       termsText: [
         `Management fee ${terms.managementFeePct}% a year on commitments through ${longDate(terms.investmentPeriodEnd)}, then ${terms.feeStepDownPct ?? terms.managementFeePct}% on ${LP_LABELS.feeBasis[terms.feeBasisAfterPeriod]!.toLowerCase()}.`,
-        `Carried interest ${terms.carryPct}%${terms.hurdlePct ? ` over a ${terms.hurdlePct}% preferred return with a ${terms.catchUpPct}% catch-up` : ", no preferred return"}; ${LP_LABELS.waterfalls[terms.waterfall]!.toLowerCase()} waterfall${terms.escrowPct ? `, ${terms.escrowPct}% of carry held in escrow` : ""}.`,
+        `Carried interest ${terms.carryPct}%${terms.hurdlePct ? ` over a ${terms.hurdlePct}% preferred return with a ${terms.catchUpPct}% catch-up` : ", no preferred return"}. Waterfall: ${LP_LABELS.waterfalls[terms.waterfall]}${terms.escrowPct ? `, ${terms.escrowPct}% of carry held in escrow` : ""}.`,
       ],
     },
     period, asOf, periodStart: b.start, yearStart: b.yearStart,
@@ -125,32 +125,32 @@ export type Snapshot = Awaited<ReturnType<typeof snapshot>>;
 // The letter
 // ---------------------------------------------------------------------------
 
-interface Calc { id: string; text: string }
+interface Calc { id: string; text: string; label: string }
 
 function calcsFor(s: Snapshot): Calc[] {
   const out: Calc[] = [];
   const m = shortMoney;
-  out.push({ id: "calc:summary", text: `As of ${longDate(s.asOf)}, investors have committed ${m(s.summary.commitments)} to ${s.fund.name}; ${m(s.summary.called)} (${s.summary.calledPct.toFixed(1)}%) has been called and ${m(s.summary.distributed)} distributed. Net asset value is ${m(s.summary.nav)}.` });
+  out.push({ id: "calc:summary", label: "Commitments, capital called and distributed, NAV", text: `As of ${longDate(s.asOf)}, investors have committed ${m(s.summary.commitments)} to ${s.fund.name}; ${m(s.summary.called)} (${s.summary.calledPct.toFixed(1)}%) has been called and ${m(s.summary.distributed)} distributed. Net asset value is ${m(s.summary.nav)}.` });
   const n = s.performance.net;
-  out.push({ id: "calc:net", text: n.tvpi === null ? "No capital has been called yet, so there are no returns to report." : `Net to fee-paying investors since inception: TVPI ${mult(n.tvpi)}, DPI ${mult(n.dpi)}${n.irr === null ? "; IRR is not yet meaningful" : `, IRR ${pct(n.irr)}`}.` });
+  out.push({ id: "calc:net", label: "Net returns to investors", text: n.tvpi === null ? "No capital has been called yet, so there are no returns to report." : `Net to fee-paying investors since inception: TVPI ${mult(n.tvpi)}, DPI ${mult(n.dpi)}${n.irr === null ? "; IRR is not yet meaningful" : `, IRR ${pct(n.irr)}`}.` });
   const g = s.performance.gross;
-  if (g.invested > 0) out.push({ id: "calc:gross", text: `Gross, on ${m(g.invested)} invested in ${s.summary.companies} ${s.summary.companies === 1 ? "company" : "companies"}: multiple ${mult(g.moic)}${g.irr === null ? "" : `, IRR ${pct(g.irr)}`}. Gross returns are before management fees, expenses and carried interest.` });
+  if (g.invested > 0) out.push({ id: "calc:gross", label: "Gross returns on the portfolio", text: `Gross, on ${m(g.invested)} invested in ${s.summary.companies} ${s.summary.companies === 1 ? "company" : "companies"}: multiple ${mult(g.moic)}${g.irr === null ? "" : `, IRR ${pct(g.irr)}`}. Gross returns are before management fees, expenses and carried interest.` });
   const a = s.activity;
   const called = sum(a.calls.map((c) => c.total));
   const dist = sum(a.distributions.map((d) => d.net));
   out.push({
-    id: "calc:activity",
+    id: "calc:activity", label: "Capital calls and distributions this quarter",
     text: !a.calls.length && !a.distributions.length ? "The fund made no capital calls or distributions this quarter."
       : !a.calls.length ? `This quarter the fund made no capital calls and distributed ${m(dist)} to investors${a.distributions.length > 1 ? ` in ${a.distributions.length} distributions` : ""}.`
       : `This quarter the fund called ${m(called)}${a.calls.length > 1 ? ` in ${a.calls.length} calls` : ""}${a.distributions.length ? ` and distributed ${m(dist)} to investors` : " and made no distributions"}.`,
   });
   const fe = s.feesExpenses;
   const exp = sum(fe.expenses.map((e) => e.quarter));
-  out.push({ id: "calc:fees", text: `Management fees charged this quarter: ${m(fe.managementFees.quarter.net)}${fe.managementFees.quarter.offsets ? `, after ${m(fe.managementFees.quarter.offsets)} of fee offsets` : ""}. Partnership expenses: ${m(exp)}.${fe.managementFees.offsetsUnapplied ? ` Fees of ${m(fe.managementFees.offsetsUnapplied)} the general partner received from portfolio companies will reduce the next management fee.` : ""}` });
-  out.push({ id: "calc:carry", text: fe.carry.paidInception || fe.carry.accrued ? `Carried interest: ${m(fe.carry.paidInception)} paid since inception and ${m(Math.max(0, fe.carry.accrued))} accrued at the quarter's values.${fe.carry.clawbackExposure ? ` At those values the general partner would return ${m(fe.carry.clawbackExposure)} under the clawback.` : ""}` : "No carried interest has been paid or accrued." });
+  out.push({ id: "calc:fees", label: "Management fees, offsets and expenses", text: `Management fees charged this quarter: ${m(fe.managementFees.quarter.net)}${fe.managementFees.quarter.offsets ? `, after ${m(fe.managementFees.quarter.offsets)} of fee offsets` : ""}. Partnership expenses: ${m(exp)}.${fe.managementFees.offsetsUnapplied ? ` Fees of ${m(fe.managementFees.offsetsUnapplied)} the general partner received from portfolio companies will reduce the next management fee.` : ""}` });
+  out.push({ id: "calc:carry", label: "Carried interest paid and accrued", text: fe.carry.paidInception || fe.carry.accrued ? `Carried interest: ${m(fe.carry.paidInception)} paid since inception and ${m(Math.max(0, fe.carry.accrued))} accrued at the quarter's values.${fe.carry.clawbackExposure ? ` At those values the general partner would return ${m(fe.carry.clawbackExposure)} under the clawback.` : ""}` : "No carried interest has been paid or accrued." });
   for (const r of s.schedule) {
     out.push({
-      id: `calc:inv:${r.companyId}`,
+      id: `calc:inv:${r.companyId}`, label: `Schedule of investments: ${r.company}`,
       text: r.status === "exited"
         ? `${r.company}: exited; ${m(r.cost)} invested returned ${m(r.realized)}${r.moic === null ? "" : ` (${mult(r.moic)})`}.`
         : `${r.company}: ${m(r.cost)} invested, held at ${m(r.fairValue)}${r.realized ? ` with ${m(r.realized)} realized` : ""}${r.moic === null ? "" : ` (${mult(r.moic)})`}; ${r.basis.toLowerCase()}.`,
@@ -167,8 +167,8 @@ export async function draftLetter(db: Db, s: Snapshot, commentary: string | null
   const allowed = new Map<string, Citable>();
   const sources: Record<string, { label: string; detail: string }> = {};
   for (const c of calcs) {
-    allowed.set(c.id, { id: c.id, label: "Fund books", values: numbersIn(c.text).map((x) => x.value), dates: [s.asOf] });
-    sources[c.id] = { label: "Fund books", detail: `Calculated in code from the ledger as of ${s.asOf}` };
+    allowed.set(c.id, { id: c.id, label: c.label, values: numbersIn(c.text).map((x) => x.value), dates: [s.asOf] });
+    sources[c.id] = { label: c.label, detail: `the fund's books, calculated in code as of ${s.asOf}` };
   }
   const fact = (text: string, cites: string[]): MemoSentence => ({ text, cites, kind: "fact" });
   const byId = new Map(calcs.map((c) => [c.id, c]));

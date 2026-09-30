@@ -35,7 +35,7 @@ function forInvestor(r: { id: string; period: string; as_of: string; approved_at
     performance: { net: s.performance.net, gross: s.performance.gross, marketingNote: s.performance.marketingNote },
     schedule: s.schedule,
     feesExpenses: s.feesExpenses,
-    statement: mine ? { ...mine, name: undefined } : null,
+    statement: mine,
     returns,
     notes: s.notes,
   };

@@ -98,10 +98,11 @@ connectors/  one adapter per source, plus registry.ts (auth, scope, sourcing)
 agents/      one folder per agent: prompt, tool definitions, logic
 engines/     deterministic math (portfolio construction, round math, cap
              tables, waterfalls, anti-dilution, KPIs and warnings, fund
-             metrics, valuation marks)
+             metrics, valuation marks, fund accounting: fees, carry,
+             capital accounts, net returns)
 modules/     workflows as plain functions: auth, firm, connections, sourcing,
-             meetings, diligence, execution, portfolio, companies, outbox; catalog.ts lists the
-             five product modules
+             meetings, diligence, execution, portfolio, lp, companies,
+             outbox; catalog.ts lists the five product modules
 server/      Hono API: thin routes over modules (session, role, JSON)
 web/         React + Vite app; talks only to /api
 evals/       one folder per agent: labeled data + runner
@@ -134,7 +135,10 @@ back and approves marks (never their own); `analyst` reads, uploads, queues
 drafts, works deals (term sheets, cap tables, the closing checklist, wire
 instructions and the call-back), keeps portfolio numbers, board meetings and
 value-creation work, proposes marks and health ratings, and triages
-meetings. IC votes are open only to the meeting's members, and only
+meetings; and in LP Reporting keeps the investor register, prepares calls,
+distributions and reports, records expenses and reconciles the bank, while
+partners set up funds and terms and approve calls, distributions and
+reports (never ones they prepared). IC votes are open only to the meeting's members, and only
 its chair moves it on. Check with `requireAction` in modules/auth, and
 return 403 from the API, never hide the check in the UI alone.
 
@@ -144,27 +148,32 @@ Phase 0 — Foundation. Gate to Phase 1: the resolver scores ≥95% with zero
 false merges on the YC 2026 set, 200 companies across the 2026 batches
 (`pnpm eval:resolver:build-yc`, then
 `pnpm eval:resolver --set evals/resolver/yc2026 --gate 0.95`).
-The web app, multi-firm tenancy, sign-in, onboarding, connections, the
-Sourcing module, Meetings, the Diligence module (research runs, the
-checklist, founder questions, the contradiction board, decisions and the
-cited IC memo), the Investment Execution module (IC votes before and after
-discussion, term sheets against NVCA and house terms, pro-forma cap tables
-and waterfalls in `engines/`, the closing checklist with DocuSign, Carta and
-OFAC, wire controls and the investment record) and the Portfolio & Value
-Creation module (KPIs as claims from the books, the founder portal,
-requests, platforms and updates; early warnings; marks approved by a second
-person; gross fund metrics and reserves; follow-ons; board meetings; value
-creation) are built. LP Reporting is next: capital accounts, net IRR and
-TVPI after fees and carry, the ILPA reporting and performance templates,
-quarterly letters that cite the ledger and only shareable scopes.
+All five modules are built: the web app, multi-firm tenancy, sign-in,
+onboarding, connections, the Sourcing module, Meetings, the Diligence module
+(research runs, the checklist, founder questions, the contradiction board,
+decisions and the cited IC memo), the Investment Execution module (IC votes
+before and after discussion, term sheets against NVCA and house terms,
+pro-forma cap tables and waterfalls in `engines/`, the closing checklist
+with DocuSign, Carta and OFAC, wire controls and the investment record), the
+Portfolio & Value Creation module (KPIs as claims from the books, the
+founder portal, requests, platforms and updates; early warnings; marks
+approved by a second person; gross fund metrics and reserves; follow-ons;
+board meetings; value creation) and the LP Reporting module (funds and
+investors, capital calls and distributions approved by a second person with
+notices as outbox drafts, bank reconciliation, capital accounts, net returns
+after fees and carry beside gross, ILPA-style quarterly reports whose letter
+cites the books and public-scope claims only, and the investor portal). The
+gate is next.
 
-The founder portal is the one place outside sign-in: a hashed, expiring,
-revocable token finds the firm (in `ledger/platform.ts`, root Db), and
-everything after runs on that firm's scoped Db. It shows a company only
-what it reports.
+The founder portal and the investor portal are the only places outside
+sign-in: a hashed, expiring, revocable token finds the firm (in
+`ledger/platform.ts`, root Db), and everything after runs on that firm's
+scoped Db. The founder portal shows a company only what it reports; the
+investor portal shows one investor its own account and approved reports,
+never another investor's.
 
 Connectors are connected once per firm and reused by every module: a
 connector declares what it can do (`sourcing`, `research`, `meetings`,
-`execution`, `portfolio`) in
+`execution`, `portfolio`, `lp`) in
 `connectors/registry.ts`. Never ask a firm to connect the same tool again
 for a new module.

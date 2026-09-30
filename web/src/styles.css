@@ -140,11 +140,13 @@ textarea.input { min-height: 96px; resize: vertical; }
 .fitbar .fill { display: block; height: 100%; background: var(--accent); }
 
 /* ---- Tables --------------------------------------------------------------------- */
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: auto; position: relative; } /* contains .sr-only headers, which would otherwise widen the page */
 table.t { border-collapse: collapse; width: 100%; font-size: 14px; }
 table.t th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--sunk); white-space: nowrap; }
 table.t td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
-table.t tbody tr:last-child td { border-bottom: 0; }
+/* Row headers read as the first cell of the row, not as column headers. */
+table.t tbody th { font-size: 14px; font-weight: 500; letter-spacing: normal; text-transform: none; color: var(--ink); background: none; white-space: normal; vertical-align: top; }
+table.t tbody tr:last-child td, table.t tbody tr:last-child th { border-bottom: 0; }
 table.t tr.click { cursor: pointer; }
 table.t tr.click:hover td { background: var(--sunk); }
 .quote { background: var(--mark); padding: 0 3px; border-radius: 2px; }
@@ -338,3 +340,12 @@ fieldset.group legend { font-family: var(--display); font-stretch: 88%; font-wei
 }
 /* Lists inside a timeline row are ordinary lists, not timeline rows. */
 .timeline li li { display: list-item; padding: 2px 0; border-top: 0; }
+
+/* LP Reporting */
+.linkish { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer; text-align: left; text-decoration: underline; text-underline-offset: 2px; }
+.linkish:hover { text-decoration-thickness: 2px; }
+.t tr.total th, .t tr.total td { font-weight: 600; border-top: 2px solid var(--line); }
+.letter p { line-height: 1.6; max-width: 72ch; }
+.letter sup a { text-decoration: none; font-size: 11px; margin-left: 1px; }
+.alloc { max-height: 360px; overflow: auto; }
+.token-url { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; background: var(--sunk); padding: 8px; border-radius: 6px; }

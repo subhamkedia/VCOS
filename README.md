@@ -11,7 +11,7 @@ its source, date, confidence and the exact characters it came from. Scores,
 diligence flags, memos and LP letters are all queries over that ledger. Each
 firm's data is isolated by Postgres row-level security.
 
-**Built so far:** the ledger, entity resolver and cited extractor; 33
+**Built so far:** the ledger, entity resolver and cited extractor; 36
 connectors; multi-firm workspaces with Google, Microsoft and email sign-in;
 onboarding (firm, fund, mandate, sectors, scoring) with live portfolio
 construction math; connections you set up once and every module reuses;
@@ -31,9 +31,15 @@ and the investment record); the **Portfolio & Value Creation** module
 login, KPI requests, Standard Metrics, Visible, spreadsheets and update
 emails; runway, burn and plan warnings; fair value marks approved by a
 second person; gross MOIC, IRR, DPI and TVPI; reserves and follow-ons;
-board meetings; value-creation work); and an approval queue for anything
-outbound.
-**Next:** LP Reporting.
+board meetings; value-creation work); the **LP Reporting** module (the
+investor register from your fund administrator, capital calls and
+distributions allocated to the cent with the carry waterfall, receipts
+reconciled from Mercury or any bank's statement, capital accounts for the
+quarter, year and inception, net IRR and TVPI after fees and carry beside
+gross, quarterly reports after the ILPA templates with a letter that cites
+the books and public sources only, and a private portal for each
+investor); and an approval queue for anything outbound.
+**Next:** the Phase 0 gate on the YC 2026 set.
 
 ### How Diligence works
 
@@ -190,6 +196,79 @@ over what a founder typed, which wins over a model's reading of an email.
    and partner introductions, fundraising, government programs) is tracked to
    an outcome; introductions are double opt-in email drafts.
 
+### How LP Reporting works
+
+A fund is set up from the firm profile's fund: its management fee and
+step-down, carried interest, hurdle, catch-up, waterfall and GP commitment
+are copied to the fund and kept there (the LPA governs; later profile edits
+don't rewrite its history). All the math is `engines/fund-accounting.ts`,
+unit-tested; nothing here moves money or sends anything.
+
+1. **Investors.** Add limited partners by hand or import the register your
+   fund administrator exports (Carta, Juniper Square, AngelList or a
+   spreadsheet; their APIs aren't open to firms). Each has a commitment,
+   closing, notice emails, tax and investor status, KYC date and side
+   letter terms. The GP's own commitment pays no fee or carry.
+2. **Capital calls.** Enter what the call is for (investments, expenses,
+   a management fee period) and preview each investor's share before
+   saving: split by commitment to the cent, the fee charged by day count on
+   fee-paying commitments in the investment period and on invested or
+   committed capital after it, less fee offsets (fees the GP received from
+   portfolio companies), with a warning under ILPA's 10 business days'
+   notice and a block on calling more than an investor has left. A partner
+   who didn't prepare it approves it; then one notice per investor is
+   drafted in your mailbox, with a warning that bank details never change by
+   email (wire fraud targets exactly these notices).
+3. **Receipts.** Mercury (a read-only API token) or a statement export from
+   any bank: incoming wires are matched to what each investor owes by
+   amount, then by the sender's name when two owe the same; the rest waits
+   for a person to match. Re-importing a statement adds nothing twice.
+4. **Distributions.** The engine splits the amount by commitment and runs
+   the waterfall on the fee-paying investors' share: return of capital, the
+   preferred return (compounding), the GP catch-up, then the carry split.
+   Whole of fund (ILPA's preferred model) or deal by deal against each
+   investment's own cost, with carry held in escrow (ILPA Principles 3.0 ask
+   for at least 30%). Approved by a second person, notices drafted, then
+   recorded as paid once the money has gone.
+5. **Capital accounts and returns.** Every partner's statement for the
+   quarter, the year and inception to date, in the ILPA Reporting
+   Template's order: beginning balance, contributions, distributions,
+   management fees net of offsets, partnership expenses (in the template's
+   categories, related-party charges flagged), realized and unrealized
+   gains, carried interest allocated, ending balance. Gains come from
+   Execution's investment records, Portfolio's approved marks and
+   realizations. Accrued carry is what a sale at today's marks would pay;
+   clawback exposure is shown each period. Net IRR, TVPI and DPI to
+   fee-paying investors (from their own cash flows and ending balances) sit
+   beside gross returns on the portfolio with equal prominence, as the SEC
+   Marketing Rule and the ILPA Performance Template ask.
+6. **Quarterly reports.** Preparing one snapshots the quarter's numbers and
+   drafts a letter. Every factual sentence cites the books or a public
+   claim about a portfolio company (filtered to shareable scopes in SQL);
+   the GP's commentary is labeled as opinion, and any figure in it must
+   match the report or it's rejected. A different person approves it; an
+   approved report is final (enforced in the database) and a correction is
+   a new version. Exports: capital accounts, fees and expenses, the
+   performance cash flows, and the schedule of investments, as CSV.
+7. **The investor portal.** Each investor gets a private, expiring,
+   revocable link (drafted into a notice when a report is approved) showing
+   its own statement, the approved reports, its calls, distributions and
+   K-1 status, and nothing about any other investor.
+8. **Deadlines and tax.** Quarterly reports within 45 days (the annual one
+   within 90), audited financial statements within 120 days under the
+   custody rule's audit provision, Schedules K-1 by March 15 (September 15
+   with an extension), and the annual Form ADV amendment within 90 days of
+   year end; K-1 and K-3 delivery tracked by investor.
+
+Sources: ILPA Reporting Template v2.0 and Performance Template (2025), ILPA
+Principles 3.0 and its capital call and distribution notice guidance, the
+SEC Marketing Rule (206(4)-1) and its March 2025 FAQ on extracted
+performance, the custody rule's audit provision (206(4)-2), IRS
+instructions for Form 1065 Schedules K-1 and K-3, Form ADV instructions,
+and Mercury's API reference. The SEC's 2023 private fund adviser rules,
+including the quarterly statement rule, were vacated by the Fifth Circuit
+in June 2024, so the ILPA templates and the LPA set the standard.
+
 ## Run the web app
 
 ```bash
@@ -272,6 +351,12 @@ pnpm outbox                     # CRM notes and email drafts waiting for your ap
 pnpm outbox approve <id>        # creates the draft or note; nothing is ever sent
 pnpm portfolio                  # every holding: value, MOIC, runway, warnings
 pnpm portfolio sync "Weldloop"  # refresh one company's numbers from its books and your tools
+pnpm lp                         # every fund: committed, called, NAV, net TVPI and IRR
+pnpm lp accounts "Demo Fund II" # each investor's capital account and net returns
+pnpm lp calendar "Demo Fund II" 2026            # reports, K-1s, audit and Form ADV deadlines
+pnpm lp bank "Demo Fund II" --file statement.csv  # match receipts (or --since 2026-01-01 for Mercury)
+pnpm lp report "Demo Fund II" 2026-Q3           # prepare a report for a second person to approve
+pnpm lp export <report id> capital-accounts     # or fees-expenses, performance, investments
 ```
 
 For production, `docker compose up -d` and set
@@ -301,6 +386,9 @@ For production, `docker compose up -d` and set
 | `engines/kpi.ts`, `fund-metrics.ts`, `valuation.ts` | Monthly KPI series, net burn, runway, burn multiple and early warnings; gross MOIC, XIRR, DPI, RVPI, TVPI and the reserve pool; fair value marks by IPEV-recognized methods. Unit-tested. |
 | `modules/portfolio/` | The portfolio overview and company view, KPI entry and imports and the sync (`kpis.ts`), the founder portal and KPI requests (`portal.ts`), marks (`marks.ts`), and health, reserves, follow-ons, realizations, board meetings and value creation (`work.ts`). `pnpm portfolio` on the command line. |
 | `connectors/accounting.ts`, `portfolio-platforms.ts` | QuickBooks Online and Xero (OAuth, monthly reports), Standard Metrics and Visible. |
+| `engines/fund-accounting.ts` | Allocation to the cent, management fees by day count with step-down and offsets, the carry waterfall (whole of fund or deal by deal, hurdle, catch-up, escrow), capital accounts, accrued carry and clawback, net returns, the reporting calendar. Unit-tested. |
+| `modules/lp/` | Funds, investors and register imports (`funds.ts`), calls, receipts, bank reconciliation, distributions and expenses (`capital.ts`), the books and statements (`books.ts`), quarterly reports, the cited letter and exports (`reports.ts`), and the investor portal (`portal.ts`). `pnpm lp` on the command line. |
+| `connectors/bank.ts` | Mercury (read only) and bank statement CSVs. No payment or transfer function exists. |
 | `connectors/docusign.ts`, `carta.ts`, `ofac.ts` | Signature status and draft envelopes, cap tables from Carta or any export, and Treasury's sanctions lists. |
 | `modules/outbox/` | The approval queue for anything that leaves VC OS. Agents queue; a person approves; then it runs once. |
 | `evals/resolver/` | Resolver eval and the Phase 0 gate. |
@@ -337,7 +425,14 @@ but it was written alongside the resolver, so treat it as a smoke test.
 - Thesis fit is v0: sector keywords (stemmed), geography and stage, with
   every reason cited. The weighted dimensions (team, moat, GTM) are scored
   in Diligence from evidence.
-- LP Reporting has its page and scope in the app; its workflow is next.
+- LP Reporting's fund accounting covers the common venture LPA: fees on
+  commitments then a step-down, pro rata calls, and whole-of-fund or
+  deal-by-deal carry. It doesn't yet model subscription credit lines (the
+  ILPA Performance Template's with-and-without-line returns), recallable
+  distributions, equalization for later closings, fee waivers, or
+  multi-currency funds. Tax documents are tracked, not prepared: K-1s come
+  from the fund's tax preparer. Mercury follows its API reference and is
+  tested against fixtures; other banks come in as statement CSVs.
 - QuickBooks, Xero, Standard Metrics and Visible follow each vendor's API
   documentation and are tested against fixtures, not live accounts.
   Standard Metrics' and Visible's paths sit in `STANDARD_METRICS_PATHS` and
@@ -345,8 +440,8 @@ but it was written alongside the resolver, so treat it as a smoke test.
   figures are accrual-basis income statement totals and bank balances;
   capital expenditure and working capital aren't in net burn unless the
   company reports burn itself.
-- Portfolio performance is gross, on invested capital. Net returns to LPs
-  (after fees, expenses and carry) belong to LP Reporting.
+- Portfolio performance is gross, on invested capital; net returns to LPs
+  (after fees, expenses and carry) are in LP Reporting.
 - Term sheets are entered as fields; reading one from a PDF is not built.
   Carta's API is partner-only (invite): without access, import the export.
   DocuSign status and drafts follow DocuSign's eSignature REST docs and are

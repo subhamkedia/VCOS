@@ -25,6 +25,7 @@ import { updateDeal } from "../ledger/diligence.js";
 import { monthEnd } from "../engines/kpi.js";
 import { insertInvestment } from "../ledger/execution.js";
 import * as portfolio from "../modules/portfolio/index.js";
+import * as lp from "../modules/lp/index.js";
 import { parseArgs, run } from "./common.js";
 
 /**
@@ -290,8 +291,58 @@ run(async () => {
   await portfolio.recordRealization(db, cold, { kind: "write_off", occurredOn: `${year[year.length - 6]}-15`, note: "Wound down after the pilot customer went bankrupt." }, by);
   const portal = await portfolio.createPortalLink(db, weld, by, process.env.APP_URL ?? "http://localhost:8787");
 
+  // LP Reporting (all fictional): the fund, its investors, two years of calls, receipts from a bank statement,
+  // expenses, a distribution from the SiteGrid sale, an approved report, and work left for you to approve.
+  const fund = await lp.createFund(db, { name: "Demo Fund II", inception: "2024-01-15", vintage: 2024, investmentPeriodYears: 4 }, LEE);
+  const lps: [string, string, number, string][] = [
+    ["Allegheny Teachers' Pension Plan", "pension", 15_000_000, "privatemarkets@alleghenytpp.example"],
+    ["Three Rivers Foundation", "endowment_foundation", 8_000_000, "investments@threerivers.example"],
+    ["Riverside Fund of Funds III", "fund_of_funds", 7_000_000, "ops@riversidefof.example"],
+    ["Halvorsen Family Office", "family_office", 6_000_000, "cio@halvorsen.example"],
+    ["Keystone Insurance Mutual", "insurance", 5_000_000, "alts@keystonemutual.example"],
+    ["Dr. Maya Chen", "individual", 160_000, "maya.chen@mail.example"],
+    ["Demo Fund II GP, LLC", "gp", 840_000, ""],
+  ];
+  for (const [name, kind, commitmentUsd, emails] of lps) await lp.addPartner(db, fund.id, { name, kind, commitmentUsd, emails, kycVerifiedOn: "2024-01-10", taxStatus: kind === "pension" || kind === "endowment_foundation" ? "tax_exempt" : "taxable" }, by);
+  const c1 = (await lp.draftCall(db, fund.id, { noticeDate: "2024-01-19", dueDate: "2024-02-09", investmentsUsd: 1_250_000, expensesUsd: 150_000, fee: { from: "2024-01-15", to: "2024-12-31" }, purpose: "SiteGrid and Coldchain IQ; organizational costs" }, by)).call;
+  await lp.approveCall(db, c1.id, LEE);
+  const c2 = (await lp.draftCall(db, fund.id, { noticeDate: "2025-03-17", dueDate: "2025-04-07", investmentsUsd: 2_200_000, expensesUsd: 60_000, fee: { from: "2025-01-01", to: "2025-12-31" }, purpose: "Weldloop and Formwork AI seed rounds" }, by)).call;
+  await lp.approveCall(db, c2.id, LEE);
+  const view = await lp.fundView(db, fund.id);
+  const statement = ["Date,Description,Credit,Debit,Reference"];
+  for (const c of view.calls.filter((x) => x.status === "approved")) {
+    for (const i of c.items) {
+      if (c.number === 2 && i.partner_name === "Halvorsen Family Office") continue; // still outstanding
+      statement.push(`${c.due_date},WIRE IN ${i.partner_name!.toUpperCase().replace(/,/g, "")},${i.amount_usd},,FED-${c.number}-${i.id.slice(0, 8)}`);
+    }
+  }
+  statement.push("2025-04-09,WIRE IN HALVORSEN FO,50000.00,,FED-PARTIAL-1"); // a partial payment for a person to match
+  await lp.importBankCsv(db, fund.id, { name: "demo-bank-statement.csv", text: statement.join("\n") }, by);
+  const expense = (incurredOn: string, amountUsd: number, category: string, description: string, extra: Record<string, unknown> = {}) => lp.addExpense(db, fund.id, { incurredOn, amountUsd, category, description, ...extra }, by);
+  await expense("2024-02-01", 118_000, "organizational", "Fund formation: LPA, subscription documents, filings");
+  await expense("2024-12-15", 42_000, "audit_tax", "2024 audit and tax returns");
+  await expense("2025-03-31", 9_500, "fund_admin", "Fund administrator, Q1 2025");
+  await expense("2025-06-30", 9_500, "fund_admin", "Fund administrator, Q2 2025");
+  await expense("2025-12-15", 44_000, "audit_tax", "2025 audit and tax returns");
+  await expense("2025-11-01", 14_000, "insurance", "Fund D&O and E&O insurance");
+  await expense("2026-01-20", 6_000, "other", "GP staff time preparing the annual meeting", { relatedParty: true });
+  await expense("2026-02-10", 12_000, "other", "Board fees from Weldloop to the GP", { feeOffset: true });
+  const saleMonth = year[year.length - 3]!;
+  const dist = await lp.draftDistribution(db, fund.id, { paidOn: `${saleMonth}-25`, grossUsd: 2_400_000, companyId: siteGrid, purpose: "Proceeds from the sale of SiteGrid" }, by);
+  await lp.approveDistribution(db, dist.distribution.id, LEE);
+  await lp.markDistributionPaid(db, dist.distribution.id, LEE);
+  const lpIds = (await lp.fundView(db, fund.id)).investors.filter((i) => i.kind !== "gp");
+  for (const p of lpIds.slice(0, 4)) await lp.setTaxDoc(db, fund.id, { partnerId: p.id, taxYear: 2025, kind: "k1", status: "delivered", deliveredOn: "2026-03-12" }, by);
+  const q1 = await lp.prepareReport(db, fund.id, { period: "2026-Q1", commentary: "Weldloop signed paid pilots with two Tier 1 auto suppliers. Formwork AI is behind plan, and we are working with its founders on a bridge." }, LEE);
+  await lp.approveReport(db, q1.id, by);
+  // Waiting for you: a call and the Q2 report, both prepared by Lee.
+  await lp.draftCall(db, fund.id, { noticeDate: "2026-10-01", dueDate: "2026-10-16", investmentsUsd: 1_000_000, fee: { from: "2026-01-01", to: "2026-06-30" }, purpose: "Girderline seed round; first-half 2026 management fee" }, LEE);
+  await lp.prepareReport(db, fund.id, { period: "2026-Q2" }, LEE);
+  const investorLink = await lp.createLpPortalLink(db, lpIds[0]!.id, by, process.env.APP_URL ?? "http://localhost:8787");
+
   console.log(`\nSeeded "${firm.name}" for ${user.email}.`);
   console.log(`Founder portal for Weldloop (as the founder sees it): ${portal.url}`);
+  console.log(`Investor portal for ${lpIds[0]!.name} (as the LP sees it): ${investorLink.url}`);
   console.log("Start the app with `pnpm web` and sign in with that email; the sign-in link is printed in the server log.");
   await root.close();
 });

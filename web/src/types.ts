@@ -373,3 +373,124 @@ export interface PortalInfo {
   metrics: { id: string; label: string; percent: boolean; count: boolean; plan: boolean }[];
   accounting: { provider: "quickbooks" | "xero"; name: string; available: boolean; connected: { status: string; connectedAt: string; lastSyncAt: string | null } | null }[];
 }
+
+// ---------------------------------------------------------------------------
+// LP Reporting
+// ---------------------------------------------------------------------------
+
+export interface FundTermsView {
+  managementFeePct: number; feeStepDownPct?: number; feeBasisAfterPeriod: "committed" | "invested"; investmentPeriodEnd: string;
+  carryPct: number; hurdlePct: number; catchUpPct: number; waterfall: "european" | "american"; escrowPct?: number; gpCommitmentPct?: number;
+}
+export interface LpLabels {
+  partnerKinds: Record<string, string>; expenseCategories: Record<string, string>; taxStatus: Record<string, string>; investorStatus: Record<string, string>;
+  taxDocKinds: Record<string, string>; taxDocStatus: Record<string, string>; callStatus: Record<string, string>; distributionStatus: Record<string, string>;
+  distributionKinds: Record<string, string>; reportStatus: Record<string, string>; waterfalls: Record<string, string>; feeBasis: Record<string, string>;
+}
+export interface NetReturns { paidIn: number; distributed: number; nav: number; dpi: number | null; rvpi: number | null; tvpi: number | null; irr: number | null }
+export interface CarryPosition { entitled: number; paid: number; accrued: number; clawbackExposure: number }
+export interface LpFundSummary {
+  id: string; name: string; vintage: number | null; inception: string; investors: number; commitments: number; called: number; calledPct: number;
+  distributed: number; nav: number; net: { tvpi: number | null; dpi: number | null; irr: number | null };
+  pending: { calls: number; distributions: number; reports: number }; lastReport: string | null;
+}
+export interface LpOverview { asOf: string; funds: LpFundSummary[]; profileFund: { name: string; exists: boolean } | null }
+export interface StatementColumn { beginning: number; contributions: number; distributions: number; managementFees: number; expenses: number; realizedGain: number; unrealizedGain: number; carriedInterest: number; ending: number }
+export interface LpStatement {
+  partnerId: string; name: string; kind: string; feePaying: boolean; commitment: number; contributedToDate: number; unfunded: number; distributedToDate: number; carryAccrued: number;
+  quarter: StatementColumn; year: StatementColumn; inception: StatementColumn;
+}
+export interface LpInvestor {
+  id: string; name: string; kind: string; commitment_usd: number; fee_paying: boolean; closing: number; admitted_on: string; emails: string[];
+  tax_status: string | null; erisa: boolean; investor_status: string | null; kyc_verified_on: string | null; side_letter: string | null;
+  contributed: number; unfunded: number; distributed: number; balance: number; returns: (NetReturns & { partnerId: string }) | null;
+  portal: { expiresAt: string; lastUsedAt: string | null } | null;
+}
+export interface CallItem { id: string; call_id: string; partner_id: string; partner_name?: string; investment_usd: number; fee_usd: number; expense_usd: number; amount_usd: number; received_usd: number; received_on: string | null; bank_txn_id: string | null }
+export interface CapitalCall {
+  id: string; number: number; notice_date: string; due_date: string; investments_usd: number; fees_usd: number; expenses_usd: number;
+  fee_detail: { from?: string; to?: string; lines?: string[]; offsets?: number; gross?: number }; purpose: string | null;
+  status: "draft" | "approved" | "cancelled"; created_by: string; approved_by: string | null; items: CallItem[]; received: number;
+}
+export interface DistributionItem { id: string; partner_id: string; partner_name?: string; gross_usd: number; carry_usd: number; net_usd: number }
+export interface Distribution {
+  id: string; number: number; paid_on: string; gross_usd: number; kind: "cash" | "in_kind"; company_id: string | null; company_name?: string | null; purpose: string | null;
+  carry_usd: number; escrow_usd: number; waterfall: string[]; status: "draft" | "approved" | "paid" | "cancelled"; created_by: string; approved_by: string | null; items: DistributionItem[];
+}
+export interface FundExpense { id: string; incurred_on: string; amount_usd: number; category: string; description: string; related_party: boolean; fee_offset: boolean; created_by: string }
+export interface BankTxn { id: string; provider: string; posted_on: string; amount_usd: number; counterparty: string | null; memo: string | null; matched_item_id: string | null }
+export interface ScheduleRow { companyId: string; company: string; firstInvested: string; cost: number; realized: number; fairValue: number; totalValue: number; moic: number | null; status: "held" | "exited"; basis: string; markDate: string | null }
+export interface LpReportRow { id: string; period: string; version: number; as_of: string; commentary: string | null; status: "draft" | "approved" | "withdrawn"; prepared_by: string; created_at: string; approved_by: string | null; approved_at: string | null }
+export interface Deadline { key: string; title: string; due: string; basis: string; done: boolean | null; progress: string | null; state: "done" | "past" | "overdue" | "upcoming" }
+export interface TaxDoc { id: string; partner_id: string; tax_year: number; kind: "k1" | "k3" | "estimate"; status: "pending" | "delivered"; delivered_on: string | null; note: string | null }
+export interface Performance {
+  asOf: string;
+  net: NetReturns & { basis: string };
+  gross: { invested: number; realized: number; unrealized: number; moic: number | null; irr: number | null; tvpi: number | null; dpi: number | null; basis: string };
+  marketingNote: string;
+  cashFlows: { date: string; type: "contribution" | "distribution" | "nav"; amount: number }[];
+  gpCarry: CarryPosition;
+  nav: number;
+}
+export interface LpFundView {
+  asOf: string;
+  fund: { id: string; name: string; vintage: number | null; currency: string; inception: string; terms: FundTermsView };
+  labels: LpLabels;
+  summary: { commitments: number; called: number; uncalled: number; distributed: number; nav: number; calledPct: number; receivable: number };
+  performance: Performance;
+  gpCarry: CarryPosition;
+  investors: LpInvestor[];
+  statements: { statements: LpStatement[]; total: Omit<LpStatement, "partnerId" | "name" | "kind" | "feePaying">; gpCarry: CarryPosition; nav: number };
+  calls: CapitalCall[];
+  distributions: Distribution[];
+  expenses: FundExpense[];
+  bank: { unmatched: BankTxn[]; recent: BankTxn[] };
+  schedule: ScheduleRow[];
+  reports: LpReportRow[];
+  suggestedPeriod: string;
+  calendar: Deadline[];
+  taxDocuments: TaxDoc[];
+  sources: { id: string; name: string; summary: string; manual: boolean; ready: boolean }[];
+}
+export interface LetterSentence { text: string; cites: string[]; kind: "fact" | "view" }
+export interface Letter {
+  title: string;
+  sections: { id: string; heading: string; sentences: LetterSentence[] }[];
+  sources: Record<string, { label: string; detail: string }>;
+  check: { ok: boolean; sentences: number; facts: number; cited: number; citations: number };
+}
+export interface ReportSnapshot {
+  fund: { name: string; vintage: number | null; termsText: string[] };
+  period: string; asOf: string;
+  summary: { investors: number; commitments: number; gpCommitment: number; called: number; calledPct: number; uncalled: number; distributed: number; nav: number; companies: number };
+  performance: { net: NetReturns & { basis: string }; gross: Performance["gross"]; marketingNote: string; cashFlows: Performance["cashFlows"] };
+  schedule: ScheduleRow[];
+  activity: {
+    calls: { number: number; noticeDate: string; dueDate: string; investments: number; fees: number; expenses: number; total: number; purpose: string | null }[];
+    distributions: { number: number; paidOn: string; gross: number; carry: number; net: number; kind: string; company: string | null }[];
+  };
+  feesExpenses: {
+    managementFees: { quarter: { gross: number; offsets: number; net: number }; year: { gross: number; offsets: number; net: number }; inception: { gross: number; offsets: number; net: number }; offsetsUnapplied: number };
+    expenses: { category: string; label: string; quarter: number; year: number; inception: number }[];
+    relatedParty: { date: string; description: string; amount: number; category: string }[];
+    carry: { paidQuarter: number; paidYear: number; paidInception: number; escrowInception: number; entitled: number; accrued: number; clawbackExposure: number };
+  };
+  statements: LpStatement[];
+  total: LpFundView["statements"]["total"];
+  notes: string[];
+}
+export interface LpReport extends LpReportRow { snapshot: ReportSnapshot; letter: Letter }
+export interface InvestorPortal {
+  firm: string;
+  investor: { name: string; commitment: number; admittedOn: string };
+  fund: { name: string; vintage: number | null; currency: string };
+  reports: {
+    id: string; period: string; asOf: string; approvedAt: string | null; letter: Letter;
+    fund: { name: string; vintage: number | null; termsText: string[] };
+    summary: ReportSnapshot["summary"]; performance: { net: ReportSnapshot["performance"]["net"]; gross: ReportSnapshot["performance"]["gross"]; marketingNote: string };
+    schedule: ScheduleRow[]; feesExpenses: ReportSnapshot["feesExpenses"]; statement: LpStatement | null; returns: (NetReturns & { partnerId: string }) | null; notes: string[];
+  }[];
+  calls: { number: number; noticeDate: string; dueDate: string; purpose: string | null; investment: number; fee: number; expense: number; amount: number; received: number; receivedOn: string | null }[];
+  distributions: { number: number; paidOn: string; kind: string; company: string | null; status: string; gross: number; carry: number; net: number }[];
+  taxDocuments: { year: number; kind: string; status: string; deliveredOn: string | null }[];
+}
