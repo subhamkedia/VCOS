@@ -32,7 +32,10 @@ and the investment record); the **Portfolio & Value Creation** module
 login, KPI requests, Standard Metrics, Visible, spreadsheets and update
 emails; runway, burn and plan warnings; fair value marks approved by a
 second person; gross MOIC, IRR, DPI and TVPI; reserves and follow-ons;
-board meetings; value-creation work); the **LP Reporting** module (the
+board meetings; value-creation work; exits and liquidity: exit plans and
+processes, the fund's consent, escrows and earnouts, listed shares under the
+lock-up and Rule 144, in-kind distributions, QSBS, a liquidity forecast and
+each fund's term, continuation vehicle and wind-down); the **LP Reporting** module (the
 investor register from your fund administrator, capital calls and
 distributions allocated to the cent with the carry waterfall, receipts
 reconciled from Mercury or any bank's statement, capital accounts for the
@@ -207,6 +210,63 @@ over what a founder typed, which wins over a model's reading of an email.
    (In re Trados, Del. Ch. 2013). The help the firm gives (hires, customer
    and partner introductions, fundraising, government programs) is tracked to
    an outcome; introductions are double opt-in email drafts.
+6. **Exits and liquidity.** Each company has an exit plan: the likely path
+   (a sale, an IPO, a secondary sale, holding, a wind-down), when, low, base
+   and high cases to the fund, likely buyers and a readiness checklist (cap
+   table, IP assignments, audited financials, change-of-control clauses,
+   409A, QSBS statements, board alignment). An exit process (a sale, IPO,
+   secondary sale, tender, buyback or wind-down) moves through its stages
+   with bids; the fund's consent as a shareholder is a partner's decision
+   with its reasons. Closing is previewed, then a partner records it
+   (`engines/exits.ts`):
+   - **A sale** splits the fund's consideration into cash at closing,
+     indemnity and price adjustment escrows, holdbacks, the sellers'
+     representative expense fund, earnouts (carried at their probability,
+     never their maximum) and deferred payments, and any of the buyer's
+     shares. A partner records each release, claim or missed earnout
+     (anything short needs a reason); the company's status becomes a cited
+     claim.
+   - **An IPO** records the listed shares. Lock-up (180 days by default) and
+     Rule 144 date the first sale; an affiliate's sales are held to the
+     volume limit (the greater of 1% of the shares outstanding and the
+     average weekly volume) with the Form 144 reminder. Listed shares are
+     valued at the closing price with no discount for the lock-up (ASC 820 as
+     amended by ASU 2022-03), and 5% and insider holdings put Schedule 13G
+     and Form 3 on the compliance calendar and the company on the restricted
+     list suggestions.
+   - **A secondary sale or tender** records the shares sold, the price and
+     the gain over cost; the mark is scaled to the shares left.
+   - Listed shares are sold (a partner records it) or **distributed in kind**:
+     priced by the LPA's method (the closing price, or an average over
+     trading days), split into whole shares by investor and the GP's carry,
+     and prepared as a draft in LP Reporting; the shares leave the books
+     when a second person approves it, and the notices give each investor's
+     share count. Cash received and not yet distributed is flagged, a click
+     from a draft distribution.
+   - **QSBS** (Section 1202) is reviewed per investment and dated: stock
+     issued after July 4, 2025 excludes 50%, 75% and 100% of the gain after
+     three, four and five years, up to $15 million or ten times basis per
+     investor; earlier stock needs five years (up to $10 million). A sale
+     inside a year of the next step up is flagged.
+   - The **liquidity page** adds it up: processes under way, what's due back
+     and when, listed shares and when they can be sold, and expected cash by
+     year from receivables, listed shares and planned exits.
+   - **Each fund's tail**: its term and extensions (past the GP's discretion,
+     the LPAC's approved consent must be on record), what it still holds,
+     the options (an extension, selling or distributing listed shares,
+     direct and strip secondaries, a continuation vehicle, winding up), a
+     continuation vehicle process checked against ILPA's 2023 guidance (a
+     status quo option, at least 30 calendar and 20 business days to elect,
+     silence treated as a sale, a fairness opinion and the LPAC's approval
+     before it closes) with each investor's election, and the wind-down
+     checklist.
+
+   Sources: SRS Acquiom's M&A Deal Terms Study (escrow size and survival,
+   earnout prevalence), SEC Rule 144 and Form 144, Exchange Act Rules 13d-1
+   (as amended in 2023) and Section 16, Rule 14e-1 for tender offers, ASC 820
+   and ASU 2022-03, Internal Revenue Code Sections 1202 and 1045 as amended by
+   the One Big Beautiful Bill Act (July 4, 2025), and ILPA's continuation fund
+   guidance (2023).
 
 ### How LP Reporting works
 
@@ -491,6 +551,9 @@ pnpm outbox                     # CRM notes and email drafts waiting for your ap
 pnpm outbox approve <id>        # creates the draft or note; nothing is ever sent
 pnpm portfolio                  # every holding: value, MOIC, runway, warnings
 pnpm portfolio sync "Weldloop"  # refresh one company's numbers from its books and your tools
+pnpm portfolio liquidity        # exits under way, escrows and earnouts due, listed shares, the forecast
+pnpm portfolio exits "SiteGrid" # one company's exit plan, processes, receivables and QSBS
+pnpm portfolio fund-life "Demo Fund II"         # a fund's term, extensions and options for the tail
 pnpm lp                         # every fund: committed, called, NAV, net TVPI and IRR
 pnpm lp accounts "Demo Fund II" # each investor's capital account and net returns
 pnpm lp calendar "Demo Fund II" 2026            # reports, K-1s, audit and Form ADV deadlines
@@ -535,6 +598,8 @@ For production, `docker compose up -d` and set
 | `modules/execution/` | IC meetings and the approval rules (`ic.ts`), term sheets and house terms (`terms.ts`), the closing checklist (`closing.ts`), wire controls and the close. |
 | `engines/kpi.ts`, `fund-metrics.ts`, `valuation.ts` | Monthly KPI series, net burn, runway, burn multiple and early warnings; gross MOIC, XIRR, DPI, RVPI, TVPI and the reserve pool; fair value marks by IPEV-recognized methods. Unit-tested. |
 | `modules/portfolio/` | The portfolio overview and company view, KPI entry and imports and the sync (`kpis.ts`), the founder portal and KPI requests (`portal.ts`), marks (`marks.ts`), and health, reserves, follow-ons, realizations, board meetings and value creation (`work.ts`). `pnpm portfolio` on the command line. |
+| `engines/exits.ts` | A sale's consideration (cash, escrows, holdbacks, earnouts, stock), lock-up and Rule 144 sale windows, in-kind pricing and whole-share allocation, QSBS tiers, fund life, tail options, continuation vehicle elections and the liquidity forecast. Unit-tested. |
+| `modules/portfolio/exits.ts`, `value.ts` | Exit plans and processes, the fund's consent, closings, receivables, listed shares and prices, in-kind and cash distributions, QSBS reviews, the liquidity overview and each fund's tail; `value.ts` values a holding across private shares, receivables and listed shares. |
 | `connectors/accounting.ts`, `portfolio-platforms.ts` | QuickBooks Online and Xero (OAuth, monthly reports), Standard Metrics and Visible. |
 | `engines/fund-accounting.ts` | Allocation to the cent, management fees by day count with step-down and offsets, the carry waterfall (whole of fund or deal by deal, hurdle, catch-up, escrow), capital accounts, accrued carry and clawback, net returns, the reporting calendar. Unit-tested. |
 | `modules/lp/` | Funds, investors and register imports (`funds.ts`), calls, receipts, bank reconciliation, distributions and expenses (`capital.ts`), the books and statements (`books.ts`), quarterly reports, the cited letter and exports (`reports.ts`), and the investor portal (`portal.ts`). `pnpm lp` on the command line. |
@@ -601,6 +666,13 @@ but it was written alongside the resolver, so treat it as a smoke test.
   in DocuSign, not in VC OS. Equalization covers capital, the newcomer's
   fee and interest; LPAs that also re-allocate earlier distributions or
   realized gains need an adjustment by hand.
+- Exits record what happened and prepare drafts; they don't trade or move
+  shares. Share prices come in by hand or as a CSV from a broker or data
+  site (there's no market data feed). Consideration comes from the funds
+  flow a person enters; the escrow's release odds are the person's
+  judgment. QSBS dates and caps are a guide for tax counsel, not advice; a
+  continuation vehicle's investor elections are recorded as they come in,
+  not collected in VC OS.
 - Compliance screens and dates; it doesn't give legal advice, file
   anything with a regulator, or connect to a brokerage for trade feeds
   (people report their own holdings and trades). The outbound, CFIUS and

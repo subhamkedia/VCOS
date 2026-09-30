@@ -288,7 +288,30 @@ run(async () => {
 
   // SiteGrid: sold. Coldchain IQ: written off.
   const siteGrid = await closed("SiteGrid", "sitegrid.example", { date: "2024-02-01", amount: 750_000, shares: 1_000_000, ownership: 9, series: "Seed Preferred", board: "none" });
-  await portfolio.recordRealization(db, siteGrid, { kind: "sale", occurredOn: `${year[year.length - 3]}-15`, amountUsd: 2_600_000, note: "Acquired by a construction software company." }, by);
+  // SiteGrid's sale ran as an exit process: the fund consented, and the closing left escrows, an earnout and some of the buyer's shares.
+  const sgSale = `${year[year.length - 3]}-15`;
+  const sgExit = await portfolio.startExit(db, siteGrid, { kind: "acquisition", counterparty: "Buildstack", equityValueUsd: 40_000_000, ourExpectedUsd: 3_500_000 }, LEE);
+  await portfolio.addBid(db, sgExit.id, { bidder: "Buildstack", kind: "loi", valueUsd: 40_000_000, consideration: "83% cash, 17% Buildstack stock; 10% escrow for 15 months; earnout on 2026 ARR", receivedOn: `${year[year.length - 5]}-02` }, LEE);
+  await portfolio.consentToExit(db, sgExit.id, { choice: "approve", rationale: "4.7x our cost in under three years, above our mark; the banker's process drew two bids and this was the higher." }, by);
+  await portfolio.closeExit(db, sgExit.id, {
+    closedOn: sgSale, totalUsd: 3_500_000, stockUsd: 600_000, stockTicker: "BSTK", stockShares: 30_000, stockExchange: "Nasdaq", stockSharesOutstanding: 120_000_000, stockLockupDays: 90,
+    escrowPct: 10, escrowMonths: 15, adjustmentEscrowPct: 1, adjustmentMonths: 2,
+    earnouts: [{ description: "SiteGrid ARR above $12M in 2026", maxUsd: 1_000_000, probabilityPct: 30, dueOn: `${Number(year[year.length - 1]!.slice(0, 4)) + 1}-03-31` }],
+  }, by);
+  const sgAdj = (await portfolio.companyExits(db, siteGrid)).receivables.find((r) => r.kind === "adjustment_escrow");
+  if (sgAdj) await portfolio.settleReceivable(db, sgAdj.id, { amountUsd: sgAdj.amount_usd, on: `${year[year.length - 1]}-10` }, LEE);
+  const bstk: { date: string; close: number; volume: number }[] = [];
+  for (let i = 30; i >= 1; i--) {
+    const d = new Date(Date.now() - i * 86_400_000);
+    if (d.getUTCDay() === 0 || d.getUTCDay() === 6) continue;
+    bstk.push({ date: d.toISOString().slice(0, 10), close: Math.round((20 + (30 - i) * 0.12 + Math.sin(i) * 0.4) * 100) / 100, volume: 800_000 + i * 5_000 });
+  }
+  await portfolio.recordPrices(db, "BSTK", { prices: bstk }, LEE);
+  // Weldloop: an exit plan. Formwork AI: an acqui-hire offer waiting for the fund's decision.
+  await portfolio.saveExitPlanFor(db, weld, { path: "acquisition", targetYear: Number(year[0]!.slice(0, 4)) + 3, lowUsd: 6_000_000, baseUsd: 14_000_000, highUsd: 30_000_000, probabilityPct: 35, buyers: "Lincoln Electric-style incumbents, Cognex-style vision companies", readiness: { cap_table: true, ip: true, valuation_409a: true } }, LEE);
+  await portfolio.reviewQsbs(db, weld, (await portfolio.companyExits(db, weld)).qsbs[0]!.investmentId, { checks: { c_corp: true, original_issue: true, gross_assets: true, active_business: true, no_redemptions: true, company_rep: true } }, LEE);
+  const fwExit = await portfolio.startExit(db, form, { kind: "acquisition", counterparty: "Trussworks", ourExpectedUsd: 450_000, note: "Acqui-hire for the vision team; the alternative is a bridge the insiders are lukewarm on." }, LEE);
+  await portfolio.addBid(db, fwExit.id, { bidder: "Trussworks", kind: "ioi", valueUsd: 5_000_000, consideration: "Cash, with retention for the team" }, LEE);
   const cold = await closed("Coldchain IQ", "coldchain-iq.example", { date: "2024-05-15", amount: 500_000, shares: 800_000, ownership: 7, series: "Pre-seed SAFE", board: "none" });
   await portfolio.recordRealization(db, cold, { kind: "write_off", occurredOn: `${year[year.length - 6]}-15`, note: "Wound down after the pilot customer went bankrupt." }, by);
   const portal = await portfolio.createPortalLink(db, weld, by, process.env.APP_URL ?? "http://localhost:8787");

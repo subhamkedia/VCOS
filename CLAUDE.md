@@ -101,7 +101,8 @@ engines/     deterministic math (portfolio construction, round math, cap
              tables, waterfalls, anti-dilution, KPIs and warnings, fund
              metrics, valuation marks, fund accounting: fees, carry,
              capital accounts, net returns, equalization; fundraising
-             limits; compliance dates and screens)
+             limits; compliance dates and screens; exits: consideration,
+             Rule 144, in-kind, QSBS, fund tail)
 modules/     workflows as plain functions: auth, firm, connections, sourcing,
              meetings, diligence, execution, portfolio, lp, fundraising,
              compliance, companies, outbox; catalog.ts lists the product modules
@@ -133,11 +134,14 @@ db/migrations/  plain SQL, applied in order
 sources, runs feeds, approves outbound items and merges, decides deals (pass
 or IC), schedules IC, approves wires (two different people) and records the
 close, and in Portfolio sets reserves, decides follow-ons, records money
-back and approves marks (never their own); `analyst` reads, uploads, queues
+back and approves marks (never their own), and for exits gives the fund's
+consent, records closings, settles escrows and earnouts, sells listed shares
+and decides a fund's extension and continuation vehicle; `analyst` reads, uploads, queues
 drafts, works deals (term sheets, cap tables, the closing checklist, wire
 instructions and the call-back), keeps portfolio numbers, board meetings and
-value-creation work, proposes marks and health ratings, and triages
-meetings; and in LP Reporting keeps the investor register, prepares calls,
+value-creation work, exit plans and processes, bids, listed share prices
+and QSBS reviews, prepares in-kind and cash distributions, proposes marks
+and health ratings, and triages meetings; and in LP Reporting keeps the investor register, prepares calls,
 distributions and reports, records expenses and reconciles the bank, while
 partners set up funds and terms and approve calls, distributions and
 reports (never ones they prepared); and in Fundraising analysts keep the
@@ -159,7 +163,7 @@ Phase 0 — Foundation. Gate to Phase 1: the resolver scores ≥95% with zero
 false merges on the YC 2026 set, 200 companies across the 2026 batches
 (`pnpm eval:resolver:build-yc`, then
 `pnpm eval:resolver --set evals/resolver/yc2026 --gate 0.95`).
-All five modules are built: the web app, multi-firm tenancy, sign-in,
+All six modules are built: the web app, multi-firm tenancy, sign-in,
 onboarding, connections, the Sourcing module, Meetings, the Diligence module
 (research runs, the checklist, founder questions, the contradiction board,
 decisions and the cited IC memo), the Investment Execution module (IC votes
@@ -169,7 +173,10 @@ with DocuSign, Carta and OFAC, wire controls and the investment record), the
 Portfolio & Value Creation module (KPIs as claims from the books, the
 founder portal, requests, platforms and updates; early warnings; marks
 approved by a second person; gross fund metrics and reserves; follow-ons;
-board meetings; value creation) and the LP Reporting module (funds and
+board meetings; value creation; exits and liquidity: exit processes with
+the fund's consent, escrows and earnouts, listed shares under the lock-up
+and Rule 144, in-kind distributions through LP Reporting, QSBS, the liquidity
+forecast, and each fund's term, continuation vehicle and wind-down) and the LP Reporting module (funds and
 investors, capital calls and distributions approved by a second person with
 notices as outbox drafts, bank reconciliation, capital accounts, net returns
 after fees and carry beside gross, ILPA-style quarterly reports whose letter
@@ -181,7 +188,7 @@ letters and MFN, the LPAC and investor requests), with Compliance shared
 across them (the regulatory calendar from the modules' records, deal
 screening for outbound investment, CFIUS and export controls, the code of
 ethics, pay to play, gifts, conflicts, attestations and Marketing Rule
-reviews). Exits & Liquidity in Portfolio is next; then the gate.
+reviews). The gate is next.
 
 Compliance gates other modules through `modules/compliance/gate.ts` only:
 Execution calls `assertScreeningCleared` before recording a close, and

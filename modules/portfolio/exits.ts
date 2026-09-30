@@ -593,6 +593,7 @@ export async function liquidityOverview(db: Db) {
     forecast,
     qsbsSoon: qsbsSoon.sort((a, b) => a.next.on.localeCompare(b.next.on)),
     undistributed,
+    funds: allFunds.map((f) => ({ id: f.id, name: f.name })),
     totals: {
       pendingUsd: round2(recs.reduce((a, r) => a + r.valueUsd, 0)),
       listedUsd: round2(listed.reduce((a, l) => a + (l.valueUsd ?? 0), 0)),

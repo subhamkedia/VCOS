@@ -21,13 +21,14 @@ export default function Portfolio() {
     <PageHead
       eyebrow="Module"
       title="Portfolio & Value Creation"
-      lead="Every company the fund holds: numbers from the books and the founders, early warnings, fair value marks, reserves and follow-ons, board meetings, and the help you give."
+      lead="Every company the fund holds: numbers from the books and the founders, early warnings, fair value marks, reserves and follow-ons, board meetings, the help you give, and exits."
+      actions={<Link className="btn small" to="/portfolio/liquidity">Exits and liquidity</Link>}
     />
   );
   if (error) return <>{head}<ErrorState error={error} retry={() => void reload()} /></>;
   if (!data) return <>{head}<Loading what="Loading the portfolio" /></>;
   const m = data.metrics;
-  const rows = data.companies.filter((c) => view === "all" ? true : view === "exited" ? c.status === "exited" : c.status === "active" && (c.health?.rating ?? c.suggested) !== "on_track");
+  const rows = data.companies.filter((c) => view === "all" ? true : view === "exited" ? c.status !== "active" : c.status === "active" && (c.health?.rating ?? c.suggested) !== "on_track");
   const r = data.reserves;
   return (
     <>
@@ -88,7 +89,7 @@ export default function Portfolio() {
             </section>
           </div>
 
-          <Seg label="Which companies" value={view} onChange={setView} options={[{ id: "all", label: "All" }, { id: "attention", label: "Needs attention" }, { id: "exited", label: "Exited" }]} />
+          <Seg label="Which companies" value={view} onChange={setView} options={[{ id: "all", label: "All" }, { id: "attention", label: "Needs attention" }, { id: "exited", label: "Exited or listed" }]} />
           {rows.length === 0 ? <Notice>{view === "attention" ? "Nothing needs attention." : "None."}</Notice> : (
             <div className="panel table-wrap">
               <table className="t">
@@ -100,11 +101,11 @@ export default function Portfolio() {
                   {rows.map((c) => (
                     <tr key={c.companyId} className="click" onClick={() => nav(`/portfolio/${c.companyId}`)}>
                       <td><Link to={`/portfolio/${c.companyId}`} onClick={(e) => e.stopPropagation()}><strong>{c.name}</strong></Link><div className="small muted">since {dateOnly(c.firstInvested)}{c.ownershipPct !== null ? ` · ${c.ownershipPct.toFixed(1)}%` : ""}</div></td>
-                      <td>{c.status === "exited" ? <span className="pill quiet">Exited</span> : <HealthPill rating={c.health?.rating} suggested={c.suggested} labels={data.healthLabels} />}</td>
+                      <td>{c.status === "exited" ? <span className="pill quiet">Exited</span> : c.status === "public" ? <span className="pill info">Listed</span> : <HealthPill rating={c.health?.rating} suggested={c.suggested} labels={data.healthLabels} />}</td>
                       <td className="num">{usd(c.invested)}</td>
-                      <td className="num">{usd(c.fairValue + c.realized)}<div className="small muted">{c.valueBasis === "mark" ? `mark ${dateOnly(c.mark!.asOf)}` : c.valueBasis === "cost" ? "at cost" : "realized"}</div></td>
+                      <td className="num">{usd(c.fairValue + c.realized)}<div className="small muted">{c.valueBasis === "mark" ? `mark ${dateOnly(c.mark!.asOf)}` : c.valueBasis === "cost" ? "at cost" : c.valueBasis === "public" ? "listed" : c.pendingUsd > 0 ? `${usd(c.pendingUsd)} still due` : "realized"}</div></td>
                       <td className="num">{x2(c.moic)}</td>
-                      <td className="small">{c.status === "exited" ? "—" : c.notBurning ? "Not burning" : months(c.runwayMonths)}</td>
+                      <td className="small">{c.status !== "active" ? "—" : c.notBurning ? "Not burning" : months(c.runwayMonths)}</td>
                       <td className="small num">{c.revenue !== null ? <>{usd(c.revenue)}/mo <span className="muted">{pctFmt(c.revenueMoM)}</span></> : c.arr !== null ? `${usd(c.arr)} ARR` : "—"}</td>
                       <td>{c.signals.length ? <span className={`pill ${SEVERITY_TONE[c.signals[0]!.severity]}`}>{c.signals[0]!.title}{c.signals.length > 1 ? ` +${c.signals.length - 1}` : ""}</span> : <span className="muted small">None</span>}</td>
                       <td className="small muted">{c.latestMonth ? monthLabel(c.latestMonth) : "None yet"}</td>

@@ -322,8 +322,8 @@ export interface FundMetrics {
 }
 export interface ReservePool { budget: number; deployed: number; committedRemaining: number; unallocated: number; overAllocated: boolean; byCompany: { company: string; planned: number; deployed: number; remaining: number }[] }
 export interface PortfolioRow {
-  companyId: string; name: string; dealId: string; firstInvested: string; invested: number; realized: number; fairValue: number; valueBasis: "mark" | "cost" | "exited";
-  moic: number | null; ownershipPct: number | null; boardRole: string | null; status: "active" | "exited";
+  companyId: string; name: string; dealId: string; firstInvested: string; invested: number; realized: number; fairValue: number; valueBasis: ValueBasis; pendingUsd: number; publicUsd: number;
+  moic: number | null; ownershipPct: number | null; boardRole: string | null; status: "active" | "exited" | "public";
   health: { rating: Health; by: string; at: string } | null; suggested: Health; signals: { key: string; severity: Severity; title: string }[];
   runwayMonths: number | null; notBurning: boolean; cash: number | null; revenue: number | null; revenueMoM: number | null; arr: number | null; latestMonth: string | null;
   mark: { value: number; asOf: string; method: string } | null; reservePlanned: number | null;
@@ -345,7 +345,8 @@ export interface PortfolioCompanyView {
   company: { id: string; name: string; domain: string | null; dealId: string };
   investments: Investment[];
   position: FundMetrics["positions"][number] | null;
-  valueBasis: "mark" | "cost" | "exited";
+  valueBasis: ValueBasis;
+  value: { value: number; basis: ValueBasis; privateUsd: number; pendingUsd: number; publicUsd: number; privateShares: number | null };
   series: Partial<Record<string, KpiPoint[]>>;
   metricLabels: Record<string, string>;
   burn: { month: string; value: number; basis: string; claimIds: string[] }[];
@@ -580,4 +581,54 @@ export interface ComplianceOverview {
   conflicts: CoConflict[];
   attestations: { year: number; policies: string[]; done: { person: string; policy: string; attested_on: string }[]; missing: { person: string; policy: string }[] };
   marketingReviews: { id: string; subject_kind: string; title: string; reviewer: string; created_at: string }[];
+}
+
+// Exits and liquidity
+export type ValueBasis = "mark" | "cost" | "exited" | "public";
+export type ExLabels = Record<"paths" | "kinds" | "stages" | "bidKinds" | "consent" | "receivableKinds" | "receivableStatus" | "realizationKinds" | "qsbsStatus" | "approvedVia" | "windDownStatus" | "elections" | "lifeStage" | "priceMethods", Record<string, string>>;
+export interface ExitPlan { id: string; company_id: string; company_name?: string; path: string; target_year: number | null; low_usd: number | null; base_usd: number | null; high_usd: number | null; probability_pct: number | null; buyers: string[]; readiness: Record<string, boolean>; note: string | null; updated_by: string; updated_at: string }
+export interface ExitBid { id: string; bidder: string; kind: string; value_usd: number; consideration: string | null; received_on: string; note: string | null; created_by: string }
+export interface ExitProcess {
+  id: string; company_id: string; company_name?: string; kind: string; stage: string; counterparty: string | null; expected_close: string | null; equity_value_usd: number | null; our_expected_usd: number | null;
+  shares: number | null; price_per_share: number | null; note: string | null; consent_decision_id: string | null; closed_on: string | null; closing: Record<string, unknown> | null; abandoned_reason: string | null; created_by: string;
+}
+export interface Receivable { id: string; exit_id: string; company_id: string; company_name?: string; kind: string; description: string; amount_usd: number; expected_pct: number; due_on: string; status: string; settled_usd: number; settled_on: string | null; note: string | null; valueUsd: number; overdue: boolean }
+export interface SaleWindowView { lockupEnds: string; holdingPeriodMet: string; earliestSale: string; volumeLimit: number | null; form144: boolean; reporting: string[]; steps: string[] }
+export interface ListedView {
+  holding: { id: string; company_id: string; company_name?: string; exit_id: string | null; ticker: string; exchange: string | null; listed_on: string; acquired_on: string; shares: number; shares_outstanding: number | null; lockup_days: number; affiliate: boolean };
+  sharesLeft: number; lastPrice: { date: string; close: number; volume: number | null } | null; valueUsd: number | null; window: SaleWindowView; soldLast3Months: number; prices: { date: string; close: number; volume: number | null }[];
+}
+export interface QsbsLot { investmentId: string; label: string; fund: string; basisUsd: number; acquiredOn: string; review: { status: string; checks: Record<string, boolean>; note: string | null; reviewed_by: string; created_at: string } | null; result: { regime: string; heldDays: number; exclusionPct: number; next: { on: string; pct: number } | null; capUsd: number; tenTimesBasisUsd: number; notes: string[] } }
+export interface RealizationRow { id: string; company_id: string; occurred_on: string; amount_usd: number; kind: string; note: string | null; shares: number | null; price_usd: number | null; created_by: string }
+export interface CompanyExits {
+  plan: ExitPlan | null; readiness: readonly { key: string; label: string }[];
+  processes: (ExitProcess & { bids: ExitBid[]; consents: PortfolioDecision[]; needsConsent: boolean })[];
+  receivables: Receivable[]; listed: ListedView[]; qsbs: QsbsLot[]; qsbsChecks: readonly { key: string; label: string }[]; realizations: RealizationRow[]; receivedUsd: number; labels: ExLabels;
+}
+export interface ClosePreview {
+  kind: string; on: string; warnings: string[]; cost?: { invested: number; shares: number | null; perShare: number | null };
+  split?: { atCloseCashUsd: number; stockUsd: number; receivables: { kind: string; description: string; amountUsd: number; expectedPct: number; dueOn: string }[]; expectedUsd: number; maximumUsd: number; steps: string[] };
+  gainUsd?: number | null; shares?: number; ticker?: string; window?: SaleWindowView; valueUsd?: number | null; amountUsd?: number; price?: number; proceedsUsd?: number; costBasisUsd?: number | null; remainingShares?: number | null;
+}
+export interface InKindPreview { fund: string; ticker: string; shares: number; on: string; price: number; priceSteps: string[]; grossUsd: number; carryUsd: number; allocation: { id: string; name: string; shares: number }[]; warnings: string[] }
+export interface LiquidityOverview {
+  asOf: string; processes: ExitProcess[]; recent: ExitProcess[]; plans: ExitPlan[]; receivables: Receivable[]; listed: ListedView[];
+  forecast: { year: number; receivables: number; publicShares: number; exits: number; total: number }[];
+  qsbsSoon: { company: string; companyId: string; label: string; next: { on: string; pct: number }; exclusionPct: number }[];
+  undistributed: { companyId: string; name: string; receivedUsd: number; distributedUsd: number }[];
+  totals: { pendingUsd: number; listedUsd: number; undistributedUsd: number }; funds: { id: string; name: string }[]; labels: ExLabels;
+}
+export interface FundLifeView {
+  fund: { id: string; name: string; inception: string; vintage: number | null }; termYears: number; maxExtensionYears: number; configured: boolean;
+  life: { termEnds: string; endsOn: string; extensionYearsUsed: number; extensionYearsLeft: number; monthsLeft: number; stage: string };
+  extensions: { id: string; years: number; approved_via: string; fee_change: string | null; note: string | null; created_by: string; created_at: string }[];
+  residual: { companyId: string; name: string; value: number; basis: ValueBasis; privateUsd: number; pendingUsd: number; publicUsd: number }[]; residualNavUsd: number;
+  options: { key: string; title: string; detail: string }[];
+  windDown: { key: string; label: string; status: "open" | "done" | "na"; note: string | null; updated_by: string | null }[];
+  continuation: {
+    id: string; name: string; lead_buyer: string; price_pct_of_nav: number; reference_nav_usd: number; launched_on: string; deadline: string; status_quo_offered: boolean; fairness_opinion: string | null; status: string;
+    lpacConsent: { topic: string; status: string } | null; names: Record<string, string>;
+    tally: { calendarDays: number; businessDays: number; issues: string[]; closed: boolean; investors: { id: string; navUsd: number; choice: string; defaulted: boolean; cashUsd: number }[]; navRolled: number; navStatusQuo: number; navSold: number; navPending: number; cashToSellers: number };
+  }[];
+  lpacConsents: { id: string; topic: string; status: string }[]; labels: ExLabels;
 }

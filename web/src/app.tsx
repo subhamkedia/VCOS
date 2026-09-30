@@ -27,6 +27,8 @@ import LpFund from "./pages/LpFund";
 import Investor from "./pages/Investor";
 import Fundraising from "./pages/Fundraising";
 import Compliance from "./pages/Compliance";
+import Liquidity from "./pages/Liquidity";
+import FundLife from "./pages/FundLife";
 import Raise from "./pages/Raise";
 import DataRoom from "./pages/DataRoom";
 import Subscribe from "./pages/Subscribe";
@@ -162,6 +164,8 @@ function Shell() {
           <Route path="/execution" element={<Execution />} />
           <Route path="/execution/:id" element={<ExecutionDeal />} />
           <Route path="/portfolio" element={<Portfolio />} />
+          <Route path="/portfolio/liquidity" element={<Liquidity />} />
+          <Route path="/portfolio/funds/:id" element={<FundLife />} />
           <Route path="/portfolio/:id" element={<PortfolioCompany />} />
           <Route path="/lp-reporting" element={<Lp />} />
           <Route path="/lp-reporting/:id" element={<LpFund />} />

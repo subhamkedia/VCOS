@@ -75,9 +75,11 @@ export function holdingValue(h: Holding, mark: ValuationRow | undefined, real: R
     const px = inputs.lastPrice.get(p.ticker)?.close ?? inputs.exits.find((x) => x.id === p.exit_id)?.price_per_share;
     if (px) publicUsd += publicSharesLeft(p, real) * px;
   }
-  if (publicUsd > 0) basis = "public";
+  // Listed after an IPO (or shares recorded by hand); a sale paid partly in the buyer's shares stays "exited".
+  const ipo = inputs.exits.some((x) => x.company_id === h.companyId && x.stage === "closed" && x.kind === "ipo") || listed.some((p) => !p.exit_id);
+  if (publicUsd > 0 && (ipo || !exitDate)) basis = "public";
   const round = (n: number) => Math.round(n * 100) / 100;
-  return { value: round(privateUsd + pendingUsd + publicUsd), basis, privateUsd: round(privateUsd), pendingUsd: round(pendingUsd), publicUsd: round(publicUsd), privateShares: left };
+  return { value: round(privateUsd + pendingUsd + publicUsd), basis, privateUsd: round(privateUsd), pendingUsd: round(pendingUsd), publicUsd: round(publicUsd), privateShares: basis === "mark" || basis === "cost" ? left : 0 };
 }
 
 export type { ReceivableRow };

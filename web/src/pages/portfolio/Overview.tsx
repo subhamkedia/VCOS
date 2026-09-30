@@ -33,7 +33,7 @@ export default function Overview({ data, onChange, go }: PfTabProps & { go: (t: 
           {p ? (
             <div className="stats">
               <div className="stat"><b className="num">{usd(p.invested)}</b><span>Invested</span></div>
-              <div className="stat"><b className="num">{usd(p.totalValue)}</b><span>{data.valueBasis === "mark" ? "Value (latest mark)" : data.valueBasis === "cost" ? "Value (at cost)" : "Realized"}</span></div>
+              <div className="stat"><b className="num">{usd(p.totalValue)}</b><span>{data.valueBasis === "mark" ? "Value (latest mark)" : data.valueBasis === "cost" ? "Value (at cost)" : data.valueBasis === "public" ? "Value (listed shares)" : data.value.pendingUsd > 0 ? "Realized and expected" : "Realized"}</span></div>
               <div className="stat"><b className="num">{x2(p.moic)}</b><span>Gross MOIC</span></div>
               <div className="stat"><b className="num">{p.irr === null ? "—" : `${(p.irr * 100).toFixed(1)}%`}</b><span>Gross IRR</span></div>
             </div>
