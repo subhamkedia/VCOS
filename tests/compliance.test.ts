@@ -37,7 +37,7 @@ async function deal(db: Db, name: string, board = "seat") {
 }
 
 describe("the regulatory profile and calendar", () => {
-  it("dates Form D and each state's notice from the first closing, and marks what's filed", async () => {
+  it("dates Form D and each state's notice from the first sale (acceptance, else the first closing), and marks what's filed", async () => {
     const { root, db } = await firm();
     expect(await C.profile(db)).toMatchObject({ adviser_status: "era", configured: false });
     await expect(C.setProfile(db, { adviserStatus: "offshore" }, PAT)).rejects.toThrow(/Pick the adviser/);

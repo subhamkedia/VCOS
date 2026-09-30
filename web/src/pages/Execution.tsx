@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useApi } from "../api";
 import type { ExecutionRow, IcPhase, Investment, TermSheetStatus } from "../types";
 import { ErrorState, Loading, Notice, PageHead, Seg, Time, dateOnly, usd } from "../ui";
-import { Progress, STAGE_LABELS, STAGE_TONE } from "./Diligence";
+import { Progress, StageName, STAGE_TONE } from "./Diligence";
 
 export const PHASE_LABELS: Record<IcPhase, string> = {
   pre_vote: "Independent votes", discussion: "In discussion", post_vote: "Final votes", decided: "Decided", cancelled: "Cancelled",
@@ -43,7 +43,7 @@ export default function Execution() {
                 {active.map((d) => (
                   <tr key={d.id} className="click" onClick={() => nav(`/execution/${d.id}`)}>
                     <td><Link to={`/execution/${d.id}`} onClick={(e) => e.stopPropagation()}><strong>{d.company_name}</strong></Link></td>
-                    <td><span className={`pill ${STAGE_TONE[d.stage]}`}>{STAGE_LABELS[d.stage]}</span></td>
+                    <td><span className={`pill ${STAGE_TONE[d.stage]}`}><StageName stage={d.stage} /></span></td>
                     <td className="small">{d.ic ? (d.ic.outcome ? <span className={`pill ${d.ic.outcome === "approved" ? "good" : "bad"}`}>{d.ic.outcome === "approved" ? "Approved" : "Declined"}</span> : PHASE_LABELS[d.ic.phase]) : <span className="muted">Not scheduled</span>}</td>
                     <td className="small">{d.termSheet ? `v${d.termSheet.version} · ${TERM_STATUS_LABELS[d.termSheet.status]}` : <span className="muted">—</span>}</td>
                     <td style={{ minWidth: 150 }}>

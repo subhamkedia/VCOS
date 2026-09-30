@@ -22,6 +22,7 @@ export interface VocabData {
   passReasons: Record<string, string>;
   actions: Record<string, string>;
   decisions: Record<string, string>;
+  dealStages: Record<string, string>;
 }
 
 const humanize = (id: string) => id.replace(/[._-]+/g, " ").replace(/^\w/, (c) => c.toUpperCase());
@@ -43,6 +44,7 @@ export function makeVocab(d: VocabData | null) {
     severity: (id: string) => pick(d?.severities, id),
     passReason: (id: string) => pick(d?.passReasons, id),
     decision: (id: string) => pick(d?.decisions, id),
+    dealStage: (id: string) => pick(d?.dealStages, id),
     passReasonIds: Object.keys(d?.passReasons ?? {}),
     /** An audit action as a phrase; unknown ones read as "made a change", never as an identifier. */
     action: (id: string) => d?.actions?.[id] ?? "made a change",

@@ -428,7 +428,9 @@ result; the system flags and dates, and the CCO and counsel decide.
    million in private fund assets (sized from LP Reporting's funds), the
    audit within 120 days, the annual compliance review and code of ethics
    reports; Form D 15 days after a fund's first closing and its annual
-   amendment while the offering continues, and a state notice for each
+   amendment while the offering continues (the first sale is when the
+   first investor is irrevocably committed: the firm's acceptance of a
+   signed subscription, else the first closing), and a state notice for each
    state an investor was admitted from (from Fundraising's closings);
    Treasury's outbound notice 30 days after a notifiable deal closes (from
    Execution). A recorded filing closes an obligation; code of ethics

@@ -218,11 +218,20 @@ export async function marketingReviews(db: Db): Promise<{ id: string; subject_ki
 // ---------------------------------------------------------------------------
 
 /** Each raise's first approved closing (the first sale) and whether it's still offering. */
+/**
+ * Each raise's date of first sale, for Form D: the day the first investor
+ * was irrevocably committed (SEC Form D instructions), taken as when the
+ * firm accepted a signed subscription; else the first approved closing.
+ */
 export async function firstSales(db: Db): Promise<{ fund: string; date: string; stillOffering: boolean }[]> {
-  const { rows } = await db.query<{ name: string; closing_date: string; status: string }>(
-    `select r.name, min(c.closing_date) as closing_date, r.status from raises r join closings c on c.raise_id = r.id and c.status = 'approved' group by r.id, r.name, r.status`,
+  const { rows } = await db.query<{ name: string; first_sale: string; status: string }>(
+    `select r.name, r.status, least(
+        (select min(greatest(s.signed_on, s.decided_at::date)) from subscriptions s where s.raise_id = r.id and s.status in ('accepted', 'admitted') and s.decided_at is not null),
+        (select min(c.closing_date) from closings c where c.raise_id = r.id and c.status = 'approved')
+      ) as first_sale
+       from raises r`,
   );
-  return rows.map((r) => ({ fund: r.name, date: day(r.closing_date)!, stillOffering: r.status === "open" }));
+  return rows.filter((r) => r.first_sale).map((r) => ({ fund: r.name, date: day(r.first_sale)!, stillOffering: r.status === "open" }));
 }
 
 /** Admitted investors' jurisdictions with the date each was admitted, for state notice filings. */

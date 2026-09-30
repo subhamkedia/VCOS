@@ -270,7 +270,6 @@ export function FeedForm({ connector, onDone }: { connector: Connector; onDone: 
   );
 }
 
-const STAGE_LABEL: Record<string, string> = { screening: "Screening", diligence: "In diligence", ic: "At IC", approved: "Approved", passed: "Passed in diligence", closed: "Invested" };
 
 /** Start diligence on a company, or pass with a reason, from where it was found. */
 function Triage({ h, onChange }: { h: Hit; onChange: () => void }) {
@@ -279,7 +278,7 @@ function Triage({ h, onChange }: { h: Hit; onChange: () => void }) {
   const toast = useToast();
   const confirm = useConfirm();
   const nav = useNavigate();
-  if (h.deal_id) return <Link className="small" to={`/diligence/${h.deal_id}`}>{STAGE_LABEL[h.deal_stage ?? ""] ?? "Deal"}</Link>;
+  if (h.deal_id) return <Link className="small" to={`/diligence/${h.deal_id}`}>{v.dealStage(h.deal_stage ?? "diligence")}</Link>;
   const start = async () => {
     try {
       const r = await api<{ id: string }>("/deals", { body: { companyId: h.entity_id } });

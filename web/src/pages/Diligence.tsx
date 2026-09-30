@@ -4,10 +4,12 @@ import { api, useApi } from "../api";
 import { useSession } from "../app";
 import type { CompanyRow, DealListRow, DealStage } from "../types";
 import { ErrorState, Field, Loading, Notice, PageHead, Seg, Time, useToast } from "../ui";
+import { useVocab } from "../vocab";
 
-export const STAGE_LABELS: Record<DealStage, string> = {
-  screening: "Screening", diligence: "In diligence", ic: "At IC", approved: "Approved", closing: "Closing", passed: "Passed", closed: "Closed",
-};
+/** A deal stage's name, from the vocabulary. */
+export function StageName({ stage }: { stage: string }) {
+  return <>{useVocab().dealStage(stage)}</>;
+}
 export const STAGE_TONE: Record<DealStage, string> = { screening: "quiet", diligence: "info", ic: "warn", approved: "good", closing: "info", passed: "quiet", closed: "good" };
 
 /** The deals the firm is looking at, most advanced first, with how far diligence has got. */
@@ -46,7 +48,7 @@ export default function Diligence() {
                     <Link to={`/diligence/${d.id}`} onClick={(e) => e.stopPropagation()}><strong>{d.company_name}</strong></Link>
                     {d.domain && <div className="small muted mono">{d.domain}</div>}
                   </td>
-                  <td><span className={`pill ${STAGE_TONE[d.stage]}`}>{STAGE_LABELS[d.stage]}</span></td>
+                  <td><span className={`pill ${STAGE_TONE[d.stage]}`}><StageName stage={d.stage} /></span></td>
                   <td style={{ minWidth: 150 }}>
                     <Progress done={d.readiness.complete} total={d.readiness.total} label={`${d.company_name} checklist`} />
                     <div className="small muted">{d.readiness.ready ? "Ready for IC" : `${d.readiness.requiredOpen} required open`}</div>

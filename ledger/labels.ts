@@ -234,6 +234,11 @@ export const ACTION_LABELS: Record<string, string> = {
   "exit.qsbs": "reviewed QSBS", "compliance.screening": "screened the deal",
 };
 
+/** Where a deal stands (deals.stage). */
+export const DEAL_STAGE_LABELS: Record<string, string> = {
+  screening: "Screening", diligence: "In diligence", ic: "At IC", approved: "Approved", closing: "Closing", passed: "Passed", closed: "Invested",
+};
+
 /** The kinds of decision the firm records (decisions.kind). */
 export const DECISION_LABELS: Record<string, string> = {
   pass: "Passed", advance: "Sent to IC", ic_vote_pre: "IC vote before discussion", ic_vote_post: "IC vote after discussion", invest: "Invested",
@@ -289,6 +294,7 @@ export function vocabulary(sourceNames: Record<string, string> = {}) {
     passReasons: PASS_REASON_LABELS,
     actions: ACTION_LABELS,
     decisions: DECISION_LABELS,
+    dealStages: DEAL_STAGE_LABELS,
   };
 }
 

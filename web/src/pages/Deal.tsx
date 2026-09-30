@@ -2,7 +2,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useApi } from "../api";
 import type { DealView } from "../types";
 import { ErrorState, FitBadge, Loading, PageHead, Tabs, tabPanelProps } from "../ui";
-import { STAGE_LABELS, STAGE_TONE } from "./Diligence";
+import { StageName, STAGE_TONE } from "./Diligence";
 import Overview from "./deal/Overview";
 import Checklist from "./deal/Checklist";
 import Questions from "./deal/Questions";
@@ -47,7 +47,7 @@ export default function Deal() {
         lead={data.claims.find((c) => c.predicate === "company.description")?.display}
         actions={
           <div className="row">
-            <span className={`pill ${STAGE_TONE[d.stage]}`}>{STAGE_LABELS[d.stage]}</span>
+            <span className={`pill ${STAGE_TONE[d.stage]}`}><StageName stage={d.stage} /></span>
             {data.fit && <FitBadge score={data.fit.fit_score} verdict={data.fit.fit_verdict} />}
             {["ic", "approved", "closing", "closed"].includes(d.stage) && <Link className="btn small primary" to={`/execution/${d.id}`}>Open in Execution</Link>}
             <Link className="btn small" to={`/companies/${data.company.id}`}>All facts</Link>

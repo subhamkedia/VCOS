@@ -2,7 +2,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useApi } from "../api";
 import type { ExecutionView } from "../types";
 import { ErrorState, Loading, PageHead, Tabs, tabPanelProps } from "../ui";
-import { STAGE_LABELS, STAGE_TONE } from "./Diligence";
+import { StageName, STAGE_TONE } from "./Diligence";
 import Committee from "./exec/Committee";
 import Terms from "./exec/Terms";
 import CapModel from "./exec/CapModel";
@@ -46,7 +46,7 @@ export default function ExecutionDeal() {
         lead={`Approval rule: ${data.icRule}.`}
         actions={
           <div className="row">
-            <span className={`pill ${STAGE_TONE[d.stage]}`}>{STAGE_LABELS[d.stage]}</span>
+            <span className={`pill ${STAGE_TONE[d.stage]}`}><StageName stage={d.stage} /></span>
             <Link className="btn small" to={`/diligence/${d.id}`}>Diligence and memo</Link>
             <Link className="btn small ghost" to={`/companies/${d.company_id}`}>All facts</Link>
           </div>
