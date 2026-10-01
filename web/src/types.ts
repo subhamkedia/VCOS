@@ -154,7 +154,9 @@ export interface Meeting {
 export type DealStage = "screening" | "diligence" | "ic" | "approved" | "closing" | "passed" | "closed";
 export type ItemStatus = "open" | "in_progress" | "done" | "na" | "red_flag";
 export type Workstream = "team" | "market" | "product" | "traction" | "economics" | "financing" | "legal" | "fit";
-export interface DealFlags { hardware?: boolean; regulated?: boolean; sensitive_tech?: boolean }
+export interface DealFlags { hardware?: boolean; regulated?: boolean; sensitive_tech?: boolean; follow_on?: FollowOnInfo }
+/** A deal Portfolio opened for a follow-on check. */
+export interface FollowOnInfo { round: string; roundDate: string; amountUsd: number; fundName: string }
 
 export interface Deal {
   id: string; company_id: string; company_name: string; stage: DealStage; lead: string | null; team: string[]; our_check_usd: number | null;
@@ -583,6 +585,8 @@ export interface ComplianceOverview {
   restricted: CoRestricted[]; restrictedSuggestions: { companyId: string; name: string; reason: string }[];
   reviewer: boolean; person: string;
   reports: CoReport[]; preclearances: CoPreclearance[]; contributions: CoContribution[]; gifts: CoGift[];
+  /** Pensions and sovereign funds in the register and the pipeline: possible government entities. */
+  governmentInvestors: { name: string; kind: string; where: string[] }[];
   conflicts: CoConflict[];
   attestations: { year: number; policies: string[]; done: { person: string; policy: string; attested_on: string }[]; missing: { person: string; policy: string }[] };
   marketingReviews: { id: string; subject_kind: string; title: string; reviewer: string; created_at: string }[];

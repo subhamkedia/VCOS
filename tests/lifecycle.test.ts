@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { scopedDb } from "../lib/db.js";
 import { testFirm, testRoot } from "./helpers.js";
-import { subscriptionByToken } from "../ledger/platform.js";
+import { lpPortalByToken, subscriptionByToken } from "../ledger/platform.js";
 import { currentClaims } from "../ledger/repository.js";
 import { saveProfile, starterProfile } from "../modules/firm/profile.js";
 import { decide, startDeal } from "../modules/diligence/index.js";
@@ -106,6 +106,31 @@ describe("a fund's life, module to module", () => {
     await P.reviewMark(db, mark.id, { approve: true }, PAT);
     expect((await L.fundView(db, fund.id, "2026-07-01")).schedule[0]).toMatchObject({ fairValue: 4.5e6, status: "held" });
 
+    // Portfolio → Execution: a follow-on is decided in Portfolio and closes in Execution behind the same controls.
+    const fo = await P.decideFollowOn(db, companyId, { decision: "invest", roundName: "Series A-2 Preferred", roundDate: "2026-07-20", amountUsd: 1e6, preMoneyUsd: 30e6, roundSizeUsd: 5e6, fundName: "Northbeam Fund I", rationale: "Production contracts doubled; taking our pro rata at a fair step-up." }, PAT);
+    expect(fo.investmentId).toBeNull();
+    const fv0 = await X.executionView(db, fo.dealId!, PAT);
+    expect(fv0.deal).toMatchObject({ stage: "approved", our_check_usd: 1e6 });
+    expect(fv0.termSheets[0]!.terms).toMatchObject({ seriesName: "Series A-2 Preferred", preMoneyUsd: 30e6, raiseUsd: 5e6, ourAllocationUsd: 1e6 });
+    const { call: call2 } = await L.draftCall(db, fund.id, { noticeDate: "2026-07-01", dueDate: "2026-07-14", investmentsUsd: 1e6, purpose: "Kestrel Robotics Series A-2" }, ANA);
+    await L.approveCall(db, call2.id, LEE);
+    await X.setTermStatus(db, fo.dealId!, 1, "signed", ANA);
+    await X.startClosing(db, fo.dealId!, PAT);
+    for (const i of (await X.executionView(db, fo.dealId!, PAT)).closing.items.filter((x) => x.required && !["wire_callback", "wire_approvals", "funds_sent", "wire_instructions"].includes(x.key))) {
+      if (!["signed", "done"].includes(i.status)) await X.updateItem(db, fo.dealId!, i.key, { status: "done" }, ANA);
+    }
+    const w2 = await X.recordWireInstructions(db, fo.dealId!, { amountUsd: 1e6, beneficiary: "Kestrel Robotics, Inc.", bankName: "First Bank", accountLast4: "6789" }, ANA);
+    await X.verifyWire(db, w2.id, { numberSource: "CEO's mobile from the first meeting", confirmed: true }, ANA);
+    await X.approveWire(db, w2.id, PAT);
+    await X.approveWire(db, w2.id, LEE);
+    await X.markWireSent(db, w2.id, { bankReference: "REF2" }, PAT);
+    await expect(X.closeDeal(db, fo.dealId!, { closeDate: "2026-07-20" }, PAT)).rejects.toThrow(/regulatory screening/);
+    await C.screenDeal(db, fo.dealId!, { outbound: { countryOfConcern: false, sector: "none" }, exportControl: "none" }, ANA);
+    expect(await X.closeDeal(db, fo.dealId!, { closeDate: "2026-07-20" }, PAT)).toMatchObject({ fund_name: "Northbeam Fund I", amount_usd: 1e6, round_kind: "follow_on" });
+    // New money after the mark is held at cost beside the marked shares, in both modules.
+    expect((await P.overview(db, "2026-07-31")).companies[0]).toMatchObject({ invested: 4e6, fairValue: 5.5e6 });
+    expect((await L.fundView(db, fund.id, "2026-07-31")).schedule[0]).toMatchObject({ cost: 4e6, fairValue: 5.5e6 });
+
     // Exits: the sale records cash and an escrow; both modules see the same split.
     const x = await P.startExit(db, companyId, { kind: "acquisition", counterparty: "Acme Industrial" }, ANA);
     await P.consentToExit(db, x.id, { choice: "approve", rationale: "Three times cost, above our mark, after a full process with two bidders." }, PAT);
@@ -122,7 +147,7 @@ describe("a fund's life, module to module", () => {
     expect((await P.liquidityOverview(db)).undistributed).toEqual([]);
     const fv = await L.fundView(db, fund.id);
     expect(fv.summary.distributed).toBeCloseTo(8.1e6 - fv.gpCarry.paid, 0);
-    expect(fv.performance.net.dpi).toBeGreaterThan(2);
+    expect(fv.performance.net.dpi).toBeGreaterThan(1.5);
 
     // LP Reporting: the quarter's report carries the sale; the letter cites the books.
     const r = await L.prepareReport(db, fund.id, { period: "2026-Q3" }, ANA);
@@ -130,9 +155,24 @@ describe("a fund's life, module to module", () => {
     expect(JSON.stringify(rep.snapshot)).toContain("Kestrel Robotics");
     const facts = rep.letter.sections.flatMap((x) => x.sentences).filter((x) => x.kind === "fact");
     expect(facts.every((x) => x.cites.length > 0)).toBe(true);
-    expect(facts.map((x) => x.text).join(" ")).toMatch(/Kestrel Robotics: exited; \$3M invested returned \$8\.1M, with \$900K still to come/);
+    expect(facts.map((x) => x.text).join(" ")).toMatch(/Kestrel Robotics: exited; \$4M invested returned \$8\.1M, with \$900K still to come/);
+
+    // LP Reporting → the investor and Fundraising: once a second person approves the report, the
+    // investor sees it with its own statement, and the next raise's DDQ quotes it, net beside gross.
+    await L.approveReport(db, r.id, LEE);
+    const harbor = (await L.fundView(db, fund.id)).investors.find((i) => i.name === "Harbor Pension Plan")!;
+    const link = await L.createLpPortalLink(db, harbor.id, PAT, "https://app.example");
+    const lpRef = (await lpPortalByToken(root, link.url.split("/investor/")[1]!))!;
+    const portal = await L.lpPortalView(scopedDb(root, lpRef.firmId), lpRef);
+    expect(portal.reports.map((x) => x.period)).toEqual(["2026-Q3"]);
+    expect(portal.distributions.map((x) => x.net)).toEqual([fv.summary.distributed]);
+    await F.draftFromRecords(db, PAT);
+    const perf = (await F.ddqView(db)).flatMap((s) => s.questions).find((q) => q.key === "track.performance")!;
+    expect(perf.answer?.answer).toMatch(/^Northbeam Fund I, as of September 30, 2026: net IRR .*; gross IRR .*Gross returns are before/);
 
     // Compliance kept its records along the way: the screening, and the Form D once filed.
-    expect((await C.overview(db, { person: PAT, team: [], reviewer: true })).screenings.map((s) => s.company_name)).toEqual(["Kestrel Robotics"]);
+    // LP Reporting's register tells Compliance whom pay-to-play may cover.
+    expect(await C.governmentInvestors(db)).toEqual([{ name: "Harbor Pension Plan", kind: "pension", where: ["Northbeam Fund I"] }]);
+    expect((await C.overview(db, { person: PAT, team: [], reviewer: true })).screenings.map((s) => s.company_name)).toEqual(["Kestrel Robotics", "Kestrel Robotics"]);
   });
 });

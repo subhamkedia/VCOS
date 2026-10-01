@@ -40,9 +40,9 @@ export default function Execution() {
               <tbody>
                 {active.map((d) => (
                   <tr key={d.id} className="click" onClick={() => nav(`/execution/${d.id}`)}>
-                    <td><Link to={`/execution/${d.id}`} onClick={(e) => e.stopPropagation()}><strong>{d.company_name}</strong></Link></td>
+                    <td><Link to={`/execution/${d.id}`} onClick={(e) => e.stopPropagation()}><strong>{d.company_name}</strong></Link>{d.flags.follow_on && <div className="small muted">Follow-on: {d.flags.follow_on.round}</div>}</td>
                     <td><span className={`pill ${STAGE_TONE[d.stage]}`}><StageName stage={d.stage} /></span></td>
-                    <td className="small">{d.ic ? (d.ic.outcome ? <span className={`pill ${d.ic.outcome === "approved" ? "good" : "bad"}`}>{d.ic.outcome === "approved" ? "Approved" : "Declined"}</span> : PHASE_LABELS[d.ic.phase]) : <span className="muted">Not scheduled</span>}</td>
+                    <td className="small">{d.ic ? (d.ic.outcome ? <span className={`pill ${d.ic.outcome === "approved" ? "good" : "bad"}`}>{d.ic.outcome === "approved" ? "Approved" : "Declined"}</span> : PHASE_LABELS[d.ic.phase]) : d.flags.follow_on && d.stage !== "ic" ? <span className="muted">Decided in Portfolio</span> : <span className="muted">Not scheduled</span>}</td>
                     <td className="small">{d.termSheet ? `v${d.termSheet.version} · ${vocab.term("execution", "termStatus", d.termSheet.status)}` : <span className="muted">—</span>}</td>
                     <td style={{ minWidth: 150 }}>
                       {d.closing ? (

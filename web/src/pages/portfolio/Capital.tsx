@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useSession } from "../../app";
 import { Field, MoneyInput, Notice, NumberInput, Seg, Select, dateOnly, useConfirm, useToast, usd } from "../../ui";
@@ -74,15 +75,15 @@ export default function Capital({ data, onChange }: PfTabProps) {
   );
 }
 
-function useSubmit(path: string, onChange: () => void, done: string) {
+function useSubmit<R = unknown>(path: string, onChange: () => void, done: string | ((r: R) => string)) {
   const toast = useToast();
   const [err, setErr] = useState<string | null>(null);
-  const run = async (body: object, reset: () => void) => {
+  const run = async (body: object, reset: (r: R) => void) => {
     setErr(null);
     try {
-      await api(path, { body });
-      toast("good", done);
-      reset();
+      const r = await api<R>(path, { body });
+      toast("good", typeof done === "string" ? done : done(r));
+      reset(r);
       onChange();
     } catch (e) {
       setErr((e as Error).message);
@@ -140,10 +141,14 @@ function FollowOnForm({ data, onChange }: PfTabProps) {
   const [date, setDate] = useState("");
   const [why, setWhy] = useState("");
   const [fund, setFund] = useState<string | undefined>(data.investments[0]?.fund_name);
-  const { err, run } = useSubmit(`/portfolio/companies/${data.company.id}/follow-on`, onChange, "Decision recorded.");
+  const [closed, setClosed] = useState(false);
+  const [toIc, setToIc] = useState(false);
+  const nav = useNavigate();
+  const { err, run } = useSubmit<{ dealId: string | null }>(`/portfolio/companies/${data.company.id}/follow-on`, onChange,
+    (r) => (r.dealId ? (toIc ? "Decision recorded. The follow-on is with IC in Investment Execution." : "Decision recorded. Close the follow-on in Investment Execution.") : "Decision recorded."));
   const m = (k: string, label: string) => <Field label={label}><MoneyInput id={`fo-${k}`} value={f[k]} onChange={(v) => setF({ ...f, [k]: v })} /></Field>;
   return (
-    <form className="section" style={{ gap: 8, borderTop: "1px solid var(--line)", paddingTop: 12 }} onSubmit={(e) => { e.preventDefault(); void run({ decision, roundName: round, roundDate: date, rationale: why, fundName: fund, ...f }, () => { setF({}); setRound(""); setWhy(""); }); }}>
+    <form className="section" style={{ gap: 8, borderTop: "1px solid var(--line)", paddingTop: 12 }} onSubmit={(e) => { e.preventDefault(); void run({ decision, roundName: round, roundDate: date, rationale: why, fundName: fund, alreadyClosed: closed, toIc, ...f }, (r) => { setF({}); setRound(""); setWhy(""); if (r.dealId) nav(`/execution/${r.dealId}`); }); }}>
       <h3>Record a follow-on decision</h3>
       <Seg label="Decision" value={decision} onChange={setDecision} options={[{ id: "invest", label: "Invest pro rata or more" }, { id: "partial", label: "Invest less" }, { id: "pass", label: "Pass" }]} />
       <div className="form-grid">
@@ -158,8 +163,15 @@ function FollowOnForm({ data, onChange }: PfTabProps) {
         {decision !== "pass" && <Field label="Ownership after" hint="Fully diluted"><NumberInput id="fo-own" value={f.ownershipPct} onChange={(v) => setF({ ...f, ownershipPct: v })} suffix="%" /></Field>}
       </div>
       <Field label="Why" required hint="Re-underwrite it like a new investment: conviction versus the price."><textarea className="input" required minLength={10} value={why} onChange={(e) => setWhy(e.target.value)} /></Field>
+      {decision !== "pass" && (
+        <div className="section" style={{ gap: 6 }}>
+          <label className="check-row"><input type="checkbox" checked={closed} onChange={(e) => setClosed(e.target.checked)} /><span className="small">The round already closed: just record our check (for history)</span></label>
+          {!closed && <label className="check-row"><input type="checkbox" checked={toIc} onChange={(e) => setToIc(e.target.checked)} /><span className="small">Send it to IC before closing</span></label>}
+          {!closed && <p className="small muted" style={{ margin: 0 }}>The check closes in Investment Execution: terms, the closing checklist, Compliance's screening and the wire, approved by two people.</p>}
+        </div>
+      )}
       {err && <Notice tone="bad">{err}</Notice>}
-      <div className="row"><button className="btn primary">Record decision</button></div>
+      <div className="row"><button className="btn primary">{decision === "pass" || closed ? "Record decision" : "Record and open the closing"}</button></div>
     </form>
   );
 }

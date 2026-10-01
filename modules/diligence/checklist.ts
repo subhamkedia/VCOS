@@ -44,7 +44,7 @@ export const NOTE_KINDS: { id: NoteKind; label: string; help: string }[] = [
   { id: "note", label: "Other note", help: "Anything else worth keeping." },
 ];
 
-export type Flag = keyof DealFlags;
+export type Flag = Exclude<keyof DealFlags, "follow_on">;
 
 export const FLAG_LABELS: Record<Flag, { label: string; help: string }> = {
   hardware: { label: "Hardware or physical product", help: "Adds manufacturing, bill of materials, pilots and readiness levels." },

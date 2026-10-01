@@ -1,6 +1,8 @@
 import type { Db } from "../../lib/db.js";
 import { recordDecision } from "../../ledger/repository.js";
 import { insertInvestment } from "../../ledger/execution.js";
+import { insertDeal, openDealFor, updateDeal, type FollowOn } from "../../ledger/diligence.js";
+import { saveTermSheet } from "../execution/index.js";
 import {
   getInitiative, insertBoardMeeting, insertInitiative, insertRealization, removeContact, updateInitiative, upsertContact,
   type BoardMeetingRow, type InitiativeRow, type RealizationRow,
@@ -71,22 +73,39 @@ export async function decideFollowOn(db: Db, companyId: string, input: Record<st
     entityId: companyId, kind: "follow_on", actor: by, rationale,
     value: { decision, round, roundDate: input.roundDate, amountUsd: amount ?? 0, proRataUsd: proRata, preMoneyUsd: preMoney },
   });
+  if (decision === "pass") return { decisionId: id, investmentId: null, dealId: null };
+  const first = h.investments[0]!;
+  const fund = text(input.fundName, 1, 200) ?? first.fund_name;
+  if (input.alreadyClosed !== true) {
+    // A new check is money out: it closes in Execution like any investment, behind the closing
+    // checklist, Compliance's screening and the two-person wire controls. The partner's decision
+    // stands in for IC unless they send it there.
+    if (await openDealFor(db, companyId)) throw new PortfolioInvalid(`${h.name} already has an open deal; finish it in Investment Execution first.`);
+    const followOn: FollowOn = { decisionId: id, round, roundDate: input.roundDate as string, amountUsd: amount!, fundName: fund, followOnOf: first.id, preMoneyUsd: preMoney, proRataUsd: proRata };
+    const dealId = await insertDeal(db, { companyId, lead: by, flags: { follow_on: followOn }, createdBy: by, stage: input.toIc === true ? "ic" : "approved" });
+    await updateDeal(db, dealId, { ourCheckUsd: amount! }, by);
+    const roundSize = money(input.roundSizeUsd);
+    if (preMoney && roundSize) {
+      // A draft of the round's terms to start from; the team confirms them in Execution.
+      await saveTermSheet(db, dealId, { terms: { security: "preferred", seriesName: round, preMoneyUsd: preMoney, raiseUsd: roundSize, ourAllocationUsd: amount }, note: "From the follow-on decision" }, by).catch(() => undefined);
+    }
+    return { decisionId: id, investmentId: null, dealId };
+  }
   let investmentId: string | null = null;
-  if (decision !== "pass") {
-    const first = h.investments[0]!;
+  {
     const shares = money(input.shares);
     const price = money(input.pricePerShare);
     const roundSize = money(input.roundSizeUsd);
     const postMoney = preMoney !== null && roundSize !== null ? preMoney + roundSize : null;
     const inv = await insertInvestment(db, {
       // The fund investing: the one asked for (a later fund can follow on), else the first investment's.
-      dealId: h.dealId, companyId, fundName: text(input.fundName, 1, 200) ?? first.fund_name, security: String(input.security ?? "preferred"), seriesName: round, closeDate: input.roundDate as string,
+      dealId: h.dealId, companyId, fundName: fund, security: String(input.security ?? "preferred"), seriesName: round, closeDate: input.roundDate as string,
       amountUsd: amount!, shares, pricePerShare: price, postMoneyUsd: postMoney,
       ownershipFdPct: money(input.ownershipPct), boardRole: first.board_role, rights: { followOnOf: first.id }, roundKind: "follow_on",
     }, by);
     investmentId = inv.id;
   }
-  return { decisionId: id, investmentId };
+  return { decisionId: id, investmentId, dealId: null };
 }
 
 export async function recordRealization(db: Db, companyId: string, input: Record<string, unknown>, by: string): Promise<RealizationRow> {

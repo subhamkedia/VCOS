@@ -47,7 +47,7 @@ export default function Diligence() {
               {data.map((d) => (
                 <tr key={d.id} className="click" onClick={() => nav(`/diligence/${d.id}`)}>
                   <td>
-                    <Link to={`/diligence/${d.id}`} onClick={(e) => e.stopPropagation()}><strong>{d.company_name}</strong></Link>
+                    <Link to={`/diligence/${d.id}`} onClick={(e) => e.stopPropagation()}><strong>{d.company_name}</strong></Link>{d.flags.follow_on && <> <span className="pill quiet">Follow-on</span></>}
                     {d.domain && <div className="small muted mono">{d.domain}</div>}
                   </td>
                   <td><span className={`pill ${STAGE_TONE[d.stage]}`}><StageName stage={d.stage} /></span></td>

@@ -29,6 +29,13 @@ function Contributions({ data, onChange }: CoTabProps) {
       <p className="small muted" style={{ margin: 0 }}>
         Pre-clear every contribution to a state or local candidate or official. Up to $350 per election where you can vote, $150 where you can't; above that, a contribution to someone who can influence a public pension's choice of adviser bars the firm from being paid by it for two years. The SEC proposed rescinding the rule in September 2026; it applies until it's rescinded.
       </p>
+      {data.governmentInvestors.length > 0 ? (
+        <details>
+          <summary className="small">{data.governmentInvestors.length} {data.governmentInvestors.length === 1 ? "investor or prospect" : "investors and prospects"} may be government entities</summary>
+          <p className="small muted" style={{ margin: "6px 0" }}>Pensions and sovereign funds from LP Reporting and the fundraising pipeline. A public plan is covered; a corporate plan isn't.</p>
+          <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{data.governmentInvestors.map((g) => <li key={g.name}><strong>{g.name}</strong> <span className="muted">· {g.where.join(", ")}</span></li>)}</ul>
+        </details>
+      ) : <p className="small muted" style={{ margin: 0 }}>No pensions or sovereign funds in your register or pipeline.</p>}
       {last && <Notice tone={/two years|Don't/.test(last) ? "bad" : /Within/.test(last) ? "good" : "warn"}>{last}</Notice>}
       {data.contributions.length > 0 && (
         <ul className="timeline small">

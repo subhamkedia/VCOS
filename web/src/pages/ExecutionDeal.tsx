@@ -1,7 +1,7 @@
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useApi } from "../api";
 import type { ExecutionView } from "../types";
-import { ErrorState, Loading, PageHead, Tabs, tabPanelProps } from "../ui";
+import { ErrorState, Loading, PageHead, Tabs, tabPanelProps, usd } from "../ui";
 import { StageName, STAGE_TONE } from "./Diligence";
 import Committee from "./exec/Committee";
 import Terms from "./exec/Terms";
@@ -43,7 +43,9 @@ export default function ExecutionDeal() {
       <PageHead
         eyebrow={<Link to="/execution">Investment Execution</Link>}
         title={d.company_name}
-        lead={`Approval rule: ${data.icRule}.`}
+        lead={data.deal.flags.follow_on && data.deal.stage !== "ic" && !data.meetings.length
+          ? `Follow-on in the ${data.deal.flags.follow_on.round}, decided in Portfolio: ${usd(data.deal.flags.follow_on.amountUsd)} from ${data.deal.flags.follow_on.fundName}.`
+          : `Approval rule: ${data.icRule}.`}
         actions={
           <div className="row">
             <span className={`pill ${STAGE_TONE[d.stage]}`}><StageName stage={d.stage} /></span>

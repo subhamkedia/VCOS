@@ -18,6 +18,20 @@ export interface DealFlags {
   hardware?: boolean;
   regulated?: boolean;
   sensitive_tech?: boolean;
+  /** Set on a deal Portfolio opened for a follow-on: what the partner decided. */
+  follow_on?: FollowOn;
+}
+
+export interface FollowOn {
+  decisionId: string;
+  round: string;
+  roundDate: string;
+  amountUsd: number;
+  fundName: string;
+  /** The investment this follows on. */
+  followOnOf: string;
+  preMoneyUsd: number | null;
+  proRataUsd: number | null;
 }
 
 export interface DealRow {

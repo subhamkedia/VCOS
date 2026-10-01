@@ -225,7 +225,7 @@ describe("judgment and value", () => {
     await P.rateHealth(db, companyId, { rating: "watch", rationale: "Runway tight until the Series A closes." }, PAT);
     await P.planReserve(db, companyId, { amountUsd: 3e6, rationale: "Pro rata in a Series A next year, if pilots convert." }, PAT);
     await expect(P.decideFollowOn(db, companyId, { decision: "invest", roundName: "Series A Preferred", roundDate: "2026-06-30", rationale: "Pilots converted." }, PAT)).rejects.toThrow(/amount/);
-    const f = await P.decideFollowOn(db, companyId, { decision: "invest", roundName: "Series A Preferred", roundDate: "2026-06-30", amountUsd: 1_500_000, preMoneyUsd: 40e6, roundSizeUsd: 10e6, rationale: "Pilots converted; taking our full pro rata." }, PAT);
+    const f = await P.decideFollowOn(db, companyId, { decision: "invest", roundName: "Series A Preferred", roundDate: "2026-06-30", amountUsd: 1_500_000, preMoneyUsd: 40e6, roundSizeUsd: 10e6, rationale: "Pilots converted; taking our full pro rata.", alreadyClosed: true }, PAT);
     expect((await listInvestments(db, { companyId })).map((i) => i.round_kind).sort()).toEqual(["follow_on", "initial"]);
     expect(f.investmentId).toBeTruthy();
     await P.decideFollowOn(db, companyId, { decision: "pass", roundName: "Series A extension", roundDate: "2026-09-30", rationale: "Price too high for our conviction; LPs offered an SPV." }, PAT);

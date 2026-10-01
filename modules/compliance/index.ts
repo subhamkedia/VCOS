@@ -6,8 +6,8 @@ import {
 } from "../../ledger/compliance.js";
 import { listInvestments } from "../../ledger/execution.js";
 import { getDeal } from "../../ledger/diligence.js";
-import { expenses, funds } from "../../ledger/lp.js";
-import { consents } from "../../ledger/fundraising.js";
+import { expenses, funds, partners } from "../../ledger/lp.js";
+import { consents, prospects, raises } from "../../ledger/fundraising.js";
 import { currentClaims, getEntity } from "../../ledger/repository.js";
 import { COMPLIANCE_LABELS } from "../../ledger/labels.js";
 import { cfius, MARKETING_CHECKLIST, obligations, outbound, payToPlay, type CfiusAnswers, type Facts, type OutboundAnswers } from "../../engines/compliance.js";
@@ -373,6 +373,27 @@ export async function attest(db: Db, person: string, input: { policy?: unknown; 
  * Personal trading, contributions and gifts are private: a reviewer (a
  * partner acting as CCO) sees everyone's; anyone else sees only their own.
  */
+/**
+ * Investors and prospects that may be government entities (Rule 206(4)-5
+ * covers state and local plans, public universities and their officials'
+ * influence over them): pensions and sovereign funds in LP Reporting's
+ * register and Fundraising's pipeline. A corporate pension isn't one, so
+ * this is a list to check, not a finding.
+ */
+export async function governmentInvestors(db: Db) {
+  const kinds = new Set(["pension", "sovereign"]);
+  const out = new Map<string, { name: string; kind: string; where: string[] }>();
+  const add = (name: string, kind: string, where: string) => {
+    const k = name.trim().toLowerCase();
+    const e = out.get(k) ?? { name, kind, where: [] };
+    if (!e.where.includes(where)) e.where.push(where);
+    out.set(k, e);
+  };
+  for (const f of await funds(db)) for (const p of await partners(db, f.id)) if (kinds.has(p.kind)) add(p.name, p.kind, f.name);
+  for (const r of await raises(db)) for (const p of await prospects(db, r.id)) if (kinds.has(p.kind) && p.stage !== "declined") add(p.name, p.kind, `${r.name} pipeline`);
+  return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export async function overview(db: Db, ctx: { person: string; team: string[]; reviewer: boolean }) {
   const p = await profile(db);
   const year = Number(today().slice(0, 4));
@@ -396,6 +417,7 @@ export async function overview(db: Db, ctx: { person: string; team: string[]; re
     reports: await reports(db, mine),
     preclearances: await requests(db, "preclearances", mine),
     contributions: await requests(db, "political_contributions", mine),
+    governmentInvestors: await governmentInvestors(db),
     gifts: await requests(db, "gifts", mine),
     conflicts: await conflicts(db),
     attestations: { year, policies, done: att, missing: (ctx.reviewer ? ctx.team : [ctx.person]).flatMap((person) => policies.filter((pol) => !att.some((a) => a.person === person && a.policy === pol)).map((pol) => ({ person, policy: pol }))) },

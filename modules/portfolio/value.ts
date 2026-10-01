@@ -7,8 +7,10 @@ import { receivableValue } from "../../engines/exits.js";
 /**
  * What the firm holds in a company at a date, in three parts:
  * - private shares: the latest approved mark on or before the date (or
- *   cost), scaled down for shares sold since the mark, and nothing once the
- *   company is sold, listed or wound down;
+ *   cost), scaled down for shares sold since the mark, plus any check
+ *   written after the mark at cost (the round's price is the best evidence
+ *   of its value until the next mark), and nothing once the company is
+ *   sold, listed or wound down;
  * - what a sale left to collect: escrows, holdbacks and earnouts at their
  *   expected amounts, less what had been settled by the date;
  * - listed shares: shares still held at the closing price on or before the
@@ -93,8 +95,19 @@ export function holdingValue(h: HoldingLike, marks: ValuationRow[] | ValuationRo
   if (!inv.length) basis = "cost";
   else if (!exitDate) {
     if (mark) {
-      const atMark = shares === null ? null : shares - soldBy(mark.as_of);
-      privateUsd = atMark && left !== null ? mark.fair_value_usd * (left / atMark) : mark.fair_value_usd;
+      // The mark covers what was held on its date; checks written since are held at cost.
+      const before = inv.filter((i) => i.close_date <= mark.as_of);
+      const after = inv.filter((i) => i.close_date > mark.as_of);
+      const costAfter = after.reduce((a, i) => a + i.amount_usd, 0);
+      if (shares !== null) {
+        const atMark = before.reduce((a, i) => a + (i.shares ?? 0), 0) - soldBy(mark.as_of);
+        const soldSince = soldBy(asOf) - soldBy(mark.as_of);
+        const sharesAfter = after.reduce((a, i) => a + (i.shares ?? 0), 0);
+        // Sales come out of the marked shares first, then the newer ones.
+        const markedLeft = Math.max(0, atMark - soldSince);
+        const newerLeft = Math.max(0, sharesAfter - Math.max(0, soldSince - atMark));
+        privateUsd = (atMark > 0 ? mark.fair_value_usd * (markedLeft / atMark) : 0) + (sharesAfter > 0 ? costAfter * (newerLeft / sharesAfter) : costAfter);
+      } else privateUsd = mark.fair_value_usd + costAfter;
       basis = "mark";
     } else {
       privateUsd = shares && left !== null ? invested * (left / shares) : invested;

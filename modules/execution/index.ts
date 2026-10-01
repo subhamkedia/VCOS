@@ -581,13 +581,16 @@ export async function closeDeal(db: Db, dealId: string, input: unknown, by: stri
   const profile = (await getProfile(db))?.profile;
   const amount = m.ours?.amount ?? t.ourAllocationUsd;
   if (!amount) throw new ExecutionInvalid("Set our allocation on the signed term sheet.");
+  // A follow-on Portfolio decided closes from the fund the partner chose, linked to the first check.
+  const fo = d.flags.follow_on;
   const inv = await insertInvestment(db, {
-    dealId, companyId: d.company_id, fundName: p.data.fundName ?? fundName(profile) ?? "Fund", security: t.security, seriesName: t.seriesName, closeDate: p.data.closeDate,
+    dealId, companyId: d.company_id, fundName: p.data.fundName ?? fo?.fundName ?? fundName(profile) ?? "Fund", security: t.security, seriesName: t.seriesName, closeDate: p.data.closeDate,
     amountUsd: amount, shares: m.ours?.shares ?? null, pricePerShare: m.proForma?.pricePerShare ?? null, postMoneyUsd: m.proForma?.postMoneyImplied ?? (t.security !== "preferred" ? t.valuationCapUsd ?? null : null),
     ownershipFdPct: m.ours?.postPct ?? null, boardRole: p.data.boardRole ?? t.board.ours,
-    rights: { proRata: t.proRata, informationRights: t.informationRights, managementRightsLetter: t.managementRightsLetter, liquidation: t.liquidation, antiDilution: t.antiDilution, mfn: t.mfn },
+    rights: { proRata: t.proRata, informationRights: t.informationRights, managementRightsLetter: t.managementRightsLetter, liquidation: t.liquidation, antiDilution: t.antiDilution, mfn: t.mfn, ...(fo ? { followOnOf: fo.followOnOf } : {}) },
+    ...(fo ? { roundKind: "follow_on" as const } : {}),
   }, by);
-  await recordDecision(db, { entityId: d.company_id, kind: "invest", actor: by, value: { dealId, investmentId: inv.id, amountUsd: amount, closeDate: p.data.closeDate } });
+  await recordDecision(db, { entityId: d.company_id, kind: "invest", actor: by, value: { dealId, investmentId: inv.id, amountUsd: amount, closeDate: p.data.closeDate, ...(fo ? { followOnDecisionId: fo.decisionId } : {}) } });
   // Facts about the company: our fund is now an investor.
   const content = `Closing record: ${firmName(profile)} invested ${formatValue("raise.amount", amount)} in ${d.company_name}'s ${t.seriesName} on ${p.data.closeDate}.`;
   const { evidence } = await insertEvidence(db, { kind: "note", source: "closing", uri: `closing:${dealId}`, title: "Closing record", content, occurredAt: p.data.closeDate, accessScope: "confidential", metadata: { companyId: d.company_id, dealId } }, by);
