@@ -120,9 +120,10 @@ export function Seg<T extends string>({ options, value, onChange, label }: { opt
   );
 }
 
-export function Select<T extends string>({ id, value, options, onChange, placeholder }: { id: string; value: T | undefined; options: { id: T; label: string }[]; onChange: (v: T | undefined) => void; placeholder?: string }) {
+/** `label` names it for screen readers when there's no visible <Field> label. */
+export function Select<T extends string>({ id, value, options, onChange, placeholder, label }: { id: string; value: T | undefined; options: { id: T; label: string }[]; onChange: (v: T | undefined) => void; placeholder?: string; label?: string }) {
   return (
-    <select className="input" id={id} value={value ?? ""} onChange={(e) => onChange((e.target.value || undefined) as T | undefined)}>
+    <select className="input" id={id} aria-label={label} value={value ?? ""} onChange={(e) => onChange((e.target.value || undefined) as T | undefined)}>
       <option value="">{placeholder ?? "Choose…"}</option>
       {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
     </select>

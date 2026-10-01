@@ -515,7 +515,7 @@ Connections, and they're encrypted and used only for that firm.
 
 ```bash
 pnpm demo        # offline walk-through on fictional data, no keys needed
-pnpm test        # 339 tests on in-process Postgres, including one fund's whole life across modules
+pnpm test        # 343 tests on in-process Postgres, including one fund's whole life across modules
 pnpm eval:meetings   # meeting-to-company matcher: zero wrong automatic matches
 pnpm eval:memo       # IC memo citation check on labeled sentences
 ```

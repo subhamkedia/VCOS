@@ -167,7 +167,7 @@ function MeetingCard({ m, canTriage, onChange, onRead }: { m: Meeting; canTriage
             {m.match.newDomain && <button className="btn small" disabled={busy} onClick={() => setMode("new")}>New company at {m.match.newDomain}</button>}
             <button className="btn small" disabled={busy} onClick={() => setMode(mode === "choose" ? "none" : "choose")} aria-expanded={mode === "choose"}>Choose a company</button>
             <button className="btn small ghost" disabled={busy} onClick={() => void mark("internal", "Marked internal.")}>Internal</button>
-            <button className="btn small ghost danger" disabled={busy} onClick={() => void mark("ignored", "Ignored.")}>Ignore</button>
+            <button className="btn small ghost" disabled={busy} onClick={() => void mark("ignored", "Ignored.")}>Ignore</button>
           </div>
           {mode === "choose" && <ChooseCompany onPick={(c) => void assign({ companyId: c.id }, c.name)} onNew={() => setMode("new")} />}
           {mode === "new" && <NewCompany domain={m.match.newDomain} onCreate={(name, domain) => void assign({ newCompany: { name, domain } }, name)} onCancel={() => setMode("none")} />}

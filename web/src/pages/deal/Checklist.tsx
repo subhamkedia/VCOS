@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, useApi } from "../../api";
 import { useSession } from "../../app";
 import type { ChecklistItem, ItemStatus, Workstream } from "../../types";
-import { Field, Notice, Seg, actor, usePrompt, useToast } from "../../ui";
+import { Field, Notice, Seg, actor, useConfirm, usePrompt, useToast } from "../../ui";
 import { Progress } from "../Diligence";
 import type { TabProps } from "../Deal";
 
@@ -59,8 +59,22 @@ function Item({ item, dealId, onChange }: { item: ChecklistItem; dealId: string;
   const { can, me } = useSession();
   const toast = useToast();
   const prompt = usePrompt();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const s = STATE[item.state];
+  const remove = async () => {
+    if (!(await confirm({ title: `Remove "${item.title}"?`, body: "It comes off this deal's checklist. Anything recorded against it stays in the deal's history.", confirm: "Remove", danger: true }))) return;
+    setBusy(true);
+    try {
+      await api(`/deals/${dealId}/items/${encodeURIComponent(item.key)}`, { method: "DELETE" });
+      toast("good", "Removed from the checklist.");
+      onChange();
+    } catch (e) {
+      toast("bad", (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   const save = async (patch: Record<string, unknown>) => {
     setBusy(true);
     try {
@@ -102,7 +116,7 @@ function Item({ item, dealId, onChange }: { item: ChecklistItem; dealId: string;
           {item.assignee !== `human:${mine}`
             ? <button className="btn ghost small" disabled={busy} onClick={() => void save({ assignee: `human:${mine}` })}>Take it</button>
             : <button className="btn ghost small" disabled={busy} onClick={() => void save({ assignee: null })}>Unassign</button>}
-          {item.custom && <button className="btn ghost small danger" disabled={busy} onClick={() => void api(`/deals/${dealId}/items/${encodeURIComponent(item.key)}`, { method: "DELETE" }).then(onChange)}>Remove</button>}
+          {item.custom && <button className="btn ghost small danger" disabled={busy} onClick={() => void remove()}>Remove</button>}
         </div>
       )}
     </div>

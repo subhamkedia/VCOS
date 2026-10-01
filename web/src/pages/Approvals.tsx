@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, useApi } from "../api";
 import { useSession } from "../app";
 import type { OutboxItem } from "../types";
-import { ErrorState, Loading, Notice, PageHead, Seg, Time, actor, useToast } from "../ui";
+import { ErrorState, Loading, Notice, PageHead, Seg, Time, actor, useConfirm, useToast } from "../ui";
 import { useVocab } from "../vocab";
 
 const kb = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1000))} KB`);
@@ -34,8 +34,10 @@ export default function Approvals() {
   const [status, setStatus] = useState<"pending" | "done" | "rejected" | "failed">("pending");
   const { data, error, reload } = useApi<OutboxItem[]>(`/outbox?status=${status}`);
   const toast = useToast();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
   const decide = async (id: string, approve: boolean) => {
+    if (!approve && !(await confirm({ title: "Reject this?", body: "Nothing is created outside VC OS, and the item can't be approved later. The proposer can queue a new one.", confirm: "Reject", danger: true }))) return;
     setBusy(id);
     try {
       const r = await api<{ outcome?: { ok: boolean; detail: string } }>(`/outbox/${id}/${approve ? "approve" : "reject"}`, { body: {} });

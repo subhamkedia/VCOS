@@ -263,7 +263,7 @@ function Bank({ data, onChange }: LpTabProps) {
                   <td className="small">{longDate(t.posted_on)}</td>
                   <td className="small">{t.counterparty ?? "—"}<div className="muted">{t.memo}</div></td>
                   <td className="num">{usd(t.amount_usd)}</td>
-                  <td>{can("work_deals") && openItems.length ? <Select id={`m-${t.id}`} value={undefined} onChange={(v) => void match(t, v)} options={openItems} placeholder="Pick a call line" /> : <span className="small muted">Nothing open</span>}</td>
+                  <td>{can("work_deals") && openItems.length ? <Select id={`match-${t.id}`} label="Match this receipt to a capital call line" value={undefined} onChange={(v) => void match(t, v)} options={openItems} placeholder="Pick a call line" /> : <span className="small muted">Nothing open</span>}</td>
                 </tr>
               ))}
             </tbody>

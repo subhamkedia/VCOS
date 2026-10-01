@@ -213,7 +213,12 @@ for a new module: module pages show the tools they use (`ModuleSources`)
 and link to `/connections?module=<id>`, never to a setup of their own.
 
 Hand-offs between modules (a closing that admits investors to LP
-Reporting, a close that becomes a holding, a mark or a sale that both
-Portfolio and LP Reporting value, proceeds that become a distribution, a
-raise that dates Form D) are checked end to end in
-`tests/lifecycle.test.ts`. Change a hand-off and that test must still pass.
+Reporting, a close that becomes a holding, a follow-on Portfolio decides
+that closes in Execution behind the same screening and wire controls, a
+mark or a sale that both Portfolio and LP Reporting value, proceeds that
+become a distribution, an approved report the investor portal and the DDQ
+quote, a raise that dates Form D) are checked end to end in
+`tests/lifecycle.test.ts`, and Sourcing → Meetings → Diligence in
+`tests/handoffs.test.ts`. Change a hand-off and those tests must still pass.
+Money never leaves through a side door: any new check, follow-ons
+included, closes in Execution.

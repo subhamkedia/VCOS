@@ -128,7 +128,7 @@ function Process({ p, labels, onChange }: { p: CompanyExits["processes"][number]
         </ul>
       )}
       <div className="row">
-        {can("work_deals") && <Select id={`st-${p.id}`} value={undefined} placeholder="Move to…" onChange={(v) => v && void move(v)} options={[...stages.map((s) => ({ id: s, label: labels.stages[s]! })), { id: "abandoned", label: labels.stages.abandoned! }]} />}
+        {can("work_deals") && <Select id={`st-${p.id}`} label="Move this process to another stage" value={undefined} placeholder="Move to…" onChange={(v) => v && void move(v)} options={[...stages.map((s) => ({ id: s, label: labels.stages[s]! })), { id: "abandoned", label: labels.stages.abandoned! }]} />}
         {can("decide_deals") && p.needsConsent && <button className="btn small" onClick={() => void consent()}>Record the fund's decision</button>}
       </div>
       {can("work_deals") && (

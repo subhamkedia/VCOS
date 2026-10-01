@@ -142,7 +142,7 @@ function Shell() {
               <Icon name="meetings" /><span className="label">Meetings</span>{meetingCounts && meetingCounts.needs_review > 0 && <span className="count" aria-label={`${meetingCounts.needs_review} need you`}>{meetingCounts.needs_review}</span>}
             </NavLink>
             <NavLink to="/approvals">
-              <Icon name="approvals" /><span className="label">Approvals</span>{pending && pending.length > 0 && <span className="count" aria-label={`${pending.length} waiting`}>{pending.length}</span>}
+              <Icon name="approvals" /><span className="label">Approvals</span>{/* A count means "this needs you": only for people who can approve. */}{me.can.approve_outbox && pending && pending.length > 0 && <span className="count" aria-label={`${pending.length} waiting`}>{pending.length}</span>}
             </NavLink>
             <NavLink to="/compliance"><Icon name="compliance" /><span className="label">Compliance</span></NavLink>
             <NavLink to="/connections"><Icon name="connections" /><span className="label">Connections</span></NavLink>

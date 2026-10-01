@@ -198,6 +198,9 @@ run(async () => {
   const lee = await upsertUser(root, { email: `lee.partner@${email.split("@")[1]}`, name: "Lee Park (demo)" });
   await addMembership(root, firm.id, lee.id, "partner");
   const LEE = `human:${lee.email}`;
+  // An analyst (fictional), to see the app as the deal team sees it: no approvals, no decisions.
+  const ana = await upsertUser(root, { email: `ana.analyst@${email.split("@")[1]}`, name: "Ana Ruiz (demo)" });
+  await addMembership(root, firm.id, ana.id, "analyst");
   const priced = (over: object) => ({
     security: "preferred", seriesName: "Series A Preferred", preMoneyUsd: 48_000_000, raiseUsd: 12_000_000, ourAllocationUsd: 1_500_000, leadInvestor: "Ironbridge Ventures",
     poolTopUpPostPct: 10, noShopDays: 30, board: { size: 5, investorSeats: 2, commonSeats: 2, independentSeats: 1, ours: "observer" }, ...over,
@@ -465,6 +468,7 @@ run(async () => {
   console.log(`\nSeeded "${firm.name}" for ${user.email}.`);
   console.log(`Founder portal for Weldloop (as the founder sees it): ${portal.url}`);
   console.log(`Investor portal for ${lpIds[0]!.name} (as the LP sees it): ${investorLink.url}`);
+  console.log(`Also on the team: ${lee.email} (partner) and ${ana.email} (analyst); sign in as either to see the app by role.`);
   console.log("Start the app with `pnpm web` and sign in with that email; the sign-in link is printed in the server log.");
   await root.close();
 });
