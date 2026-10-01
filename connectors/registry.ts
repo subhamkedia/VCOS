@@ -122,6 +122,10 @@ export interface ConnectorInfo {
   writes?: string;
   /** Added by hand (uploads, one-off URLs) rather than synced. */
   manual?: boolean;
+  /** Where in the web app a person adds it, when that isn't Connections itself. `ingest` is the CLI. */
+  inApp?: string;
+  /** For a manual source, what each module gets from it. */
+  uploads?: Partial<Record<"diligence" | "meetings", string>>;
   sourcing?: SourcingSpec;
   research?: ResearchSpec;
   meetings?: MeetingsSpec;
@@ -304,6 +308,8 @@ export const CONNECTORS: ConnectorInfo[] = [
     id: "web", name: "Web pages", category: "public", scope: "public", manual: true,
     description: "Snapshot any public page (a press article, a company site) and extract cited claims.",
     auth: { kind: "none" }, ingest: "pnpm ingest web <url> --company <name>",
+    inApp: "Companies → a company → Add a source → Web page",
+    uploads: { diligence: "Press articles, filings and posts you save on a company" },
   },
 
   // --- CRM ----------------------------------------------------------------
@@ -403,6 +409,8 @@ export const CONNECTORS: ConnectorInfo[] = [
     description: "Upload a deck (PDF, text or Markdown). For DocSend, download the deck and add the link.",
     auth: { kind: "none" },
     ingest: "pnpm ingest document <file.pdf> --company <name> [--url <docsend link>]",
+    inApp: "Companies → a company → Add a source → Deck or document",
+    uploads: { diligence: "Decks and data-room documents, with their facts extracted and cited" },
     notes: "DocSend has no API for people viewing a shared link.",
   },
 
@@ -464,6 +472,8 @@ export const CONNECTORS: ConnectorInfo[] = [
     id: "transcripts", name: "Transcript uploads", category: "meetings", scope: "confidential", manual: true,
     description: "Upload transcripts exported from any tool, including Otter (.vtt, .txt, .md).",
     auth: { kind: "none" }, ingest: "pnpm ingest transcript <file> --company <name>",
+    inApp: "Companies → a company → Add a source → Call transcript",
+    uploads: { diligence: "Call transcripts from any tool", meetings: "Transcripts from tools VC OS doesn't sync" },
   },
 
   // --- Closing -----------------------------------------------------------------

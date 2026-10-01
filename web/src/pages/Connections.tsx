@@ -15,8 +15,8 @@ const CATEGORY_LABEL: Record<string, string> = {
 /** The modules a tool can serve, and what each needs from it. */
 export const MODULE_USES: { id: string; label: string; uses: (c: Connector) => string | undefined }[] = [
   { id: "sourcing", label: "Sourcing", uses: (c) => c.sourcing?.summary },
-  { id: "diligence", label: "Diligence", uses: (c) => c.research?.summary ?? (c.meetings ? "Call notes and transcripts for the company" : undefined) },
-  { id: "meetings", label: "Meetings", uses: (c) => c.meetings?.summary },
+  { id: "diligence", label: "Diligence", uses: (c) => c.research?.summary ?? c.uploads?.diligence ?? (c.meetings ? "Call notes and transcripts for the company" : undefined) },
+  { id: "meetings", label: "Meetings", uses: (c) => c.meetings?.summary ?? c.uploads?.meetings },
   { id: "execution", label: "Execution", uses: (c) => c.execution?.summary },
   { id: "portfolio", label: "Portfolio", uses: (c) => c.portfolio?.summary },
   { id: "lp", label: "LP Reporting", uses: (c) => c.lp?.summary },
@@ -152,7 +152,7 @@ export function ConnectorCard({ c, all = [], onChange, focus }: { c: Connector; 
           {MODULE_USES.filter((m) => m.uses(c)).map((m) => <span key={m.id} className="pill quiet">{m.label}</span>)}
         </div>
       )}
-      {c.where && <p className="small muted" style={{ margin: 0 }}>{c.manual ? "Add files at" : "Connected from"}: {c.where}</p>}
+      {c.where && <p className="small muted" style={{ margin: 0 }}>{c.manual ? "Add them at" : "Connected from"}: {c.where}</p>}
       <div className="row small muted">
         <span className="pill outline">{v.scope(c.scope)}</span>
         <span>{v.scopeHelp(c.scope)}</span>

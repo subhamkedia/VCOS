@@ -210,11 +210,11 @@ export function SourceViewer({ id, claimId, onClose }: { id: string; claimId?: s
   );
 }
 
-/** Upload a deck, data-room document or call transcript. Facts are extracted when Claude is configured on the server. */
+/** Add a deck, data-room document, call transcript or public web page. Facts are extracted when Claude is configured on the server. */
 export function UploadForm({ company, domain, onDone }: { company?: string; domain?: string; onDone: (entityId?: string) => void }) {
   const { can } = useSession();
   const toast = useToast();
-  const [kind, setKind] = useState<"document" | "transcript">("document");
+  const [kind, setKind] = useState<"document" | "transcript" | "web">("document");
   const [name, setName] = useState(company ?? "");
   const [dom, setDom] = useState(domain ?? "");
   const [url, setUrl] = useState("");
@@ -224,6 +224,23 @@ export function UploadForm({ company, domain, onDone }: { company?: string; doma
   if (!can("upload")) return <Notice>Your role can't add sources.</Notice>;
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const done = (r: { entityId: string | null; claims: number; extractionAvailable: boolean; duplicate: boolean }, what: string) => {
+      toast("good", r.duplicate ? `Already in the ledger: this exact ${what} was added before.`
+        : r.extractionAvailable ? `Added. ${r.claims} fact${r.claims === 1 ? "" : "s"} extracted.` : "Stored. Facts are extracted once Claude is configured on the server.");
+      onDone(r.entityId ?? undefined);
+    };
+    if (kind === "web") {
+      setBusy(true);
+      setErr(null);
+      try {
+        done(await api("/web-pages", { body: { url, company: name, domain: dom || undefined } }), "page");
+      } catch (x) {
+        setErr((x as Error).message);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (!file) return;
     if (file.size > 25 * 1024 * 1024) return setErr("Files up to 25 MB.");
     setBusy(true);
@@ -235,10 +252,7 @@ export function UploadForm({ company, domain, onDone }: { company?: string; doma
     if (dom) form.set("domain", dom);
     if (url) form.set("url", url);
     try {
-      const r = await api<{ entityId: string; claims: number; extractionAvailable: boolean; duplicate: boolean }>("/uploads", { form });
-      toast("good", r.duplicate ? "Already in the ledger: this exact file was added before."
-        : r.extractionAvailable ? `Added. ${r.claims} fact${r.claims === 1 ? "" : "s"} extracted.` : "Stored. Facts are extracted once Claude is configured on the server.");
-      onDone(r.entityId);
+      done(await api("/uploads", { form }), "file");
     } catch (x) {
       setErr((x as Error).message);
     } finally {
@@ -247,21 +261,27 @@ export function UploadForm({ company, domain, onDone }: { company?: string; doma
   };
   return (
     <form className="section" onSubmit={submit}>
-      <Seg label="Kind of source" options={[{ id: "document", label: "Deck or document" }, { id: "transcript", label: "Call transcript" }]} value={kind} onChange={setKind} />
+      <Seg label="Kind of source" options={[{ id: "document", label: "Deck or document" }, { id: "transcript", label: "Call transcript" }, { id: "web", label: "Web page" }]} value={kind} onChange={setKind} />
       <div className="grid-2">
         <Field label="Company" required><input className="input" id="upload-company" required value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Company website" hint="Helps match the right company."><input className="input" id="upload-domain" value={dom} placeholder="acme.com" onChange={(e) => setDom(e.target.value)} /></Field>
       </div>
-      <Field label="File" required hint={kind === "document" ? "PDF, .txt or .md, up to 25 MB. Export slides to PDF first." : ".vtt, .txt or .md from Zoom, Meet, Teams or Granola."}>
-        <input className="input" id="upload-file" type="file" accept={kind === "document" ? ".pdf,.txt,.md" : ".vtt,.txt,.md"} required onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-      </Field>
+      {kind === "web" ? (
+        <Field label="Page link" required hint="A public page about the company: a press article, a filing, a blog post. Kept as public evidence.">
+          <input className="input" id="upload-page" type="url" required value={url} placeholder="https://…" onChange={(e) => setUrl(e.target.value)} />
+        </Field>
+      ) : (
+        <Field label="File" required hint={kind === "document" ? "PDF, .txt or .md, up to 25 MB. Export slides to PDF first." : ".vtt, .txt or .md from Zoom, Meet, Teams or Granola."}>
+          <input className="input" id="upload-file" type="file" accept={kind === "document" ? ".pdf,.txt,.md" : ".vtt,.txt,.md"} required onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        </Field>
+      )}
       {kind === "document" && (
         <Field label="Link" hint="For a DocSend deck, paste the DocSend link: it's kept as the source.">
           <input className="input" id="upload-url" type="url" value={url} placeholder="https://docsend.com/view/…" onChange={(e) => setUrl(e.target.value)} />
         </Field>
       )}
       {err && <Notice tone="bad">{err}</Notice>}
-      <div className="row"><button className="btn primary" disabled={busy || !file} aria-busy={busy}>{busy ? "Reading…" : "Add to ledger"}</button></div>
+      <div className="row"><button className="btn primary" disabled={busy || (kind === "web" ? !url : !file)} aria-busy={busy}>{busy ? "Reading…" : "Add to ledger"}</button></div>
     </form>
   );
 }

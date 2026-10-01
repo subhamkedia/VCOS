@@ -39,6 +39,7 @@ export interface CatalogEntry {
   compliance?: { summary: string };
   /** For files and per-company tools: where in the app they come in. */
   where?: string;
+  uploads?: Partial<Record<"diligence" | "meetings", string>>;
   status: "available" | "connected" | "error" | "not_configured";
   accountLabel: string | null;
   connectedBy: string | null;
@@ -77,7 +78,9 @@ export async function catalog(db: Db): Promise<CatalogEntry[]> {
       lp: c.lp,
       fundraising: c.fundraising,
       compliance: c.compliance,
-      where: c.manual || c.portfolio?.perCompany ? c.ingest : undefined,
+      // Where a person adds it in the app; never a terminal command.
+      where: c.inApp ?? (c.manual || c.portfolio?.perCompany ? (c.ingest.startsWith("pnpm ") ? undefined : c.ingest) : undefined),
+      uploads: c.uploads,
       status, accountLabel: r?.account_label ?? null, connectedBy: r?.connected_by ?? null, connectedAt: r?.connected_at ?? null,
       lastCheckedAt: r?.last_checked_at ?? null, lastError: r?.last_error ?? null,
     };

@@ -5,6 +5,7 @@ import { config, requireKey, setting, withCredentials } from "../lib/config.js";
 import { decrypt, encrypt, setSecretKeyForTests } from "../lib/secrets.js";
 import { testFirm } from "./helpers.js";
 import { createFirm } from "../ledger/platform.js";
+import { saveWebPage } from "../modules/companies/index.js";
 import { catalog, connectWithKeys, connectWithOAuth, disconnect, enable, isReady, withFirmCredentials } from "../modules/connections/index.js";
 import { accessToken, clearTokenCache, authorizeUrl, pkcePair } from "../connectors/oauth.js";
 
@@ -57,6 +58,20 @@ describe("connections", () => {
     expect(all.find((c) => c.id === "quickbooks")?.where).toMatch(/portal/);
     // Every module that talks to the outside names at least one tool.
     for (const k of ["sourcing", "research", "meetings", "execution", "portfolio", "lp", "fundraising", "compliance"] as const) expect(all.some((c) => c[k]), k).toBe(true);
+    // A person is pointed to a place in the app, never a terminal command, and every manual source says which module uses it.
+    expect(all.filter((c) => c.where?.startsWith("pnpm ")).map((c) => c.id)).toEqual([]);
+    expect(all.filter((c) => c.manual && !c.where).map((c) => c.id)).toEqual([]);
+    expect(all.filter((c) => c.manual && !c.uploads && !c.portfolio && !c.lp && !c.fundraising).map((c) => c.id)).toEqual([]);
+    expect(all.find((c) => c.id === "web")).toMatchObject({ where: expect.stringMatching(/Add a source/), uploads: { diligence: expect.any(String) } });
+  });
+
+  it("saves a web page from the app only from a public address", async () => {
+    await expect(saveWebPage(a, { url: "http://127.0.0.1:8787/api/me", company: "Kestrel Robotics" })).rejects.toThrow(/public internet/);
+    await expect(saveWebPage(a, { url: "https://intranet.example/x", company: "Kestrel Robotics" }, undefined, { resolve: async () => ["10.0.0.5"] })).rejects.toThrow(/public internet/);
+    await expect(saveWebPage(a, { url: "ftp://x.example", company: "Kestrel Robotics" })).rejects.toThrow(/https/);
+    const fetchImpl = async () => new Response("<html><title>Kestrel raises</title><body><p>Kestrel Robotics raised a $9 million Series A to scale rebar-tying robots across bridge decks.</p></body></html>", { status: 200 });
+    const r = await saveWebPage(a, { url: "https://buildweekly.example/kestrel", company: "Kestrel Robotics" }, undefined, { fetchImpl, resolve: async () => ["93.184.215.14"] });
+    expect(r.entityId).toBeTruthy();
   });
 
   it("stores API keys encrypted and never returns them", async () => {

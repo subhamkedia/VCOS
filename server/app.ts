@@ -60,7 +60,7 @@ export function createApp(deps: AppDeps) {
   app.onError((err, c) => {
     if (err instanceof ProfileInvalid) return c.json({ error: err.message, errors: err.errors }, 422);
     if (err instanceof auth.Forbidden) return c.json({ error: err.message }, 403);
-    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid || err instanceof execution.ExecutionInvalid || err instanceof portfolio.PortfolioInvalid || err instanceof lp.LpInvalid || err instanceof fundraising.FundraisingInvalid || err instanceof compliance.ComplianceInvalid || err instanceof compliance.ComplianceBlocked) {
+    if (err instanceof sourcing.FeedInvalid || err instanceof diligence.DiligenceInvalid || err instanceof meetings.MeetingInvalid || err instanceof execution.ExecutionInvalid || err instanceof portfolio.PortfolioInvalid || err instanceof lp.LpInvalid || err instanceof fundraising.FundraisingInvalid || err instanceof compliance.ComplianceInvalid || err instanceof compliance.ComplianceBlocked || err instanceof companies.CompanyInvalid) {
       return c.json({ error: err.message }, /^No such/.test(err.message) ? 404 : 400);
     }
     const msg = err.message || "Something went wrong.";
@@ -388,6 +388,11 @@ export function createApp(deps: AppDeps) {
       company, companyDomain: String(body.domain ?? "").trim() || undefined, url: String(body.url ?? "").trim() || undefined,
       date: String(body.date ?? "").trim() || undefined, kind: body.kind === "transcript" ? "transcript" : "document",
     }, llm);
+    return c.json({ ...r, extractionAvailable: Boolean(llm) }, 201);
+  });
+  firm.post("/web-pages", allow("upload"), async (c) => {
+    const b = await c.req.json<{ url?: string; company?: string; domain?: string }>();
+    const r = await companies.saveWebPage(c.get("db"), { url: String(b.url ?? ""), company: String(b.company ?? ""), companyDomain: String(b.domain ?? "").trim() || undefined }, llm);
     return c.json({ ...r, extractionAvailable: Boolean(llm) }, 201);
   });
   firm.get("/merges", async (c) => c.json(await companies.mergeProposals(c.get("db"))));

@@ -10,6 +10,9 @@ import { formatValue, predicateLabel, sourceTypeLabel } from "../../ledger/label
 import { ingest } from "../../connectors/ingest.js";
 import { documentFromBytes } from "../../connectors/documents.js";
 import { transcriptRecord } from "../../connectors/transcripts.js";
+import { fetchWebPage } from "../../connectors/web.js";
+import { problemText, type Resolver } from "../../connectors/http.js";
+import type { FetchLike } from "../../connectors/types.js";
 
 /**
  * The Companies screen: the firm's ledger, one company at a time. Shared by
@@ -81,6 +84,33 @@ export async function upload(
     contradictions: r.contradictions,
   };
 }
+
+/**
+ * Save a public web page (an article, a filing, a blog post) as evidence on
+ * a company, and extract its claims when Claude is configured. Public
+ * addresses only; the page is public-scope evidence.
+ */
+export async function saveWebPage(db: Db, input: { url: string; company: string; companyDomain?: string }, llm?: Llm, deps: { fetchImpl?: FetchLike; resolve?: Resolver } = {}) {
+  const url = input.url.trim();
+  if (!/^https?:\/\//i.test(url)) throw new CompanyInvalid("Paste the page's full link, starting with https://.");
+  if (!input.company.trim()) throw new CompanyInvalid("Say which company the page is about.");
+  let rec;
+  try {
+    rec = await fetchWebPage(url, { company: input.company.trim(), companyDomain: input.companyDomain, ...deps });
+  } catch (err) {
+    throw new CompanyInvalid(problemText(err, "The page"));
+  }
+  const r = await ingest(db, rec, { llm });
+  return {
+    entityId: r.subject?.entity.id ?? null,
+    duplicate: r.duplicate,
+    claims: r.structuredClaims + (r.extraction?.claimIds.length ?? 0),
+    extracted: Boolean(r.extraction),
+    contradictions: r.contradictions,
+  };
+}
+
+export class CompanyInvalid extends Error {}
 
 export const mergeProposals = pendingProposals;
 export const decideMerge = decideProposal;

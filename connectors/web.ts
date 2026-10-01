@@ -1,4 +1,5 @@
 import { normalizeDomain } from "../lib/text.js";
+import { fetchPublic, type Resolver } from "./http.js";
 import type { FetchLike, SourceRecord } from "./types.js";
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", mdash: "—", ndash: "–", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“" };
@@ -32,13 +33,13 @@ export function htmlToText(html: string): { title: string | null; text: string }
  */
 export async function fetchWebPage(
   url: string,
-  opts: { company?: string; companyDomain?: string; fetchImpl?: FetchLike } = {},
+  opts: { company?: string; companyDomain?: string; fetchImpl?: FetchLike; resolve?: Resolver } = {},
 ): Promise<SourceRecord> {
-  const res = await (opts.fetchImpl ?? fetch)(url, {
+  // Public addresses only, checked again at every redirect: a person types this URL into the app.
+  const res = await fetchPublic("The page", url, {
     headers: { "User-Agent": "VC-OS research bot (contact in SEC_USER_AGENT)", Accept: "text/html,*/*" },
-    redirect: "follow",
+    fetchImpl: opts.fetchImpl, resolve: opts.resolve,
   });
-  if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
   const html = await res.text();
   const { title, text } = htmlToText(html);
   if (text.length < 40) throw new Error(`Page at ${url} has almost no text (is it rendered by JavaScript?)`);

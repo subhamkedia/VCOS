@@ -110,7 +110,7 @@ describe("web and transcripts", () => {
 
   it("never takes the company's domain from a third-party page URL", async () => {
     const { impl } = fakeFetch({ "https://buildweekly.example/": { body: await fx("press.html") } });
-    const rec = await fetchWebPage("https://buildweekly.example/kestrel", { company: "Kestrel Robotics", fetchImpl: impl });
+    const rec = await fetchWebPage("https://buildweekly.example/kestrel", { company: "Kestrel Robotics", fetchImpl: impl, resolve: async () => ["93.184.215.14"] });
     expect(rec.subject?.domain).toBeUndefined();
     expect(rec.evidence.accessScope).toBe("public");
   });

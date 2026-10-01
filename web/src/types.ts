@@ -81,6 +81,7 @@ export interface Connector {
   fundraising?: { summary: string };
   compliance?: { summary: string };
   where?: string;
+  uploads?: { diligence?: string; meetings?: string };
   status: "available" | "connected" | "error" | "not_configured";
   accountLabel: string | null; connectedBy: string | null; connectedAt: string | null; lastCheckedAt: string | null; lastError: string | null;
 }
