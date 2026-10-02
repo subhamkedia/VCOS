@@ -100,6 +100,12 @@ export function findConflicts(claims: ClaimRow[]): Conflict[] {
 
 function withinWindow(def: PredicateDef, a: ClaimRow, b: ClaimRow): boolean {
   if (!def.timeVarying) return true;
+  // A series, not a disagreement: one document reporting several dates (a monthly KPI export),
+  // or one kind of source reporting in different months, is change over time.
+  if (a.as_of && b.as_of && a.as_of !== b.as_of) {
+    if (a.evidence_id === b.evidence_id) return false;
+    if (a.source_type === b.source_type && a.as_of.slice(0, 7) !== b.as_of.slice(0, 7)) return false;
+  }
   const d = daysApart(a.as_of, b.as_of);
   return d === null || d <= (def.windowDays ?? COMPARISON_WINDOW_DAYS);
 }

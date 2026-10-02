@@ -1,7 +1,7 @@
 import type { Db } from "../../lib/db.js";
 import type { Llm } from "../../lib/llm.js";
 import {
-  claimsForEvidence, companyProfile, currentClaims, getEvidence, pendingProposals, decideProposal, SHAREABLE_SCOPES,
+  claimsForEvidence, companyProfile, currentClaims, getEvidence, openContradictions, pendingProposals, decideProposal, SHAREABLE_SCOPES,
 } from "../../ledger/repository.js";
 import { latestHits, listCompanies, type HitRow } from "../../ledger/workspace.js";
 import { getProfile } from "../firm/profile.js";
@@ -19,7 +19,12 @@ import type { FetchLike } from "../../connectors/types.js";
  * the web app and (via ledger read models) the CLI.
  */
 
-export const list = (db: Db, search?: string) => listCompanies(db, { search });
+/** The firm's companies. Open contradictions are re-checked for the ones that have any, so the count matches the company page. */
+export async function list(db: Db, search?: string) {
+  const rows = await listCompanies(db, { search });
+  for (const r of rows) if (r.open_contradictions) r.open_contradictions = (await openContradictions(db, r.id)).length;
+  return rows;
+}
 
 /** Everything known about a company. `shareable` re-queries with public scope only (filtered in SQL). */
 export async function profile(db: Db, id: string, opts: { shareable?: boolean } = {}) {

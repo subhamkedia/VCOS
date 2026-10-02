@@ -70,7 +70,7 @@ function ConflictCard({ x, claims, dealId, onChange, onRead }: {
       {a && b ? (
         <div className="vs">
           {[a, b].map((c, i) => (
-            <div key={c.id} className="side" style={i === 1 ? { gridColumn: 3 } : undefined}>
+            <div key={c.id} className={i === 1 ? "side right" : "side"}>
               <strong>{c.display}</strong>
               <span className="small"><span className="pill outline" title={v.sourceTypeHelp(c.source_type)}>{v.sourceType(c.source_type)}</span> {c.evidence.title ?? v.source(c.evidence.source)}</span>
               <span className="small muted">As of {dateOnly(c.as_of ?? c.evidence.occurred_at)}</span>

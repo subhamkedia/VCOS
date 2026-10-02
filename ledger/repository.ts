@@ -364,7 +364,10 @@ export async function openContradictions(db: Db, subjectId: string, opts: { scop
      order by case x.severity when 'high' then 0 when 'medium' then 1 else 2 end, x.detected_at`,
     params,
   );
-  return rows;
+  // Still a contradiction under today's claims and rules: one a correction superseded, or a
+  // monthly series an older rule misread, isn't shown as open.
+  const live = new Set(findConflicts(await currentClaims(db, subjectId)).map((c) => [...c.claimIds].sort().join(":")));
+  return rows.filter((r) => live.has([...r.claim_ids].sort().join(":")));
 }
 
 // ---------------------------------------------------------------------------

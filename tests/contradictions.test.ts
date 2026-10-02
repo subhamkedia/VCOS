@@ -20,6 +20,16 @@ describe("contradiction rules", () => {
     ])).toHaveLength(0);
   });
 
+  it("reads a monthly series as change over time, not a contradiction", () => {
+    const series = (id: string, v: number, asOf: string, evidence = "e-kpis"): ClaimRow => ({ ...claim(id, "fleet.units_deployed", v, "self_reported", asOf), evidence_id: evidence });
+    // One KPI export, month after month.
+    expect(findConflicts([series("a", 14, "2025-11-30"), series("b", 17, "2025-12-31"), series("c", 20, "2026-01-31")])).toHaveLength(0);
+    // Separate monthly reports from the same kind of source.
+    expect(findConflicts([series("a", 14, "2025-11-30", "e1"), series("b", 17, "2025-12-31", "e2")])).toHaveLength(0);
+    // Two kinds of source disagreeing about the same month still is one.
+    expect(findConflicts([series("a", 14, "2025-11-30", "e1"), { ...claim("b", "fleet.units_deployed", 30, "third_party", "2025-11-20"), evidence_id: "e2" }])).toHaveLength(1);
+  });
+
   it("flags different enum values", () => {
     const out = findConflicts([
       claim("a", "funding.round.stage", "seed", "self_reported", "2026-06-01"),

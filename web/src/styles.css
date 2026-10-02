@@ -335,6 +335,8 @@ details[open] > summary { margin-bottom: 12px; }
 .vs .side { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; background: var(--panel); }
 .vs .side strong { font-size: 19px; font-family: var(--display); letter-spacing: -0.02em; }
 .vs .mid { align-self: center; color: var(--muted); font-size: 12px; font-weight: 600; }
+.vs .side.right { grid-column: 3; }
+.vs .side, .vs .quote { min-width: 0; overflow-wrap: anywhere; }
 .memo { max-width: 72ch; display: flex; flex-direction: column; gap: 16px; }
 .memo h2 { font-size: 19px; margin-top: 8px; }
 .memo p { margin: 0; line-height: 1.7; font-size: 16px; letter-spacing: -0.012em; }
@@ -434,6 +436,7 @@ input[type="search"].input { border-radius: 999px; padding-left: 36px;
   .item { grid-template-columns: minmax(0, 1fr); padding: 14px 16px; }
   .item .actions { justify-content: flex-start; }
   .vs { grid-template-columns: minmax(0, 1fr); }
+  .vs .side.right { grid-column: auto; }
   .vs .mid { justify-self: center; }
   .timeline li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .memo-grid { grid-template-columns: minmax(0, 1fr); }

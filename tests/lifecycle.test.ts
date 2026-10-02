@@ -27,6 +27,30 @@ const TERMS = {
   board: { size: 5, investorSeats: 2, commonSeats: 2, independentSeats: 1, ours: "seat" }, noShopDays: 30,
 };
 
+/**
+ * The books balance: NAV is the investors' capital accounts plus the GP's
+ * accrued carry, each
+ * account rolls forward, and LP Reporting's schedule of investments agrees
+ * with Portfolio's numbers for the same fund and date.
+ */
+async function booksBalance(db: Parameters<typeof L.fundView>[0], fundId: string, asOf?: string) {
+  const f = await L.fundView(db, fundId, asOf);
+  const st = f.statements;
+  const near = (a: number, b: number, what: string) => expect(Math.abs(a - b), `${what}: ${a} vs ${b}`).toBeLessThan(0.05);
+  // The GP's accrued carry sits in its own account: investors' capital plus it is the fund's NAV.
+  near(st.statements.reduce((a, x) => a + x.inception.ending, 0) + Math.max(0, st.gpCarry.accrued), f.summary.nav, "capital accounts + GP carry vs NAV");
+  for (const x of [...st.statements, { name: "total", inception: st.total.inception }]) {
+    const t = x.inception;
+    near(t.beginning + t.contributions - t.distributions - t.managementFees - t.expenses + t.closeInterest + t.realizedGain + t.unrealizedGain - t.carriedInterest, t.ending, `${x.name} rollforward`);
+  }
+  near(f.schedule.reduce((a, r) => a + r.fairValue, 0), f.performance.gross.unrealized, "schedule vs gross unrealized");
+  const pf = await P.overview(db, asOf, f.fund.name);
+  near(pf.metrics.invested, f.performance.gross.invested, "Portfolio vs LP invested");
+  near(pf.metrics.realized, f.performance.gross.realized, "Portfolio vs LP realized");
+  near(pf.metrics.unrealized, f.performance.gross.unrealized, "Portfolio vs LP unrealized");
+  return f;
+}
+
 describe("a fund's life, module to module", () => {
   it("raises the fund, calls capital, invests, values, sells, distributes and reports, with every figure agreeing", async () => {
     const { root, db } = await testFirm("Northbeam");
@@ -130,6 +154,7 @@ describe("a fund's life, module to module", () => {
     // New money after the mark is held at cost beside the marked shares, in both modules.
     expect((await P.overview(db, "2026-07-31")).companies[0]).toMatchObject({ invested: 4e6, fairValue: 5.5e6 });
     expect((await L.fundView(db, fund.id, "2026-07-31")).schedule[0]).toMatchObject({ cost: 4e6, fairValue: 5.5e6 });
+    await booksBalance(db, fund.id, "2026-07-31");
 
     // Exits: the sale records cash and an escrow; both modules see the same split.
     const x = await P.startExit(db, companyId, { kind: "acquisition", counterparty: "Acme Industrial" }, ANA);
@@ -138,6 +163,7 @@ describe("a fund's life, module to module", () => {
     expect((await currentClaims(db, companyId, { predicates: ["company.status"] })).pop()?.value).toBe("acquired");
     expect((await P.overview(db)).companies[0]).toMatchObject({ realized: 8.1e6, fairValue: 0.9e6, status: "exited" });
     expect((await L.fundView(db, fund.id)).schedule[0]).toMatchObject({ realized: 8.1e6, fairValue: 0.9e6, status: "exited" });
+    await booksBalance(db, fund.id);
 
     // Portfolio → LP Reporting: the proceeds become a distribution a second person approves; the investor's account shows it.
     expect((await P.liquidityOverview(db)).undistributed).toEqual([{ companyId, name: "Kestrel Robotics", receivedUsd: 8.1e6, distributedUsd: 0 }]);
@@ -145,7 +171,7 @@ describe("a fund's life, module to module", () => {
     await L.approveDistribution(db, d.distributionId, LEE);
     await L.markDistributionPaid(db, d.distributionId, LEE);
     expect((await P.liquidityOverview(db)).undistributed).toEqual([]);
-    const fv = await L.fundView(db, fund.id);
+    const fv = await booksBalance(db, fund.id);
     expect(fv.summary.distributed).toBeCloseTo(8.1e6 - fv.gpCarry.paid, 0);
     expect(fv.performance.net.dpi).toBeGreaterThan(1.5);
 

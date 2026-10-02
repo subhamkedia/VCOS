@@ -83,7 +83,8 @@ export async function deals(db: Db, opts: { stages?: DealStage[] } = {}) {
   const out = [];
   for (const d of rows) {
     const e = await evaluate(db, d.id);
-    out.push({ ...d, readiness: { ready: e.readiness.ready, complete: e.readiness.complete, total: e.readiness.total, requiredOpen: e.readiness.requiredOpen.length } });
+    // Counted from the re-checked list, so the column agrees with the deal's Conflicts tab.
+    out.push({ ...d, open_contradictions: e.contradictions.length, readiness: { ready: e.readiness.ready, complete: e.readiness.complete, total: e.readiness.total, requiredOpen: e.readiness.requiredOpen.length } });
   }
   return out;
 }
